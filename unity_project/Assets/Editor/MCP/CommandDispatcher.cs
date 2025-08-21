@@ -22,7 +22,8 @@ public static class CommandDispatcher
         if (jobQueue.TryDequeue(out CommandJob job))
         {
             // Ejecutar el código a través del CSharpRunner
-            CommandResult result = CSharpRunner.Execute(job.CommandToExecute);
+            CommandResult result = CSharpRunner.Execute(job.CommandToExecute, job.AdditionalReferences);
+
 
             // Serializar el resultado a JSON para devolverlo
             string jsonResult = JsonUtility.ToJson(result);

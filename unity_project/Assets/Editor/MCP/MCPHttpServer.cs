@@ -69,6 +69,7 @@ public static class MCPHttpServer
             var job = new CommandJob
             {
                 CommandToExecute = commandData.command,
+                AdditionalReferences = commandData.additional_references,
                 Tcs = new TaskCompletionSource<string>()
             };
 

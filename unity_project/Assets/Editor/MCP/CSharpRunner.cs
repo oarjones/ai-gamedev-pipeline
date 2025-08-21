@@ -2,6 +2,7 @@ using Microsoft.CSharp;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -10,7 +11,10 @@ using UnityEngine;
 
 public static class CSharpRunner
 {
-    public static CommandResult Execute(string code)
+    // Caché estática para no buscar los ensamblados en cada llamada
+    private static Dictionary<string, string> _assemblyCache;
+
+    public static CommandResult Execute(string code, List<string> additionalReferences)
     {
         if (code == "TAKE_SCREENSHOT")
         {
@@ -18,34 +22,30 @@ public static class CSharpRunner
         }
 
         var result = new CommandResult();
-        var stringBuilder = new StringBuilder();
-        var logHandler = new LogHandler(stringBuilder);
+        var logHandler = new LogHandler();
 
         try
         {
-            Application.logMessageReceived += logHandler.HandleLog;
+            Application.logMessageReceivedThreaded += logHandler.HandleLog;
 
-            var assembly = CompileWithFallback(code, result); // Lógica de compilación mejorada
+            var (assembly, compilationErrors) = Compile(code, additionalReferences);
             if (assembly != null)
             {
-                // Punto 2: Reflexión endurecida con null-checks
                 var type = assembly.GetType("DynamicExecutor");
-                if (type == null)
-                {
-                    throw new InvalidOperationException("No se pudo encontrar el tipo 'DynamicExecutor' en el ensamblado compilado.");
-                }
+                if (type == null) throw new InvalidOperationException("No se pudo encontrar el tipo 'DynamicExecutor'.");
 
                 var method = type.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
-                if (method == null)
-                {
-                    throw new InvalidOperationException("No se pudo encontrar el método estático 'Run' en el tipo 'DynamicExecutor'.");
-                }
-                
+                if (method == null) throw new InvalidOperationException("No se pudo encontrar el método estático 'Run'.");
+
                 object returnValue = method.Invoke(null, null);
 
                 result.Success = true;
-                // Punto 2: Serialización del ReturnValue mejorada
                 result.ReturnValue = SerializeReturnValue(returnValue);
+            }
+            else
+            {
+                result.Success = false;
+                result.ErrorMessage = compilationErrors;
             }
         }
         catch (Exception e)
@@ -55,51 +55,24 @@ public static class CSharpRunner
         }
         finally
         {
-            Application.logMessageReceived -= logHandler.HandleLog;
-            result.ConsoleOutput = stringBuilder.ToString();
+            Application.logMessageReceivedThreaded -= logHandler.HandleLog;
+            result.ConsoleOutput = logHandler.GetLogs();
         }
 
         return result;
     }
 
-    private static Assembly CompileWithFallback(string code, CommandResult result)
-    {
-        // Punto 3: Intento 1 - Compilar con una lista reducida y esencial de ensamblados
-        var essentialAssemblies = GetEssentialAssemblies();
-        var (assembly, compilationErrors) = Compile(code, essentialAssemblies);
-
-        if (assembly != null)
-        {
-            return assembly; // Éxito en el primer intento
-        }
-
-        // Si el primer intento falla, podría ser por una referencia faltante.
-        // Intento 2 - Compilar con todos los ensamblados como fallback.
-        Debug.LogWarning("[CSharpRunner] La compilación rápida falló, reintentando con todos los ensamblados...");
-        var allAssemblies = GetAllAssemblies();
-        var (fallbackAssembly, fallbackErrors) = Compile(code, allAssemblies);
-
-        if(fallbackAssembly != null)
-        {
-            return fallbackAssembly;
-        }
-
-        // Si ambos fallan, devolvemos el error del intento más completo.
-        result.Success = false;
-        result.ErrorMessage = fallbackErrors;
-        return null;
-    }
-
-    private static (Assembly, string) Compile(string code, IEnumerable<string> referencedAssemblies)
+    private static (Assembly, string) Compile(string code, List<string> additionalReferences)
     {
         var provider = new CSharpCodeProvider();
         var parameters = new CompilerParameters();
         
-        foreach (var assemblyPath in referencedAssemblies)
+        var references = GetAssemblyReferences(additionalReferences);
+        foreach (var assemblyPath in references)
         {
             parameters.ReferencedAssemblies.Add(assemblyPath);
         }
-        
+
         parameters.GenerateInMemory = true;
         parameters.GenerateExecutable = false;
 
@@ -111,24 +84,26 @@ public static class CSharpRunner
             var errors = new StringBuilder();
             foreach (CompilerError error in results.Errors)
             {
-                errors.AppendLine($"Line {error.Line}: {error.ErrorText}");
+                // Ajustamos el número de línea restando el offset de la plantilla de código
+                errors.AppendLine($"Line {error.Line - 16}: {error.ErrorText}");
             }
-            return (null, $"[Compilation Error]\n{errors.ToString()}");
+            return (null, $"[Compilation Error]\n{errors}");
         }
 
         return (results.CompiledAssembly, null);
     }
 
-    // Punto 1: Solución al bug de la plantilla return
     private static string BuildSourceTemplate(string code)
     {
-        // Esta plantilla ahora ejecuta siempre el código del usuario y devuelve null si no hay un return explícito.
+        // El offset de línea es de 16 líneas (incluyendo la línea en blanco de arriba)
         return $@"
             using UnityEngine;
             using UnityEditor;
             using System;
             using System.IO;
             using System.Linq;
+            using System.Reflection;
+            using System.Collections;
             using System.Collections.Generic;
 
             public static class DynamicExecutor
@@ -145,99 +120,88 @@ public static class CSharpRunner
     private static string SerializeReturnValue(object value)
     {
         if (value == null) return "null";
-
-        // Si es un objeto de Unity, devolvemos información clave en formato JSON.
         if (value is UnityEngine.Object unityObject)
         {
-            return JsonUtility.ToJson(new {
-                name = unityObject.name,
-                type = unityObject.GetType().FullName,
-                instanceID = unityObject.GetInstanceID()
-            });
+            return JsonUtility.ToJson(new { name = unityObject.name, type = unityObject.GetType().FullName, instanceID = unityObject.GetInstanceID() });
         }
-
-        // Para tipos primitivos o serializables, usamos su string.
         return value.ToString();
     }
 
     #region Assembly Management
 
-    private static IEnumerable<string> GetEssentialAssemblies()
+    private static void InitializeAssemblyCache()
     {
-        // Lista curada para un rendimiento óptimo
-        return new List<string>
-        {
-            "System.dll",
-            "System.Core.dll",
-            "System.Linq.dll",
-            GetAssemblyPathByName("UnityEngine.CoreModule"),
-            GetAssemblyPathByName("UnityEditor.CoreModule"),
-            // Añade aquí otros ensamblados que se usen frecuentemente
-        }.Where(p => !string.IsNullOrEmpty(p)).Distinct();
-    }
-
-    private static IEnumerable<string> GetAllAssemblies()
-    {
-        return AppDomain.CurrentDomain.GetAssemblies()
+        if (_assemblyCache != null) return;
+        Debug.Log("[CSharpRunner] Inicializando caché de ensamblados...");
+        _assemblyCache = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .Select(a => a.Location);
+            .ToDictionary(a => Path.GetFileName(a.Location), a => a.Location, StringComparer.OrdinalIgnoreCase);
+        Debug.Log($"[CSharpRunner] Cacheados {_assemblyCache.Count} ensamblados.");
     }
-
-    private static string GetAssemblyPathByName(string name)
+    
+    private static List<string> GetAssemblyReferences(List<string> additionalReferences)
     {
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == name)?.Location;
-    }
+        InitializeAssemblyCache();
 
+        var finalReferences = new HashSet<string>
+        {
+            // Siempre incluimos los ensamblados absolutamente esenciales
+            _assemblyCache["mscorlib.dll"],
+            _assemblyCache["System.dll"],
+            _assemblyCache["System.Core.dll"],
+            _assemblyCache["UnityEngine.dll"],
+            _assemblyCache["UnityEditor.dll"]
+        };
+
+        if (additionalReferences != null)
+        {
+            foreach (var reference in additionalReferences)
+            {
+                if (_assemblyCache.TryGetValue(reference, out var path))
+                {
+                    finalReferences.Add(path);
+                }
+                else
+                {
+                    Debug.LogWarning($"[CSharpRunner] Referencia de ensamblado no encontrada en la caché: {reference}");
+                }
+            }
+        }
+        
+        return finalReferences.ToList();
+    }
+    
     #endregion
 
     private static CommandResult TakeScreenshot()
     {
         try
         {
-            // Guardar la captura en un archivo temporal
-            string tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mcp_screenshot.png");
+            string tempPath = Path.Combine(Path.GetTempPath(), "mcp_screenshot.png");
             ScreenCapture.CaptureScreenshot(tempPath, 1);
+            System.Threading.Thread.Sleep(1000);
 
-            // Esperar un poco para asegurarse de que el archivo se ha escrito en disco
-            // (Esto es una medida de seguridad, puede no ser siempre necesario)
-            System.Threading.Thread.Sleep(100);
-
-            if (!System.IO.File.Exists(tempPath))
+            if (!File.Exists(tempPath))
             {
                 throw new Exception("La captura de pantalla no se pudo guardar en el disco.");
             }
 
-            // Leer los bytes del archivo, convertirlos a Base64 y luego borrar el archivo
-            byte[] bytes = System.IO.File.ReadAllBytes(tempPath);
+            byte[] bytes = File.ReadAllBytes(tempPath);
             string base64 = Convert.ToBase64String(bytes);
-            System.IO.File.Delete(tempPath);
+            File.Delete(tempPath);
 
-            return new CommandResult
-            {
-                Success = true,
-                ReturnValue = base64,
-                ConsoleOutput = "Screenshot taken successfully."
-            };
+            return new CommandResult { Success = true, ReturnValue = base64, ConsoleOutput = "Screenshot taken successfully." };
         }
         catch (Exception e)
         {
-            return new CommandResult
-            {
-                Success = false,
-                ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}"
-            };
+            return new CommandResult { Success = false, ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}" };
         }
     }
-
-    // Clase interna para capturar logs
+    
     private class LogHandler
     {
-        private readonly StringBuilder _stringBuilder;
-        public LogHandler(StringBuilder stringBuilder) { _stringBuilder = stringBuilder; }
-        public void HandleLog(string logString, string stackTrace, LogType type)
-        {
-            _stringBuilder.AppendLine($"[{type}] {logString}");
-        }
+        private readonly StringBuilder _stringBuilder = new StringBuilder();
+        public void HandleLog(string logString, string stackTrace, LogType type) { _stringBuilder.AppendLine($"[{type}] {logString}"); }
+        public string GetLogs() => _stringBuilder.ToString();
     }
 }

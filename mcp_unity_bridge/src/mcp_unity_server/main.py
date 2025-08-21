@@ -1,7 +1,7 @@
 import uuid
 import requests
 import json
-from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi import FastAPI, Request, Response
 from .models import UnityCommandRequest, UnityCommandResponse
 from .config import get_settings
 
@@ -31,22 +31,23 @@ async def run_unity_command(request: UnityCommandRequest):
     unity_url = f"{settings['unity_editor_url'].strip('/')}/execute/"
 
     try:
+        
+        # Ahora enviamos el objeto completo de la petición (incluyendo las referencias)
         response = requests.post(
             unity_url,
-            json={"command": request.command},
+            json=request.dict(), # Usamos .dict() para serializar el modelo Pydantic completo
             headers={"Content-Type": "application/json"},
             timeout=30
         )
         response.raise_for_status()
 
-        # --- CORRECCIÓN AQUÍ ---
-        # La respuesta de Unity es un string que contiene un JSON.
-        # response.json() lo decodifica a un string. Necesitamos parsear ese string.
-        command_result_data = json.loads(response.json())
+        # --- CORRECCIÓN ---
+        # response.json() ya decodifica el JSON a un diccionario de Python.
+        # No es necesario usar json.loads() de nuevo.
+        command_result_data = response.json()
         
         return UnityCommandResponse(
             success=command_result_data.get('Success', False),
-            # El campo en C# es 'ReturnValue', asegúrate de que coincida aquí.
             output=command_result_data.get('ReturnValue'), 
             error=command_result_data.get('ErrorMessage')
         )

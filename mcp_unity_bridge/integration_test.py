@@ -38,7 +38,7 @@ if __name__ == "__main__":
     run_command('new UnityEngine.GameObject("TestCubeFromAI");')
 
     # Test 2: Devolver información del editor
-    run_command("return UnityEditor.EditorApplication.unityVersion;")
+    run_command("return UnityEngine.Application.version;")
 
     # Test 3: Ejecutar un comando que provocará un error de compilación
     run_command('int x = "error";')

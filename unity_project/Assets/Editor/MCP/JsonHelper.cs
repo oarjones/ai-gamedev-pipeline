@@ -4,6 +4,7 @@ using UnityEngine;
 public class CommandRequestData
 {
     public string command;
+    public List<string> additional_references;
 }
 
 public static class JsonHelper
