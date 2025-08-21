@@ -195,10 +195,23 @@ public static class CSharpRunner
     {
         try
         {
-            var texture = ScreenCapture.CaptureScreenshotAsTexture();
-            byte[] bytes = ImageConversion.EncodeToJPG(texture, 75);
-            UnityEngine.Object.DestroyImmediate(texture); // Limpiar memoria
+            // Guardar la captura en un archivo temporal
+            string tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mcp_screenshot.png");
+            ScreenCapture.CaptureScreenshot(tempPath, 1);
+
+            // Esperar un poco para asegurarse de que el archivo se ha escrito en disco
+            // (Esto es una medida de seguridad, puede no ser siempre necesario)
+            System.Threading.Thread.Sleep(100);
+
+            if (!System.IO.File.Exists(tempPath))
+            {
+                throw new Exception("La captura de pantalla no se pudo guardar en el disco.");
+            }
+
+            // Leer los bytes del archivo, convertirlos a Base64 y luego borrar el archivo
+            byte[] bytes = System.IO.File.ReadAllBytes(tempPath);
             string base64 = Convert.ToBase64String(bytes);
+            System.IO.File.Delete(tempPath);
 
             return new CommandResult
             {
@@ -212,7 +225,7 @@ public static class CSharpRunner
             return new CommandResult
             {
                 Success = false,
-                ErrorMessage = $"[Screenshot Error] {e.Message}"
+                ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}"
             };
         }
     }

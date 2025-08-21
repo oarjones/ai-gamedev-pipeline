@@ -31,36 +31,32 @@ async def run_unity_command(request: UnityCommandRequest):
     unity_url = f"{settings['unity_editor_url'].strip('/')}/execute/"
 
     try:
-        # Enviar el comando al servidor de Unity
         response = requests.post(
             unity_url,
             json={"command": request.command},
             headers={"Content-Type": "application/json"},
-            timeout=30  # Timeout de 30 segundos
+            timeout=30
         )
-        response.raise_for_status()  # Lanza una excepción para códigos de error HTTP (4xx o 5xx)
+        response.raise_for_status()
 
-        # Unity devuelve un JSON string, lo deserializamos dos veces (una en requests, otra aquí)
-        # para obtener el objeto CommandResult.
-        unity_result = response.json()
+        # --- CORRECCIÓN AQUÍ ---
+        # La respuesta de Unity es un string que contiene un JSON.
+        # response.json() lo decodifica a un string. Necesitamos parsear ese string.
+        command_result_data = json.loads(response.json())
         
-        # El resultado de Unity ya viene serializado como un string JSON, lo parseamos
-        command_result_data = json.loads(unity_result)
-
         return UnityCommandResponse(
             success=command_result_data.get('Success', False),
-            output=command_result_data.get('ReturnValue'),
+            # El campo en C# es 'ReturnValue', asegúrate de que coincida aquí.
+            output=command_result_data.get('ReturnValue'), 
             error=command_result_data.get('ErrorMessage')
         )
 
     except requests.exceptions.RequestException as e:
-        # Error de red (Unity no está abierto, timeout, etc.)
         return UnityCommandResponse(
             success=False,
             error=f"Error de comunicación con el editor de Unity: {str(e)}"
         )
     except json.JSONDecodeError as e:
-        # La respuesta de Unity no fue un JSON válido
         return UnityCommandResponse(
             success=False,
             error=f"Error al decodificar la respuesta de Unity: {str(e)}. Respuesta recibida: {response.text}"
