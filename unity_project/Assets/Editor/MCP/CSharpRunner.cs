@@ -26,7 +26,7 @@ public static class CSharpRunner
         {
             Application.logMessageReceived += logHandler.HandleLog;
 
-            var assembly = CompileWithFallback(code, result);
+            var assembly = CompileWithFallback(code, result, additionalReferences);
             if (assembly != null)
             {
                 var type = assembly.GetType("DynamicExecutor");
@@ -61,9 +61,15 @@ public static class CSharpRunner
         return result;
     }
 
-    private static Assembly CompileWithFallback(string code, CommandResult result)
+    private static Assembly CompileWithFallback(string code, CommandResult result, List<string> additionalReferences)
     {
         var essentialAssemblies = GetEssentialAssemblies();
+        if (additionalReferences != null)
+        {
+            // La unión de ensamblados no generará duplicados
+            essentialAssemblies = essentialAssemblies.Union(additionalReferences.Select(GetAssemblyLocation).Where(p => p != null)).ToList();
+        }
+
         Debug.Log($"[CSharpRunner] Intentando compilación rápida con {essentialAssemblies.Count} ensamblados.");
         LogAssemblies(essentialAssemblies);
         var (assembly, compilationErrors) = Compile(code, essentialAssemblies);
@@ -75,6 +81,11 @@ public static class CSharpRunner
 
         Debug.LogWarning($"[CSharpRunner] La compilación rápida falló. Reintentando con todos los ensamblados. Error original:\n{compilationErrors}");
         var allAssemblies = GetAllAssemblies();
+        if (additionalReferences != null)
+        {
+            allAssemblies = allAssemblies.Union(additionalReferences.Select(GetAssemblyLocation).Where(p => p != null)).ToList();
+        }
+
         Debug.Log($"[CSharpRunner] Intentando compilación completa con {allAssemblies.Count} ensamblados.");
         LogAssemblies(allAssemblies);
         var (fallbackAssembly, fallbackErrors) = Compile(code, allAssemblies);
@@ -94,7 +105,8 @@ public static class CSharpRunner
         var provider = new CSharpCodeProvider();
         var parameters = new CompilerParameters();
 
-        foreach (var assemblyPath in referencedAssemblies)
+        // El .Distinct() final asegura que no hay rutas de ensamblado duplicadas
+        foreach (var assemblyPath in referencedAssemblies.Where(p => !string.IsNullOrEmpty(p)).Distinct())
         {
             parameters.ReferencedAssemblies.Add(assemblyPath);
         }
@@ -102,7 +114,7 @@ public static class CSharpRunner
         parameters.GenerateInMemory = true;
         parameters.GenerateExecutable = false;
 
-        string sourceCode = BuildSourceTemplate(code);
+        string sourceCode = BuildSourceTemplate(code, out int lineOffset);
         CompilerResults results = provider.CompileAssemblyFromSource(parameters, sourceCode);
 
         if (results.Errors.HasErrors)
@@ -110,7 +122,7 @@ public static class CSharpRunner
             var errors = new StringBuilder();
             foreach (CompilerError error in results.Errors)
             {
-                errors.AppendLine($"Line {error.Line}: {error.ErrorText}");
+                errors.AppendLine($"Line {error.Line - lineOffset}: {error.ErrorText}");
             }
             return (null, $"[Compilation Error]\n{errors.ToString()}");
         }
@@ -118,42 +130,58 @@ public static class CSharpRunner
         return (results.CompiledAssembly, null);
     }
 
-    private static string BuildSourceTemplate(string code)
+    private static string BuildSourceTemplate(string code, out int codeLineOffset)
     {
-        return $@"
-            using UnityEngine;
-            using UnityEditor;
-            using System;
-            using System.IO;
-            using System.Linq;
-            using System.Collections.Generic;
-            using System.Reflection;
+        var lines = code.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+        var codeWithoutUsings = new StringBuilder();
+        // HashSet gestiona automáticamente los 'usings' duplicados
+        var agentUsings = new HashSet<string>();
 
-            public static class DynamicExecutor
-            {{
-                public static object Run()
-                {{
-                    {code}
-                    return null;
-                }}
-            }}
-        ";
+        foreach (var line in lines)
+        {
+            string trimmedLine = line.Trim();
+            if (trimmedLine.StartsWith("using ") && trimmedLine.EndsWith(";"))
+            {
+                agentUsings.Add(trimmedLine);
+            }
+            else
+            {
+                codeWithoutUsings.AppendLine(line);
+            }
+        }
+
+        var defaultUsings = new HashSet<string>
+        {
+            "using UnityEngine;", "using UnityEditor;", "using System;", "using System.IO;",
+            "using System.Linq;", "using System.Collections.Generic;", "using System.Reflection;"
+        };
+
+        // .Union() combina ambas listas sin duplicados
+        var allUsings = defaultUsings.Union(agentUsings).ToList();
+
+        var finalCode = new StringBuilder();
+        allUsings.ForEach(u => finalCode.AppendLine(u));
+
+        finalCode.AppendLine();
+        finalCode.AppendLine("public static class DynamicExecutor {");
+        finalCode.AppendLine("    public static object Run() {");
+        finalCode.Append(codeWithoutUsings.ToString());
+        finalCode.AppendLine("        return null;");
+        finalCode.AppendLine("    }");
+        finalCode.AppendLine("}");
+
+        codeLineOffset = allUsings.Count + 4;
+
+        return finalCode.ToString();
     }
 
     private static string SerializeReturnValue(object value)
     {
         if (value == null) return "null";
-
         if (value is UnityEngine.Object unityObject)
         {
-            return JsonUtility.ToJson(new
-            {
-                name = unityObject.name,
-                type = unityObject.GetType().FullName,
-                instanceID = unityObject.GetInstanceID()
-            });
+            return JsonUtility.ToJson(new { name = unityObject.name, type = unityObject.GetType().FullName, instanceID = unityObject.GetInstanceID() });
         }
-
         return value.ToString();
     }
 
@@ -161,34 +189,35 @@ public static class CSharpRunner
 
     private static List<string> GetEssentialAssemblies()
     {
-        // Lista curada de los ensamblados más comunes para un rendimiento óptimo
         return new List<string>
         {
-            //typeof(object).Assembly.Location, // mscorlib.dll
-            //typeof(Uri).Assembly.Location, // System.dll
-            typeof(System.Linq.Enumerable).Assembly.Location, // System.Core.dll
-            typeof(System.Xml.XmlDocument).Assembly.Location, // System.Xml.dll
-            typeof(UnityEngine.GameObject).Assembly.Location,
-            typeof(UnityEditor.Editor).Assembly.Location,
+            typeof(System.Linq.Enumerable).Assembly.Location, typeof(System.Xml.XmlDocument).Assembly.Location,
+            typeof(UnityEngine.GameObject).Assembly.Location, typeof(UnityEditor.Editor).Assembly.Location,
         }.Distinct().ToList();
     }
 
     private static List<string> GetAllAssemblies()
     {
-        // Lógica mejorada para filtrar ensamblados del sistema en conflicto
         return AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .Where(a => !a.FullName.StartsWith("System") && !a.FullName.StartsWith("mscorlib"))
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location) && !a.FullName.StartsWith("System") && !a.FullName.StartsWith("mscorlib"))
             .Select(a => a.Location)
-            .Concat(GetEssentialAssemblies()) // Añadimos la lista esencial para asegurarnos de tener las bases
+            .Concat(GetEssentialAssemblies())
             .Distinct()
             .ToList();
+    }
+
+    private static string GetAssemblyLocation(string assemblyName)
+    {
+        // Añadimos una comprobación por si el agente envía la extensión .dll
+        string cleanAssemblyName = assemblyName.EndsWith(".dll") ? Path.GetFileNameWithoutExtension(assemblyName) : assemblyName;
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name.Equals(cleanAssemblyName, StringComparison.OrdinalIgnoreCase))?.Location;
     }
 
     private static void LogAssemblies(List<string> assemblies)
     {
         var logBuilder = new StringBuilder("Usando los siguientes ensamblados para la compilación:\n");
-        foreach (var asm in assemblies)
+        foreach (var asm in assemblies.Distinct())
         {
             logBuilder.AppendLine($"- {Path.GetFileName(asm)}");
         }
@@ -201,27 +230,59 @@ public static class CSharpRunner
     {
         try
         {
-            string tempPath = Path.Combine(Path.GetTempPath(), "mcp_screenshot.png");
-            Debug.Log($"[CSharpRunner] Guardando captura en: {tempPath}");
-
-            ScreenCapture.CaptureScreenshot(tempPath, 1);
-
-            System.Threading.Thread.Sleep(500);
-
-            if (!File.Exists(tempPath))
+            // 1. Obtener la ventana de la Escena (la vista principal del editor)
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView == null)
             {
-                throw new Exception("La captura de pantalla no se pudo guardar en el disco. El archivo no se encontró después de esperar.");
+                // Si no hay ninguna, intenta obtener la que está "focuseada"
+                sceneView = SceneView.focusedWindow as SceneView;
+            }
+            if (sceneView == null)
+            {
+                throw new Exception("No se pudo encontrar una ventana de SceneView activa para realizar la captura.");
             }
 
-            byte[] bytes = File.ReadAllBytes(tempPath);
+            // 2. Obtener la cámara de esa vista de escena
+            Camera sceneCamera = sceneView.camera;
+            if (sceneCamera == null)
+            {
+                throw new Exception("La SceneView activa no tiene una cámara válida.");
+            }
+
+            // 3. Crear una RenderTexture temporal para dibujar la vista de la cámara
+            // Usamos las dimensiones de la propia vista para una captura 1:1
+            int width = (int)sceneView.position.width;
+            int height = (int)sceneView.position.height;
+            RenderTexture renderTexture = new RenderTexture(width, height, 24);
+
+            // 4. Forzar a la cámara a renderizar en nuestra textura
+            RenderTexture prevActive = RenderTexture.active;
+            RenderTexture.active = renderTexture;
+            sceneCamera.targetTexture = renderTexture;
+
+            sceneCamera.Render();
+
+            // 5. Leer los píxeles de la RenderTexture a una nueva Textura2D
+            Texture2D resultTexture = new Texture2D(width, height, TextureFormat.RGB24, false);
+            resultTexture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            resultTexture.Apply();
+
+            // 6. Limpieza: restaurar el estado original para no afectar al editor
+            sceneCamera.targetTexture = null;
+            RenderTexture.active = prevActive;
+            UnityEngine.Object.DestroyImmediate(renderTexture); // Liberar memoria
+
+            // 7. Codificar la textura a PNG y luego a Base64
+            byte[] bytes = resultTexture.EncodeToPNG();
+            UnityEngine.Object.DestroyImmediate(resultTexture); // Liberar memoria
+
             string base64 = Convert.ToBase64String(bytes);
-            File.Delete(tempPath);
 
             return new CommandResult
             {
                 Success = true,
                 ReturnValue = base64,
-                ConsoleOutput = "Screenshot taken successfully."
+                ConsoleOutput = "Screenshot of SceneView taken successfully."
             };
         }
         catch (Exception e)
@@ -229,7 +290,7 @@ public static class CSharpRunner
             return new CommandResult
             {
                 Success = false,
-                ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}"
+                ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}"
             };
         }
     }
