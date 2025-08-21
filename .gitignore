@@ -51,3 +51,6 @@ dist/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# IA Prompts
+prompts/
