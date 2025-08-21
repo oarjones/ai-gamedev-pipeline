@@ -2,7 +2,6 @@ using Microsoft.CSharp;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -24,18 +23,29 @@ public static class CSharpRunner
 
         try
         {
-            // Capturar logs de Unity
             Application.logMessageReceived += logHandler.HandleLog;
 
-            var assembly = Compile(code, result);
+            var assembly = CompileWithFallback(code, result); // Lógica de compilación mejorada
             if (assembly != null)
             {
+                // Punto 2: Reflexión endurecida con null-checks
                 var type = assembly.GetType("DynamicExecutor");
-                var method = type.GetMethod("Run");
+                if (type == null)
+                {
+                    throw new InvalidOperationException("No se pudo encontrar el tipo 'DynamicExecutor' en el ensamblado compilado.");
+                }
+
+                var method = type.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
+                if (method == null)
+                {
+                    throw new InvalidOperationException("No se pudo encontrar el método estático 'Run' en el tipo 'DynamicExecutor'.");
+                }
+                
                 object returnValue = method.Invoke(null, null);
 
                 result.Success = true;
-                result.ReturnValue = returnValue?.ToString() ?? "null";
+                // Punto 2: Serialización del ReturnValue mejorada
+                result.ReturnValue = SerializeReturnValue(returnValue);
             }
         }
         catch (Exception e)
@@ -45,7 +55,6 @@ public static class CSharpRunner
         }
         finally
         {
-            // Dejar de capturar logs
             Application.logMessageReceived -= logHandler.HandleLog;
             result.ConsoleOutput = stringBuilder.ToString();
         }
@@ -53,23 +62,42 @@ public static class CSharpRunner
         return result;
     }
 
-    private static Assembly Compile(string code, CommandResult result)
+    private static Assembly CompileWithFallback(string code, CommandResult result)
+    {
+        // Punto 3: Intento 1 - Compilar con una lista reducida y esencial de ensamblados
+        var essentialAssemblies = GetEssentialAssemblies();
+        var (assembly, compilationErrors) = Compile(code, essentialAssemblies);
+
+        if (assembly != null)
+        {
+            return assembly; // Éxito en el primer intento
+        }
+
+        // Si el primer intento falla, podría ser por una referencia faltante.
+        // Intento 2 - Compilar con todos los ensamblados como fallback.
+        Debug.LogWarning("[CSharpRunner] La compilación rápida falló, reintentando con todos los ensamblados...");
+        var allAssemblies = GetAllAssemblies();
+        var (fallbackAssembly, fallbackErrors) = Compile(code, allAssemblies);
+
+        if(fallbackAssembly != null)
+        {
+            return fallbackAssembly;
+        }
+
+        // Si ambos fallan, devolvemos el error del intento más completo.
+        result.Success = false;
+        result.ErrorMessage = fallbackErrors;
+        return null;
+    }
+
+    private static (Assembly, string) Compile(string code, IEnumerable<string> referencedAssemblies)
     {
         var provider = new CSharpCodeProvider();
         var parameters = new CompilerParameters();
-
-        // Añadir referencias a ensamblados de Unity
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        
+        foreach (var assemblyPath in referencedAssemblies)
         {
-            if (assembly.IsDynamic) continue;
-            try
-            {
-                if (!string.IsNullOrEmpty(assembly.Location))
-                {
-                    parameters.ReferencedAssemblies.Add(assembly.Location);
-                }
-            }
-            catch (NotSupportedException) { /* Ignorar ensamblados en memoria */ }
+            parameters.ReferencedAssemblies.Add(assemblyPath);
         }
         
         parameters.GenerateInMemory = true;
@@ -80,21 +108,21 @@ public static class CSharpRunner
 
         if (results.Errors.HasErrors)
         {
-            result.Success = false;
             var errors = new StringBuilder();
             foreach (CompilerError error in results.Errors)
             {
                 errors.AppendLine($"Line {error.Line}: {error.ErrorText}");
             }
-            result.ErrorMessage = $"[Compilation Error]\n{errors.ToString()}";
-            return null;
+            return (null, $"[Compilation Error]\n{errors.ToString()}");
         }
 
-        return results.CompiledAssembly;
+        return (results.CompiledAssembly, null);
     }
 
+    // Punto 1: Solución al bug de la plantilla return
     private static string BuildSourceTemplate(string code)
     {
+        // Esta plantilla ahora ejecuta siempre el código del usuario y devuelve null si no hay un return explícito.
         return $@"
             using UnityEngine;
             using UnityEditor;
@@ -107,12 +135,61 @@ public static class CSharpRunner
             {{
                 public static object Run()
                 {{
-                    {(code.Contains("return") ? "" : "return null;")}
                     {code}
+                    return null;
                 }}
             }}
         ";
     }
+
+    private static string SerializeReturnValue(object value)
+    {
+        if (value == null) return "null";
+
+        // Si es un objeto de Unity, devolvemos información clave en formato JSON.
+        if (value is UnityEngine.Object unityObject)
+        {
+            return JsonUtility.ToJson(new {
+                name = unityObject.name,
+                type = unityObject.GetType().FullName,
+                instanceID = unityObject.GetInstanceID()
+            });
+        }
+
+        // Para tipos primitivos o serializables, usamos su string.
+        return value.ToString();
+    }
+
+    #region Assembly Management
+
+    private static IEnumerable<string> GetEssentialAssemblies()
+    {
+        // Lista curada para un rendimiento óptimo
+        return new List<string>
+        {
+            "System.dll",
+            "System.Core.dll",
+            "System.Linq.dll",
+            GetAssemblyPathByName("UnityEngine.CoreModule"),
+            GetAssemblyPathByName("UnityEditor.CoreModule"),
+            // Añade aquí otros ensamblados que se usen frecuentemente
+        }.Where(p => !string.IsNullOrEmpty(p)).Distinct();
+    }
+
+    private static IEnumerable<string> GetAllAssemblies()
+    {
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Select(a => a.Location);
+    }
+
+    private static string GetAssemblyPathByName(string name)
+    {
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == name)?.Location;
+    }
+
+    #endregion
 
     private static CommandResult TakeScreenshot()
     {
