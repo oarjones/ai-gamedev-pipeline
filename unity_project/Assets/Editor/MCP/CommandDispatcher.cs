@@ -21,9 +21,14 @@ public static class CommandDispatcher
     {
         if (jobQueue.TryDequeue(out CommandJob job))
         {
-            Debug.Log($"[MCP] Executing command (placeholder): {job.CommandToExecute}");
-            // In a future module, we will execute the command here.
-            job.Tcs.SetResult($"Successfully executed (placeholder): {job.CommandToExecute}");
+            // Ejecutar el código a través del CSharpRunner
+            CommandResult result = CSharpRunner.Execute(job.CommandToExecute);
+
+            // Serializar el resultado a JSON para devolverlo
+            string jsonResult = JsonUtility.ToJson(result);
+
+            // Completar la tarea para que el servidor HTTP pueda responder
+            job.Tcs.SetResult(jsonResult);
         }
     }
 }
