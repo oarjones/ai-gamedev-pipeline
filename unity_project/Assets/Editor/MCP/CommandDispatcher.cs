@@ -34,15 +34,38 @@ public static class CommandDispatcher
                         var queryMessage = JsonUtility.FromJson<QueryMessage>(jsonData);
                         Debug.Log($"[MCP] Query received. Action: {queryMessage.data.action}");
 
-                        // Placeholder for query processing
-                        UnityResponse queryResponse = new UnityResponse
+                        UnityResponse queryResponse;
+                        switch (queryMessage.data.action)
                         {
-                            request_id = queryMessage.data.request_id,
-                            status = "success",
-                            payload = JsonUtility.ToJson(new { message = $"Query '{queryMessage.data.action}' received and processed (placeholder)." })
-                        };
-                        ws.Send(JsonUtility.ToJson(queryResponse));
-                        break;
+                            case "get_scene_hierarchy":
+                                try
+                                {
+                                    string sceneHierarchyJson = EnvironmentScanner.GetSceneHierarchyAsJson();
+                                    queryResponse = new UnityResponse
+                                    {
+                                        request_id = queryMessage.data.request_id,
+                                        status = "success",
+                                        payload = sceneHierarchyJson
+                                    };
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.LogError($"[MCP] Error getting scene hierarchy: {ex.Message}\n{ex.StackTrace}");
+                                    queryResponse = new UnityResponse
+                                    {
+                                        request_id = queryMessage.data.request_id,
+                                        status = "error",
+                                        payload = JsonUtility.ToJson(new { error = $"Error getting scene hierarchy: {ex.Message}" })
+                                    };
+                                }
+                                break;
+                            default:
+                                Debug.LogWarning($"[MCP] Unknown query action: {queryMessage.data.action}");
+                                queryResponse = new UnityResponse
+                                {
+                                    request_id = queryMessage.data.request_id,
+                                    status = "error",
+                                    payload = JsonUtility.ToJson(new { error = $
                     default:
                         Debug.LogWarning($"[MCP] Unknown message type received: {baseMessage.type}");
                         break;
