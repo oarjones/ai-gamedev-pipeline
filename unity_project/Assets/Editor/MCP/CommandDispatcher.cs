@@ -1,35 +1,40 @@
+// En: Assets/Editor/MCP/CommandDispatcher.cs
+
+using System;
 using System.Collections.Concurrent;
 using UnityEditor;
-using UnityEngine;
 
 [InitializeOnLoad]
 public static class CommandDispatcher
 {
-    private static readonly ConcurrentQueue<CommandJob> jobQueue = new ConcurrentQueue<CommandJob>();
+    // Una única cola que almacena acciones (bloques de código) a ejecutar.
+    private static readonly ConcurrentQueue<Action> actionQueue = new ConcurrentQueue<Action>();
 
     static CommandDispatcher()
     {
         EditorApplication.update += OnEditorUpdate;
     }
 
-    public static void EnqueueCommand(CommandJob job)
+    /// <summary>
+    /// Añade una acción a la cola para ser ejecutada en el hilo principal de Unity.
+    /// </summary>
+    /// <param name="action">La acción a ejecutar.</param>
+    public static void EnqueueAction(Action action)
     {
-        jobQueue.Enqueue(job);
+        if (action != null)
+        {
+            actionQueue.Enqueue(action);
+        }
     }
 
+    /// <summary>
+    /// En cada tick del editor, procesa una acción de la cola.
+    /// </summary>
     private static void OnEditorUpdate()
     {
-        if (jobQueue.TryDequeue(out CommandJob job))
+        if (actionQueue.TryDequeue(out Action action))
         {
-            // Ejecutar el código a través del CSharpRunner
-            CommandResult result = CSharpRunner.Execute(job.CommandToExecute, job.AdditionalReferences);
-
-
-            // Serializar el resultado a JSON para devolverlo
-            string jsonResult = JsonUtility.ToJson(result);
-
-            // Completar la tarea para que el servidor HTTP pueda responder
-            job.Tcs.SetResult(jsonResult);
+            action.Invoke();
         }
     }
 }

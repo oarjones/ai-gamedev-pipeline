@@ -3,7 +3,7 @@ import base64
 import json
 from typing import List, Optional
 
-MCP_BASE_URL = "http://127.0.0.1:8001"
+MCP_BASE_URL = "http://127.0.0.1:8000"
 
 def run_command(command: str, additional_assemblies: Optional[List[str]] = None):
     """Función helper para enviar un comando al servidor MCP."""
@@ -103,9 +103,9 @@ if __name__ == "__main__":
     save_screenshot(result_scene, "screenshot_with_scene.png")
 
     # Paso 5: NUEVO - Limpiar los objetos creados
-    print("\n--- Limpiando escena del test ---")
-    run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestCube"));')
-    run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestLight"));')
+    # print("\n--- Limpiando escena del test ---")
+    # run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestCube"));')
+    # run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestLight"));')
             
     print("-" * 50)
     print("🏁 Test de Integración Finalizado.")

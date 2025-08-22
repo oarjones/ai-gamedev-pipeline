@@ -1,64 +1,88 @@
-import uuid
-import requests
-import json
-from fastapi import FastAPI, Request, Response
+# En: mcp_unity_bridge/src/mcp_unity_server/main.py
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from .models import UnityCommandRequest, UnityCommandResponse
-from .config import get_settings
+import json
+import asyncio # Importar asyncio
 
-app = FastAPI(
-    title="MCP Unity Bridge",
-    description="Un servidor intermediario para que un agente IA se comunique con el editor de Unity.",
-    version="0.1.0",
-)
+app = FastAPI()
 
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    correlation_id = request.headers.get('X-Correlation-ID') or str(uuid.uuid4())
-    response = await call_next(request)
-    response.headers['X-Correlation-ID'] = correlation_id
-    return response
+# Gestor de conexión mejorado con un sistema de eventos para las respuestas
+class ConnectionManager:
+    def __init__(self):
+        self.active_connection: WebSocket | None = None
+        self.response_event = asyncio.Event()
+        self.last_response: str | None = None
 
-@app.get("/health", tags=["Monitoring"])
-async def health_check():
-    return {"status": "ok"}
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connection = websocket
 
-@app.post("/unity/run-command", response_model=UnityCommandResponse, tags=["Unity Editor"])
-async def run_unity_command(request: UnityCommandRequest):
-    """
-    Recibe un comando C#, lo envía al editor de Unity para su ejecución y devuelve el resultado.
-    """
-    settings = get_settings()
-    unity_url = f"{settings['unity_editor_url'].strip('/')}/execute/"
+    def disconnect(self):
+        self.active_connection = None
+
+    async def send_to_unity(self, message: str):
+        if self.active_connection:
+            await self.active_connection.send_text(message)
+        else:
+            raise HTTPException(status_code=503, detail="Unity Editor no está conectado.")
+            
+    def set_response(self, response: str):
+        self.last_response = response
+        self.response_event.set()
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/unity")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    print("Unity Editor Conectado.")
+    try:
+        while True:
+            # Este es el ÚNICO lugar que escucha mensajes de Unity
+            message = await websocket.receive_text()
+            
+            # Comprobamos si es un log o una respuesta a un comando
+            try:
+                data = json.loads(message)
+                if data.get("type") == "log":
+                    print(f"LOG de Unity [{data.get('level')}]: {data.get('message')}")
+                else:
+                    # Es una respuesta a un comando, la guardamos y notificamos al otro endpoint
+                    manager.set_response(message)
+            except json.JSONDecodeError:
+                # Si no es un JSON válido, probablemente es una respuesta a un comando
+                manager.set_response(message)
+
+    except WebSocketDisconnect:
+        manager.disconnect()
+        print("Unity Editor Desconectado.")
+
+
+@app.post("/unity/run-command", response_model=UnityCommandResponse)
+async def run_command_in_unity(command_request: UnityCommandRequest):
+    if manager.active_connection is None:
+        return UnityCommandResponse(success=False, error="Unity Editor no está conectado.")
 
     try:
-        
-        # Ahora enviamos el objeto completo de la petición (incluyendo las referencias)
-        response = requests.post(
-            unity_url,
-            json=request.dict(), # Usamos .dict() para serializar el modelo Pydantic completo
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        response.raise_for_status()
+        # 1. Preparamos el evento para esperar una nueva respuesta
+        manager.response_event.clear()
+        manager.last_response = None
 
-        # --- CORRECCIÓN ---
-        # response.json() ya decodifica el JSON a un diccionario de Python.
-        # No es necesario usar json.loads() de nuevo.
-        command_result_data = response.json()
+        # 2. Enviamos el comando a Unity
+        await manager.send_to_unity(command_request.json())
         
-        return UnityCommandResponse(
-            success=command_result_data.get('Success', False),
-            output=command_result_data.get('ReturnValue'), 
-            error=command_result_data.get('ErrorMessage')
-        )
+        # 3. Esperamos a que el evento se active (timeout de 30 segundos)
+        await asyncio.wait_for(manager.response_event.wait(), timeout=30.0)
 
-    except requests.exceptions.RequestException as e:
-        return UnityCommandResponse(
-            success=False,
-            error=f"Error de comunicación con el editor de Unity: {str(e)}"
-        )
-    except json.JSONDecodeError as e:
-        return UnityCommandResponse(
-            success=False,
-            error=f"Error al decodificar la respuesta de Unity: {str(e)}. Respuesta recibida: {response.text}"
-        )
+        # 4. Una vez que el evento se activa, la respuesta está en last_response
+        if manager.last_response:
+            response_data = json.loads(manager.last_response)
+            return UnityCommandResponse(**response_data)
+        else:
+            return UnityCommandResponse(success=False, error="No se recibió respuesta de Unity.")
+        
+    except asyncio.TimeoutError:
+        return UnityCommandResponse(success=False, error="Timeout: Unity no respondió en 30 segundos.")
+    except Exception as e:
+        return UnityCommandResponse(success=False, error=f"Error de comunicación: {str(e)}")
