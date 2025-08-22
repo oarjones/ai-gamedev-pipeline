@@ -226,64 +226,166 @@ public static class CSharpRunner
 
     #endregion
 
+    //private static CommandResult TakeScreenshot()
+    //{
+    //    try
+    //    {
+    //        // 1. Obtener la ventana de la Escena (la vista principal del editor)
+    //        var sceneView = SceneView.lastActiveSceneView;
+    //        if (sceneView == null)
+    //        {
+    //            // Si no hay ninguna, intenta obtener la que está "focuseada"
+    //            sceneView = SceneView.focusedWindow as SceneView;
+    //        }
+    //        if (sceneView == null)
+    //        {
+    //            throw new Exception("No se pudo encontrar una ventana de SceneView activa para realizar la captura.");
+    //        }
+
+    //        // 2. Obtener la cámara de esa vista de escena
+    //        Camera sceneCamera = sceneView.camera;
+    //        if (sceneCamera == null)
+    //        {
+    //            throw new Exception("La SceneView activa no tiene una cámara válida.");
+    //        }
+
+    //        // 3. Crear una RenderTexture temporal para dibujar la vista de la cámara
+    //        // Usamos las dimensiones de la propia vista para una captura 1:1
+    //        int width = (int)sceneView.position.width;
+    //        int height = (int)sceneView.position.height;
+    //        RenderTexture renderTexture = new RenderTexture(width, height, 24);
+
+    //        // 4. Forzar a la cámara a renderizar en nuestra textura
+    //        RenderTexture prevActive = RenderTexture.active;
+    //        RenderTexture.active = renderTexture;
+    //        sceneCamera.targetTexture = renderTexture;
+
+    //        sceneCamera.Render();
+
+    //        // 5. Leer los píxeles de la RenderTexture a una nueva Textura2D
+    //        Texture2D resultTexture = new Texture2D(width, height, TextureFormat.RGB24, false);
+    //        resultTexture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+    //        resultTexture.Apply();
+
+    //        // 6. Limpieza: restaurar el estado original para no afectar al editor
+    //        sceneCamera.targetTexture = null;
+    //        RenderTexture.active = prevActive;
+    //        UnityEngine.Object.DestroyImmediate(renderTexture); // Liberar memoria
+
+    //        // 7. Codificar la textura a PNG y luego a Base64
+    //        byte[] bytes = resultTexture.EncodeToPNG();
+    //        UnityEngine.Object.DestroyImmediate(resultTexture); // Liberar memoria
+
+    //        string base64 = Convert.ToBase64String(bytes);
+
+    //        return new CommandResult
+    //        {
+    //            Success = true,
+    //            ReturnValue = base64,
+    //            ConsoleOutput = "Screenshot of SceneView taken successfully."
+    //        };
+    //    }
+    //    catch (Exception e)
+    //    {
+    //        return new CommandResult
+    //        {
+    //            Success = false,
+    //            ErrorMessage = $"[Screenshot Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}"
+    //        };
+    //    }
+    //}
+
+
     private static CommandResult TakeScreenshot()
     {
         try
         {
-            // 1. Obtener la ventana de la Escena (la vista principal del editor)
-            var sceneView = SceneView.lastActiveSceneView;
-            if (sceneView == null)
+            // 1) Resolución deseada (puedes parametrizarla si quieres)
+            int width = 1280;
+            int height = 720;
+
+            // 2) Sacamos referencia a la SceneView (si existe) para copiar su pose
+            SceneView sv = SceneView.lastActiveSceneView ?? SceneView.focusedWindow as SceneView;
+
+            // 3) Creamos cámara temporal (no persiste en escena/proyecto)
+            var go = new GameObject("~TempScreenshotCamera") { hideFlags = HideFlags.HideAndDontSave };
+            var cam = go.AddComponent<Camera>();
+            cam.enabled = false; // la activamos solo para render explícito
+            cam.clearFlags = CameraClearFlags.Skybox; // o Color si prefieres fondo sólido
+            cam.backgroundColor = Color.black;
+            cam.cullingMask = ~0; // todo
+
+            // Copiar pose desde SceneView si hay; si no, desde Camera.main; si no, una pose por defecto
+            if (sv != null && sv.camera != null)
             {
-                // Si no hay ninguna, intenta obtener la que está "focuseada"
-                sceneView = SceneView.focusedWindow as SceneView;
+                go.transform.SetPositionAndRotation(sv.camera.transform.position, sv.camera.transform.rotation);
+                cam.fieldOfView = sv.camera.fieldOfView;
             }
-            if (sceneView == null)
+            else if (Camera.main != null)
             {
-                throw new Exception("No se pudo encontrar una ventana de SceneView activa para realizar la captura.");
+                go.transform.SetPositionAndRotation(Camera.main.transform.position, Camera.main.transform.rotation);
+                cam.fieldOfView = Camera.main.fieldOfView;
+            }
+            else
+            {
+                go.transform.position = new Vector3(0, 1.5f, -5f);
+                go.transform.LookAt(Vector3.zero);
+                cam.fieldOfView = 60f;
             }
 
-            // 2. Obtener la cámara de esa vista de escena
-            Camera sceneCamera = sceneView.camera;
-            if (sceneCamera == null)
+            // 4) (Opcional) Ajustes suaves para URP/HDRP vía reflexión (no rompe en proyectos Built-in)
+            try
             {
-                throw new Exception("La SceneView activa no tiene una cámara válida.");
+                var urpType = Type.GetType("UnityEngine.Rendering.Universal.UniversalAdditionalCameraData, Unity.RenderPipelines.Universal.Runtime");
+                if (urpType != null)
+                {
+                    var urp = go.GetComponent(urpType) ?? go.AddComponent(urpType);
+                    urpType.GetProperty("renderPostProcessing")?.SetValue(urp, true);
+                }
+                var hdrpType = Type.GetType("UnityEngine.Rendering.HighDefinition.HDAdditionalCameraData, Unity.RenderPipelines.HighDefinition.Runtime");
+                if (hdrpType != null)
+                {
+                    var hdrp = go.GetComponent(hdrpType) ?? go.AddComponent(hdrpType);
+                    // No necesitamos tocar propiedades; con tener el componente ya asegura path correcto
+                }
             }
+            catch { /* best-effort, no-op */ }
 
-            // 3. Crear una RenderTexture temporal para dibujar la vista de la cámara
-            // Usamos las dimensiones de la propia vista para una captura 1:1
-            int width = (int)sceneView.position.width;
-            int height = (int)sceneView.position.height;
-            RenderTexture renderTexture = new RenderTexture(width, height, 24);
+            // 5) Render a RT y lectura
+            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            var prevActive = RenderTexture.active;
+            var prevTarget = cam.targetTexture;
 
-            // 4. Forzar a la cámara a renderizar en nuestra textura
-            RenderTexture prevActive = RenderTexture.active;
-            RenderTexture.active = renderTexture;
-            sceneCamera.targetTexture = renderTexture;
-
-            sceneCamera.Render();
-
-            // 5. Leer los píxeles de la RenderTexture a una nueva Textura2D
-            Texture2D resultTexture = new Texture2D(width, height, TextureFormat.RGB24, false);
-            resultTexture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            resultTexture.Apply();
-
-            // 6. Limpieza: restaurar el estado original para no afectar al editor
-            sceneCamera.targetTexture = null;
-            RenderTexture.active = prevActive;
-            UnityEngine.Object.DestroyImmediate(renderTexture); // Liberar memoria
-
-            // 7. Codificar la textura a PNG y luego a Base64
-            byte[] bytes = resultTexture.EncodeToPNG();
-            UnityEngine.Object.DestroyImmediate(resultTexture); // Liberar memoria
-
-            string base64 = Convert.ToBase64String(bytes);
-
-            return new CommandResult
+            try
             {
-                Success = true,
-                ReturnValue = base64,
-                ConsoleOutput = "Screenshot of SceneView taken successfully."
-            };
+                cam.targetTexture = rt;
+                cam.Render();
+
+                RenderTexture.active = rt;
+                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+
+                byte[] png = tex.EncodeToPNG();
+                UnityEngine.Object.DestroyImmediate(tex);
+
+                string base64 = Convert.ToBase64String(png);
+
+                return new CommandResult
+                {
+                    Success = true,
+                    ReturnValue = base64,
+                    ConsoleOutput = "Screenshot generated via temp camera (SceneView pose if available)."
+                };
+            }
+            finally
+            {
+                cam.targetTexture = prevTarget;
+                RenderTexture.active = prevActive;
+                rt.Release();
+                UnityEngine.Object.DestroyImmediate(rt);
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
         catch (Exception e)
         {
@@ -294,6 +396,7 @@ public static class CSharpRunner
             };
         }
     }
+
 
     private class LogHandler
     {
