@@ -33,37 +33,7 @@ public static class MCPWebSocketClient
     private static void OnMessageReceived(object sender, MessageEventArgs e)
     {
         Debug.Log("[MCP] Mensaje recibido: " + e.Data);
-        try
-        {
-            // First, try to parse as a generic message to determine type
-            var baseMessage = JsonUtility.FromJson<BaseMessage>(e.Data);
-
-            if (baseMessage.type == "command")
-            {
-                var commandMessage = JsonUtility.FromJson<CommandMessage>(e.Data);
-                CommandDispatcher.ExecuteCommand(commandMessage.data, ws);
-            }
-            else if (baseMessage.type == "query")
-            {
-                var queryMessage = JsonUtility.FromJson<QueryMessage>(e.Data);
-                // For now, just send a placeholder response
-                UnityResponse response = new UnityResponse
-                {
-                    request_id = queryMessage.data.request_id,
-                    status = "success",
-                    payload = JsonUtility.ToJson(new { message = "Query received and processed (placeholder)." })
-                };
-                ws.Send(JsonUtility.ToJson(response));
-            }
-            else
-            {
-                Debug.LogWarning($"[MCP] Tipo de mensaje desconocido: {baseMessage.type}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[MCP] Error al procesar mensaje: {ex.Message}\n{ex.StackTrace}");
-        }
+        CommandDispatcher.DispatchMessage(e.Data, ws);
     }
 
     private static void HandleLog(string logString, string stackTrace, LogType type)
@@ -93,45 +63,3 @@ public static class MCPWebSocketClient
     }
 }
 
-[Serializable]
-public class BaseMessage
-{
-    public string type;
-}
-
-[Serializable]
-public class CommandMessage
-{
-    public string type;
-    public CommandRequest data;
-}
-
-[Serializable]
-public class CommandRequest
-{
-    public string command;
-    public List<string> additional_references;
-}
-
-[Serializable]
-public class QueryMessage
-{
-    public string type;
-    public QueryRequest data;
-}
-
-[Serializable]
-public class QueryRequest
-{
-    public string action;
-    public Dictionary<string, string> params_;
-    public string request_id;
-}
-
-[Serializable]
-public class UnityResponse
-{
-    public string request_id;
-    public string status;
-    public string payload;
-}

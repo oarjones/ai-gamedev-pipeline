@@ -1,9 +1,9 @@
-
 using System;
 using System.Collections.Concurrent;
 using UnityEditor;
 using UnityEngine;
 using WebSocketSharp;
+using System.Collections.Generic;
 
 [InitializeOnLoad]
 public static class CommandDispatcher
@@ -15,13 +15,66 @@ public static class CommandDispatcher
         EditorApplication.update += OnEditorUpdate;
     }
 
-    public static void ExecuteCommand(CommandRequest commandRequest, WebSocket ws)
+    public static void DispatchMessage(string jsonData, WebSocket ws)
     {
         EnqueueAction(() =>
         {
-            CommandResult result = CSharpRunner.Execute(commandRequest.command, commandRequest.additional_references);
-            string jsonResult = JsonUtility.ToJson(result);
-            ws.Send(jsonResult);
+            try
+            {
+                var baseMessage = JsonUtility.FromJson<BaseMessage>(jsonData);
+
+                switch (baseMessage.type)
+                {
+                    case "command":
+                        var commandMessage = JsonUtility.FromJson<CommandMessage>(jsonData);
+                        CommandResult commandResult = CSharpRunner.Execute(commandMessage.data.command, commandMessage.data.additional_references);
+                        ws.Send(JsonUtility.ToJson(commandResult));
+                        break;
+                    case "query":
+                        var queryMessage = JsonUtility.FromJson<QueryMessage>(jsonData);
+                        Debug.Log($"[MCP] Query received. Action: {queryMessage.data.action}");
+
+                        // Placeholder for query processing
+                        UnityResponse queryResponse = new UnityResponse
+                        {
+                            request_id = queryMessage.data.request_id,
+                            status = "success",
+                            payload = JsonUtility.ToJson(new { message = $"Query '{queryMessage.data.action}' received and processed (placeholder)." })
+                        };
+                        ws.Send(JsonUtility.ToJson(queryResponse));
+                        break;
+                    default:
+                        Debug.LogWarning($"[MCP] Unknown message type received: {baseMessage.type}");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[MCP] Error dispatching message: {ex.Message}\n{ex.StackTrace}");
+                // Attempt to send an error response if a request_id is present
+                try
+                {
+                    var tempBaseMessage = JsonUtility.FromJson<BaseMessage>(jsonData);
+                    if (tempBaseMessage.type == "query")
+                    {
+                        var tempQueryMessage = JsonUtility.FromJson<QueryMessage>(jsonData);
+                        if (!string.IsNullOrEmpty(tempQueryMessage.data.request_id))
+                        {
+                            UnityResponse errorResponse = new UnityResponse
+                            {
+                                request_id = tempQueryMessage.data.request_id,
+                                status = "error",
+                                payload = JsonUtility.ToJson(new { error = $"Error processing query: {ex.Message}" })
+                            };
+                            ws.Send(JsonUtility.ToJson(errorResponse));
+                        }
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    Debug.LogError($"[MCP] Further error sending error response: {innerEx.Message}");
+                }
+            }
         });
     }
 
@@ -40,4 +93,48 @@ public static class CommandDispatcher
             action.Invoke();
         }
     }
+}
+
+// Re-defining these classes here as they are now directly used by CommandDispatcher
+[Serializable]
+public class BaseMessage
+{
+    public string type;
+}
+
+[Serializable]
+public class CommandMessage
+{
+    public string type;
+    public CommandRequest data;
+}
+
+[Serializable]
+public class CommandRequest
+{
+    public string command;
+    public List<string> additional_references;
+}
+
+[Serializable]
+public class QueryMessage
+{
+    public string type;
+    public QueryRequest data;
+}
+
+[Serializable]
+public class QueryRequest
+{
+    public string action;
+    public Dictionary<string, string> params_;
+    public string request_id;
+}
+
+[Serializable]
+public class UnityResponse
+{
+    public string request_id;
+    public string status;
+    public string payload;
 }
