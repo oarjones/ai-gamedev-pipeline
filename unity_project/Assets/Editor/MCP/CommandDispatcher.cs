@@ -1,13 +1,13 @@
-// En: Assets/Editor/MCP/CommandDispatcher.cs
 
 using System;
 using System.Collections.Concurrent;
 using UnityEditor;
+using UnityEngine;
+using WebSocketSharp;
 
 [InitializeOnLoad]
 public static class CommandDispatcher
 {
-    // Una única cola que almacena acciones (bloques de código) a ejecutar.
     private static readonly ConcurrentQueue<Action> actionQueue = new ConcurrentQueue<Action>();
 
     static CommandDispatcher()
@@ -15,11 +15,17 @@ public static class CommandDispatcher
         EditorApplication.update += OnEditorUpdate;
     }
 
-    /// <summary>
-    /// Añade una acción a la cola para ser ejecutada en el hilo principal de Unity.
-    /// </summary>
-    /// <param name="action">La acción a ejecutar.</param>
-    public static void EnqueueAction(Action action)
+    public static void ExecuteCommand(CommandRequest commandRequest, WebSocket ws)
+    {
+        EnqueueAction(() =>
+        {
+            CommandResult result = CSharpRunner.Execute(commandRequest.command, commandRequest.additional_references);
+            string jsonResult = JsonUtility.ToJson(result);
+            ws.Send(jsonResult);
+        });
+    }
+
+    private static void EnqueueAction(Action action)
     {
         if (action != null)
         {
@@ -27,9 +33,6 @@ public static class CommandDispatcher
         }
     }
 
-    /// <summary>
-    /// En cada tick del editor, procesa una acción de la cola.
-    /// </summary>
     private static void OnEditorUpdate()
     {
         if (actionQueue.TryDequeue(out Action action))

@@ -1,12 +1,25 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Any, Dict, List
 
-class UnityCommandRequest(BaseModel):
-    command: str = Field(..., description="El fragmento de código C# a ejecutar en el editor de Unity.")
-    additional_references: Optional[List[str]] = Field(None, description="Lista de nombres de ensamblados (ej. 'UnityEngine.UI.dll') para incluir en la compilación.")
-    context: Optional[Dict[str, Any]] = Field(None, description="Datos de contexto opcionales para seguimiento.")
+from typing import List, Dict, Any, Literal, Union, Optional
+from pydantic import BaseModel
 
-class UnityCommandResponse(BaseModel):
-    success: bool = Field(..., description="Indica si la ejecución del comando tuvo éxito.")
-    output: Optional[str] = Field(None, description="La salida de la consola o el valor de retorno del comando.")
-    error: Optional[str] = Field(None, description="Mensaje de error si la ejecución falló.")
+class CommandRequest(BaseModel):
+    command: str
+    additional_references: Optional[List[str]] = None
+
+class QueryRequest(BaseModel):
+    type: Literal['query']
+    action: str
+    params: Dict[str, Any]
+    request_id: Optional[str] = None  # Added by the server
+
+class UnityResponse(BaseModel):
+    request_id: str
+    status: Literal['success', 'error']
+    payload: str
+
+class BaseMessage(BaseModel):
+    type: str
+
+class Message(BaseModel):
+    type: Literal['command', 'query']
+    data: Union[CommandRequest, QueryRequest]

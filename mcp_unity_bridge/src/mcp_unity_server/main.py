@@ -1,88 +1,103 @@
-# En: mcp_unity_bridge/src/mcp_unity_server/main.py
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from .models import UnityCommandRequest, UnityCommandResponse
+from .models import CommandRequest, QueryRequest, UnityResponse, Message
 import json
-import asyncio # Importar asyncio
+import asyncio
+import uuid
 
 app = FastAPI()
 
-# Gestor de conexión mejorado con un sistema de eventos para las respuestas
 class ConnectionManager:
     def __init__(self):
-        self.active_connection: WebSocket | None = None
-        self.response_event = asyncio.Event()
-        self.last_response: str | None = None
+        self.unity_connection: WebSocket | None = None
+        self.pending_queries: dict[str, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect_unity(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connection = websocket
+        self.unity_connection = websocket
 
-    def disconnect(self):
-        self.active_connection = None
+    def disconnect_unity(self):
+        self.unity_connection = None
 
-    async def send_to_unity(self, message: str):
-        if self.active_connection:
-            await self.active_connection.send_text(message)
+    async def send_to_unity(self, message: dict):
+        if self.unity_connection:
+            await self.unity_connection.send_json(message)
         else:
             raise HTTPException(status_code=503, detail="Unity Editor no está conectado.")
-            
-    def set_response(self, response: str):
-        self.last_response = response
-        self.response_event.set()
+
+    async def route_response_to_ai_client(self, request_id: str, payload: str):
+        if request_id in self.pending_queries:
+            ai_client_websocket = self.pending_queries.pop(request_id)
+            await ai_client_websocket.send_text(payload)
+        else:
+            print(f"[Server] Advertencia: request_id {request_id} no encontrado en pending_queries.")
 
 manager = ConnectionManager()
 
 @app.websocket("/ws/unity")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await manager.connect_unity(websocket)
     print("Unity Editor Conectado.")
     try:
         while True:
-            # Este es el ÚNICO lugar que escucha mensajes de Unity
             message = await websocket.receive_text()
-            
-            # Comprobamos si es un log o una respuesta a un comando
             try:
                 data = json.loads(message)
-                if data.get("type") == "log":
+                if "request_id" in data and "status" in data and "payload" in data:
+                    # Es una respuesta de Unity a una query
+                    unity_response = UnityResponse(**data)
+                    await manager.route_response_to_ai_client(unity_response.request_id, unity_response.payload)
+                elif data.get("type") == "log":
                     print(f"LOG de Unity [{data.get('level')}]: {data.get('message')}")
                 else:
-                    # Es una respuesta a un comando, la guardamos y notificamos al otro endpoint
-                    manager.set_response(message)
+                    print(f"[Server] Mensaje desconocido de Unity: {message}")
             except json.JSONDecodeError:
-                # Si no es un JSON válido, probablemente es una respuesta a un comando
-                manager.set_response(message)
+                print(f"[Server] Mensaje no JSON de Unity: {message}")
+            except Exception as e:
+                print(f"[Server] Error procesando mensaje de Unity: {e} - Mensaje: {message}")
 
     except WebSocketDisconnect:
-        manager.disconnect()
+        manager.disconnect_unity()
         print("Unity Editor Desconectado.")
 
-
-@app.post("/unity/run-command", response_model=UnityCommandResponse)
-async def run_command_in_unity(command_request: UnityCommandRequest):
-    if manager.active_connection is None:
-        return UnityCommandResponse(success=False, error="Unity Editor no está conectado.")
-
+@app.websocket("/ws/ai")
+async def ai_websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("AI Client Conectado.")
     try:
-        # 1. Preparamos el evento para esperar una nueva respuesta
-        manager.response_event.clear()
-        manager.last_response = None
+        while True:
+            message_str = await websocket.receive_text()
+            try:
+                message_data = json.loads(message_str)
+                msg_type = message_data.get("type")
 
-        # 2. Enviamos el comando a Unity
-        await manager.send_to_unity(command_request.json())
-        
-        # 3. Esperamos a que el evento se active (timeout de 30 segundos)
-        await asyncio.wait_for(manager.response_event.wait(), timeout=30.0)
+                if msg_type == "command":
+                    command_request = CommandRequest(**message_data.get("data"))
+                    await manager.send_to_unity({"type": "command", "data": command_request.dict()})
+                    await websocket.send_text(json.dumps({"status": "success", "message": "Command sent to Unity"}))
+                elif msg_type == "query":
+                    query_data = message_data.get("data")
+                    query_request = QueryRequest(**query_data)
+                    
+                    request_id = str(uuid.uuid4())
+                    query_request.request_id = request_id
+                    manager.pending_queries[request_id] = websocket
+                    
+                    await manager.send_to_unity({"type": "query", "data": query_request.dict()})
 
-        # 4. Una vez que el evento se activa, la respuesta está en last_response
-        if manager.last_response:
-            response_data = json.loads(manager.last_response)
-            return UnityCommandResponse(**response_data)
-        else:
-            return UnityCommandResponse(success=False, error="No se recibió respuesta de Unity.")
-        
-    except asyncio.TimeoutError:
-        return UnityCommandResponse(success=False, error="Timeout: Unity no respondió en 30 segundos.")
-    except Exception as e:
-        return UnityCommandResponse(success=False, error=f"Error de comunicación: {str(e)}")
+                else:
+                    await websocket.send_text(json.dumps({"status": "error", "message": "Unknown message type"}))
+
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({"status": "error", "message": "Invalid JSON format"}))
+            except Exception as e:
+                await websocket.send_text(json.dumps({"status": "error", "message": f"Server error: {str(e)}"}))
+
+    except WebSocketDisconnect:
+        print("AI Client Desconectado.")
+
+
+# This endpoint is now deprecated as AI clients will use the /ws/ai websocket
+@app.post("/unity/run-command")
+async def run_command_in_unity():
+    raise HTTPException(status_code=405, detail="This endpoint is deprecated. Please use the /ws/ai WebSocket for communication.")

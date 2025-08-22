@@ -2,117 +2,85 @@ using UnityEngine;
 using UnityEditor;
 using WebSocketSharp;
 using System;
+using System.Collections.Generic;
 
 [InitializeOnLoad]
 public static class MCPWebSocketClient
 {
     private static WebSocket ws;
-    private static bool isInitialized = false;
 
     static MCPWebSocketClient()
     {
-        // Usamos delayCall para asegurarnos de que el editor está listo
         EditorApplication.delayCall += Initialize;
     }
 
     private static void Initialize()
     {
-        // Añadimos un cerrojo para evitar inicializaciones múltiples
-        if (isInitialized) return;
-        isInitialized = true;
+        string url = "ws://127.0.0.1:8001/ws/unity";
+        ws = new WebSocket(url);
 
+        ws.OnOpen += (sender, e) => Debug.Log("[MCP] Conectado al servidor.");
+        ws.OnMessage += OnMessageReceived;
+        ws.OnError += (sender, e) => Debug.LogError("[MCP] Error: " + e.Message);
+        ws.OnClose += (sender, e) => Debug.Log("[MCP] Desconectado del servidor.");
 
-        Debug.Log("[MCP] Iniciando cliente WebSocket...");
+        ws.Connect();
 
-        try
-        {
-            string url = "ws://127.0.0.1:8000/ws/unity";
-            Debug.Log($"[MCP] Creando instancia de WebSocket con URL: {url}");
-
-            ws = new WebSocket(url);
-
-            // ---- ¡COMPROBACIÓN CRÍTICA! ----
-            if (ws == null)
-            {
-                Debug.LogError("[MCP] ¡FALLO CRÍTICO! La instancia de WebSocket es NULA después de la creación. Comprueba la compatibilidad de la librería.");
-                return; // Salimos para evitar más errores
-            }
-
-            Debug.Log("[MCP] Instancia de WebSocket creada. Suscribiendo eventos...");
-
-            ws.OnOpen += (sender, e) => Debug.Log("[MCP] Conexión establecida con el servidor MCP.");
-            ws.OnMessage += OnMessageReceived;
-            ws.OnError += (sender, e) => Debug.LogError($"[MCP] Error de WebSocket: {e.Message}");
-            ws.OnClose += (sender, e) => {
-                Debug.LogError($"[MCP] Desconectado del servidor MCP. Código: {e.Code}, Razón: '{e.Reason}', Cierre limpio: {e.WasClean}");
-            };
-
-            Application.logMessageReceived += HandleLog;
-            EditorApplication.quitting += Disconnect;
-
-            Debug.Log("[MCP] Conectando al servidor...");
-            ws.Connect();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[MCP] Excepción durante la inicialización: {ex.ToString()}");
-        }
+        Application.logMessageReceived += HandleLog;
+        EditorApplication.quitting += Disconnect;
     }
 
     private static void OnMessageReceived(object sender, MessageEventArgs e)
     {
-        Debug.Log($"[MCP] Comando JSON recibido: {e.Data}");
-
-
+        Debug.Log("[MCP] Mensaje recibido: " + e.Data);
         try
         {
-            // Deserializamos la petición que llega desde el hilo de red
-            var commandRequest = JsonUtility.FromJson<CommandRequest>(e.Data);
+            // First, try to parse as a generic message to determine type
+            var baseMessage = JsonUtility.FromJson<BaseMessage>(e.Data);
 
-            // --- CAMBIO CLAVE ---
-            // Creamos una 'Action' que encapsula el trabajo que SÓLO puede
-            // hacerse en el hilo principal de Unity.
-            Action mainThreadAction = () =>
+            if (baseMessage.type == "command")
             {
-                try
+                var commandMessage = JsonUtility.FromJson<CommandMessage>(e.Data);
+                CommandDispatcher.ExecuteCommand(commandMessage.data, ws);
+            }
+            else if (baseMessage.type == "query")
+            {
+                var queryMessage = JsonUtility.FromJson<QueryMessage>(e.Data);
+                // For now, just send a placeholder response
+                UnityResponse response = new UnityResponse
                 {
-                    // 1. Ejecutamos el código a través del CSharpRunner (esto ahora es seguro)
-                    var result = CSharpRunner.Execute(commandRequest.command, commandRequest.additional_references);
-
-                    // 2. Serializamos el resultado
-                    string jsonResult = JsonUtility.ToJson(result);
-
-                    // 3. Enviamos la respuesta de vuelta (es seguro acceder a 'ws' desde aquí)
-                    Debug.Log($"[MCP] Enviando resultado JSON: {jsonResult}");
-                    ws.Send(jsonResult);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[MCP] Error ejecutando comando en el hilo principal: {ex}");
-                    var errorResult = new CommandResult { success = false, error = ex.Message };
-                    ws.Send(JsonUtility.ToJson(errorResult));
-                }
-            };
-
-            // 4. Ponemos la acción en la cola del Dispatcher para que la ejecute de forma segura.
-            CommandDispatcher.EnqueueAction(mainThreadAction);
+                    request_id = queryMessage.data.request_id,
+                    status = "success",
+                    payload = JsonUtility.ToJson(new { message = "Query received and processed (placeholder)." })
+                };
+                ws.Send(JsonUtility.ToJson(response));
+            }
+            else
+            {
+                Debug.LogWarning($"[MCP] Tipo de mensaje desconocido: {baseMessage.type}");
+            }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[MCP] Error al procesar el mensaje entrante: {ex}");
-            var errorResult = new CommandResult { success = false, error = $"Error de deserialización o encolado: {ex.Message}" };
-            ws.Send(JsonUtility.ToJson(errorResult));
+            Debug.LogError($"[MCP] Error al procesar mensaje: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
     private static void HandleLog(string logString, string stackTrace, LogType type)
     {
-        if (ws == null || !ws.IsAlive) return;
-
         if (type == LogType.Error || type == LogType.Exception)
         {
-            var logMessage = new { type = "log", level = type.ToString(), message = logString, stack = stackTrace };
-            ws.Send(JsonUtility.ToJson(logMessage));
+            var logData = new
+            {
+                level = type.ToString(),
+                message = logString,
+                stackTrace = stackTrace
+            };
+            string jsonLog = JsonUtility.ToJson(logData);
+            if (ws != null && ws.IsAlive)
+            {
+                ws.Send(jsonLog);
+            }
         }
     }
 
@@ -120,16 +88,50 @@ public static class MCPWebSocketClient
     {
         if (ws != null && ws.IsAlive)
         {
-            Debug.Log("[MCP] Desconectando del servidor...");
             ws.Close();
         }
     }
 }
 
-// Asegúrate de que esta clase también está en un fichero o al final de este
+[Serializable]
+public class BaseMessage
+{
+    public string type;
+}
+
+[Serializable]
+public class CommandMessage
+{
+    public string type;
+    public CommandRequest data;
+}
+
 [Serializable]
 public class CommandRequest
 {
     public string command;
-    public System.Collections.Generic.List<string> additional_references;
+    public List<string> additional_references;
+}
+
+[Serializable]
+public class QueryMessage
+{
+    public string type;
+    public QueryRequest data;
+}
+
+[Serializable]
+public class QueryRequest
+{
+    public string action;
+    public Dictionary<string, string> params_;
+    public string request_id;
+}
+
+[Serializable]
+public class UnityResponse
+{
+    public string request_id;
+    public string status;
+    public string payload;
 }
