@@ -163,12 +163,46 @@ public static class CSharpRunner
 
     private static string SerializeReturnValue(object value)
     {
-        if (value == null) return "null";
+        if (value == null)
+        {
+            return "null";
+        }
+
         if (value is UnityEngine.Object unityObject)
         {
+            // For Unity objects, we serialize basic info to avoid issues with objects that are
+            // not fully serializable to JSON or might be destroyed.
             return JsonUtility.ToJson(new { name = unityObject.name, type = unityObject.GetType().FullName, instanceID = unityObject.GetInstanceID() });
         }
-        return value.ToString();
+
+        // For primitive types or strings, ToString() is usually sufficient and safe.
+        var valueType = value.GetType();
+        if (valueType.IsPrimitive || value is string)
+        {
+            return value.ToString();
+        }
+
+        // For other complex, non-Unity objects, we attempt to serialize them to JSON.
+        // This will handle lists, dictionaries, and custom serializable classes.
+        try
+        {
+            // JsonUtility is limited but is the standard in Unity for structured data.
+            // It works well with objects that have the [Serializable] attribute.
+            string json = JsonUtility.ToJson(value);
+
+            // If JsonUtility returns an empty object for a non-primitive type, it likely failed.
+            // In this case, we fall back to ToString() as a last resort.
+            if (json == "{}" && valueType != typeof(object))
+            {
+                return value.ToString();
+            }
+            return json;
+        }
+        catch (Exception)
+        {
+            // If JsonUtility.ToJson fails, we fall back to the safest option.
+            return value.ToString();
+        }
     }
 
     #region Assembly Management

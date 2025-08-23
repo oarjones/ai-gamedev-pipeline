@@ -11,9 +11,6 @@ public static class MCPWebSocketClient
     private static WebSocket ws;
     private static bool isInitialized = false;
 
-    // Propiedad pública para que otras clases puedan enviar mensajes
-    public static WebSocket Ws => ws;
-
     static MCPWebSocketClient()
     {
         EditorApplication.delayCall += Initialize;
@@ -27,7 +24,8 @@ public static class MCPWebSocketClient
         Debug.Log("[MCP] Iniciando cliente WebSocket...");
         try
         {
-            ws = new WebSocket("ws://127.0.0.1:8001/ws/unity");
+            // --- URL Y PUERTO CORREGIDOS ---
+            ws = new WebSocket("ws://127.0.0.1:8001/ws/unity_editor");
 
             ws.OnOpen += (sender, e) => Debug.Log("[MCP] Conexión establecida.");
             ws.OnMessage += OnMessageReceived;
@@ -46,8 +44,6 @@ public static class MCPWebSocketClient
     private static void OnMessageReceived(object sender, MessageEventArgs e)
     {
         Debug.Log($"[MCP] Mensaje JSON recibido: {e.Data}");
-        // La única responsabilidad es encolar el mensaje para que el Dispatcher lo procese
-        // en el hilo principal de Unity.
         CommandDispatcher.EnqueueAction(() => CommandDispatcher.ProcessIncomingMessage(e.Data));
     }
 
