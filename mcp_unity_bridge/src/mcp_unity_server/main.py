@@ -1,111 +1,80 @@
+# En: mcp_unity_bridge/src/mcp_unity_server/main.py
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from .models import CommandRequest, QueryRequest, UnityResponse, Message
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import Dict, Any
 import json
-import asyncio
 import uuid
 
 app = FastAPI()
 
 class ConnectionManager:
     def __init__(self):
-        self.unity_connection: WebSocket | None = None
-        self.pending_queries: dict[str, WebSocket] = {}
+        self.active_connections: Dict[str, WebSocket] = {}
+        self.unity_client_id: str = "unity_editor"
 
-    async def connect_unity(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
-        self.unity_connection = websocket
+        self.active_connections[client_id] = websocket
+        print(f"Cliente conectado: {client_id}")
 
-    def disconnect_unity(self):
-        self.unity_connection = None
+    def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+        print(f"Cliente desconectado: {client_id}")
 
-    async def send_to_unity(self, message: dict):
-        if self.unity_connection:
-            await self.unity_connection.send_json(message)
+    async def send_json_to_client(self, message: Any, client_id: str):
+        if client_id in self.active_connections:
+            await self.active_connections[client_id].send_json(message)
         else:
-            raise HTTPException(status_code=503, detail="Unity Editor no está conectado.")
+            print(f"Error: Intento de enviar a cliente desconectado: {client_id}")
 
-    async def route_response_to_ai_client(self, request_id: str, payload: str):
-        if request_id in self.pending_queries:
-            ai_client_websocket = self.pending_queries.pop(request_id)
-            await ai_client_websocket.send_text(payload)
+    async def route_message_to_unity(self, message: dict, sender_id: str):
+        if self.unity_client_id in self.active_connections:
+            message["request_id"] = sender_id
+            await self.send_json_to_client(message, self.unity_client_id)
         else:
-            print(f"[Server] Advertencia: request_id {request_id} no encontrado en pending_queries.")
+            error_payload = json.dumps({"error": "Unity Editor no está conectado."})
+            error_response = {"request_id": sender_id, "status": "error", "payload": error_payload}
+            await self.send_json_to_client(error_response, sender_id)
+            print(f"Error: Mensaje de {sender_id} no enviado (Unity desconectado).")
 
 manager = ConnectionManager()
 
-@app.websocket("/ws/unity")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect_unity(websocket)
-    print("Unity Editor Conectado.")
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await manager.connect(websocket, client_id)
     try:
         while True:
-            message = await websocket.receive_text()
-            try:
-                data = json.loads(message)
-                if "request_id" in data and "status" in data and "payload" in data:
-                    # Es una respuesta de Unity a una query
-                    unity_response = UnityResponse(**data)
-                    await manager.route_response_to_ai_client(unity_response.request_id, unity_response.payload)
-                elif data.get("type") == "log":
-                    print(f"LOG de Unity [{data.get('level')}]: {data.get('message')}")
+            data = await websocket.receive_json()
+            print(f"Mensaje de '{client_id}': {data}")
+
+            if client_id == manager.unity_client_id:
+                ai_client_to_respond = data.get("request_id")
+                if ai_client_to_respond:
+                    # CORRECCIÓN: Usar la función de envío del manager
+                    await manager.send_json_to_client(data, ai_client_to_respond)
                 else:
-                    print(f"[Server] Mensaje desconocido de Unity: {message}")
-            except json.JSONDecodeError:
-                print(f"[Server] Mensaje no JSON de Unity: {message}")
-            except Exception as e:
-                print(f"[Server] Error procesando mensaje de Unity: {e} - Mensaje: {message}")
+                    print("Advertencia: Respuesta de Unity sin 'request_id'. No se puede enrutar.")
+            else:
+                await manager.route_message_to_unity(data, client_id)
 
     except WebSocketDisconnect:
-        manager.disconnect_unity()
-        print("Unity Editor Desconectado.")
-
-@app.websocket("/ws/ai")
-async def ai_websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    print("AI Client Conectado.")
-    try:
-        while True:
-            message_str = await websocket.receive_text()
-            try:
-                message_data = json.loads(message_str)
-                msg_type = message_data.get("type")
-
-                if msg_type == "command":
-                    command_request = CommandRequest(**message_data.get("data"))
-                    await manager.send_to_unity({"type": "command", "data": command_request.dict()})
-                    await websocket.send_text(json.dumps({"status": "success", "message": "Command sent to Unity"}))
-                elif msg_type == "query":
-                    query_data = message_data.get("data")
-                    query_request = QueryRequest(**query_data)
-                    
-                    request_id = str(uuid.uuid4())
-                    query_request.request_id = request_id
-                    manager.pending_queries[request_id] = websocket
-                    
-                    await manager.send_to_unity({"type": "query", "data": query_request.dict()})
-
-                else:
-                    await websocket.send_text(json.dumps({"status": "error", "message": "Unknown message type"}))
-
-            except json.JSONDecodeError:
-                await websocket.send_text(json.dumps({"status": "error", "message": "Invalid JSON format"}))
-            except Exception as e:
-                await websocket.send_text(json.dumps({"status": "error", "message": f"Server error: {str(e)}"}))
-
-    except WebSocketDisconnect:
-        print("AI Client Desconectado.")
+        manager.disconnect(client_id)
+    except Exception as e:
+        print(f"Error con el cliente {client_id}: {e}")
+        if client_id in manager.active_connections:
+            manager.disconnect(client_id)
 
 
-# This endpoint is now deprecated as AI clients will use the /ws/ai websocket
-@app.post("/unity/run-command")
-async def run_command_in_unity():
-    raise HTTPException(status_code=405, detail="This endpoint is deprecated. Please use the /ws/ai WebSocket for communication.")
-
+# El bloque __main__ está bien, pero asegúrate de que config.py tiene el puerto correcto.
 if __name__ == "__main__":
     import uvicorn
     from .config import get_settings
 
     settings = get_settings()
-    # Pass the app as a string 'module:variable' for reload to work correctly.
-    uvicorn.run("mcp_unity_server.main:app", host=settings["mcp_host"], port=settings["mcp_port"], reload=True)
+    uvicorn.run(
+        "mcp_unity_server.main:app",
+        host=settings["mcp_host"],
+        port=settings["mcp_port"],
+        reload=True
+    )

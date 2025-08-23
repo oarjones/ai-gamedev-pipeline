@@ -1,6 +1,10 @@
+# Dependencias principales de la aplicación
 fastapi
-uvicorn[standard]
-pydantic
-requests
-pytest
+uvicorn
 websockets
+pydantic
+
+# Dependencias para ejecutar los tests
+pytest
+pytest-asyncio
+httpx

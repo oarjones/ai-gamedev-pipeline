@@ -1,111 +1,161 @@
-import requests
-import base64
+# En: mcp_unity_bridge/integration_test.py
+
+import asyncio
+import websockets
 import json
-from typing import List, Optional
+import base64
+import os
+import pytest
 
-MCP_BASE_URL = "http://127.0.0.1:8001"
+# --- CONFIGURACIÓN PARA EL TEST REAL ---
+# Usamos el puerto 8001, que es el que tienes en tu config.py
+WEBSOCKET_BASE_URI = "ws://127.0.0.1:8001/ws/"
+# Este es el ID de nuestro cliente de test, que simula ser el agente IA
+AI_CLIENT_ID = "ai_agent_tester"
+TIMEOUT = 15  # Aumentamos el timeout a 15s por si Unity tarda en procesar
 
-def run_command(command: str, additional_assemblies: Optional[List[str]] = None):
-    """Función helper para enviar un comando al servidor MCP."""
-    print("-" * 50)
-    
-    payload = {"command": command}
-    if additional_assemblies:
-        payload["additional_references"] = additional_assemblies
-        print(f"▶️  Enviando comando con ensamblados adicionales: {additional_assemblies}")
-    else:
-        print(f"▶️  Enviando comando: {command[:80].strip()}...")
-
-    try:
-        response = requests.post(
-            f"{MCP_BASE_URL}/unity/run-command",
-            json=payload
-        )
-        response.raise_for_status()
-        result = response.json()
-        
-        if result.get("success"):
-            print(f"✅ Éxito:")
-            print(f"   Output: {result.get('output')}")
-            if result.get('console_output'):
-                print(f"   Console: \n---\n{result.get('console_output').strip()}\n---")
-        else:
-            print(f"❌ Error:")
-            print(f"   Mensaje: {result.get('error')}")
-        
-        return result
-
-    except requests.RequestException as e:
-        print(f"🚨 ERROR DE CONEXIÓN: No se pudo conectar al servidor MCP en {MCP_BASE_URL}.")
-        print(f"   Asegúrate de que el servidor FastAPI está en ejecución.")
-        return None
-
-def save_screenshot(result, filename="screenshot.png"):
-    """Función helper para decodificar y guardar una captura de pantalla."""
-    if result and result.get("success") and result.get("output"):
-        print(f"🖼️  Procesando captura de pantalla '{filename}'...")
-        try:
-            image_data_str = result["output"]
-            if "," in image_data_str:
-                image_data_str = image_data_str.split(',')[1]
-            
-            image_data = base64.b64decode(image_data_str)
-            with open(filename, "wb") as f:
-                f.write(image_data)
-            print(f"✅ Captura de pantalla guardada como '{filename}'.")
-        except Exception as e:
-            print(f"❌ Error al guardar la captura de pantalla: {e}")
-
-if __name__ == "__main__":
-    print("🚀 Iniciando Test de Integración End-to-End...")
-
-    # ... (Tests 1 al 6 se mantienen igual)
-    # run_command('new UnityEngine.GameObject("TestCubeFromAI");')
-    # run_command("return UnityEngine.Application.version;")
-    # run_command('int x = "error";')
-    # result_empty = run_command("TAKE_SCREENSHOT")
-    # save_screenshot(result_empty, "screenshot_empty.png")
-    # xml_test_code = 'using System.Xml; var doc = new XmlDocument(); doc.LoadXml("<item><name>test</name></item>"); return doc.SelectSingleNode("item/name").InnerText;'
-    # run_command(xml_test_code)
-    # xdocument_test_code = 'using System.Xml.Linq; var doc = new XDocument(new XElement("root", new XElement("child", "content"))); return doc.Root.Element("child").Value;'
-    # run_command(xdocument_test_code, additional_assemblies=["System.Xml.Linq"])
-
-
-    # Test 7: Crear una escena, ENCUADRAR el objeto, y tomar la captura
-    print("\n--- INICIANDO TEST 7: CREACIÓN, ENCUADRE Y CAPTURA DE ESCENA ---")
-    
-    # Paso 1: Crear un cubo
-    run_command('var cube = UnityEngine.GameObject.CreatePrimitive(UnityEngine.PrimitiveType.Cube); cube.name = "TestCube";')
-    
-    # Paso 2: Crear una luz direccional
-    light_command = """
-    var lightGO = new UnityEngine.GameObject("TestLight");
-    var light = lightGO.AddComponent<UnityEngine.Light>();
-    light.type = UnityEngine.LightType.Directional;
-    light.transform.rotation = UnityEngine.Quaternion.Euler(50, -30, 0);
+@pytest.mark.asyncio
+async def test_query_scene_hierarchy_real():
     """
-    run_command(light_command)
-    
-    # Paso 3: NUEVO Y CRÍTICO - Encuadrar el cubo con la cámara de la escena
-    frame_command = """
-    var cube = UnityEngine.GameObject.Find("TestCube");
-    if (cube != null) {
-        var sceneView = UnityEditor.SceneView.lastActiveSceneView;
-        if (sceneView != null) {
-            sceneView.Frame(new UnityEngine.Bounds(cube.transform.position, UnityEngine.Vector3.one * 2), false);
+    Test de integración REAL:
+    1. Conecta un cliente IA al servidor.
+    2. Envía una query para obtener la jerarquía de la escena.
+    3. Espera la respuesta REAL que el Editor de Unity envía de vuelta.
+    4. Valida que la respuesta es correcta.
+    """
+    print("\n--- INICIANDO TEST: 'test_query_scene_hierarchy_real' ---")
+    print("Asegúrate de que el servidor FastAPI está corriendo y Unity está en modo Play.")
+
+    async with websockets.connect(f"{WEBSOCKET_BASE_URI}{AI_CLIENT_ID}") as ai_ws:
+        print(f"[TestAI] Conectado al servidor como '{AI_CLIENT_ID}'.")
+
+        # 1. Preparar y enviar la query
+        query_message = {
+            "type": "query",
+            "action": "get_scene_hierarchy",
+            "payload": "{}" # Payload vacío para esta query
         }
-    }
+        print(f"[TestAI->MCP] Enviando petición: {query_message}")
+        await ai_ws.send(json.dumps(query_message))
+
+        # 2. Esperar la respuesta de vuelta desde Unity
+        print("[TestAI] Esperando respuesta del servidor (que viene de Unity)...")
+        try:
+            response_str = await asyncio.wait_for(ai_ws.recv(), timeout=TIMEOUT)
+            response_data = json.loads(response_str)
+            print(f"[MCP->TestAI] Respuesta recibida: {json.dumps(response_data, indent=2)}")
+
+            # 3. Validar la respuesta
+            assert response_data["status"] == "success"
+            payload = json.loads(response_data["payload"])
+            assert "data" in payload
+            # La escena por defecto de Unity siempre tiene una cámara
+            assert len(payload["data"]) > 0
+            camera_found = any(item["name"] == "Main Camera" for item in payload["data"])
+            assert camera_found, "No se encontró la 'Main Camera' en la jerarquía de la escena."
+            print("--- TEST COMPLETADO CON ÉXITO ---")
+
+        except asyncio.TimeoutError:
+            pytest.fail(f"Timeout: No se recibió respuesta de Unity en {TIMEOUT} segundos.")
+        except Exception as e:
+            pytest.fail(f"El test falló con una excepción: {e}")
+
+
+@pytest.mark.asyncio
+async def test_command_create_cube_real():
     """
-    run_command(frame_command)
+    Test de integración REAL para un comando que modifica la escena.
+    """
+    print("\n--- INICIANDO TEST: 'test_command_create_cube_real' ---")
+    print("Este test creará un cubo llamado 'TestCube' en tu escena de Unity.")
 
-    # Paso 4: Tomar la captura de la escena con el objeto ya encuadrado
-    result_scene = run_command("TAKE_SCREENSHOT")
-    save_screenshot(result_scene, "screenshot_with_scene.png")
+    async with websockets.connect(f"{WEBSOCKET_BASE_URI}{AI_CLIENT_ID}") as ai_ws:
+        print(f"[TestAI] Conectado al servidor como '{AI_CLIENT_ID}'.")
 
-    # Paso 5: NUEVO - Limpiar los objetos creados
-    # print("\n--- Limpiando escena del test ---")
-    # run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestCube"));')
-    # run_command('UnityEngine.Object.DestroyImmediate(UnityEngine.GameObject.Find("TestLight"));')
-            
-    print("-" * 50)
-    print("🏁 Test de Integración Finalizado.")
+        # 1. Preparar y enviar el comando
+        create_cube_code = 'var cube = GameObject.CreatePrimitive(PrimitiveType.Cube); cube.name = "TestCube"; return cube.name;'
+        command_message = {
+            "type": "command",
+            "payload": json.dumps({
+                "code": create_cube_code,
+                "additional_references": []
+            })
+        }
+        print(f"[TestAI->MCP] Enviando comando: {command_message}")
+        await ai_ws.send(json.dumps(command_message))
+
+        # 2. Esperar la respuesta de Unity
+        print("[TestAI] Esperando respuesta del servidor...")
+        try:
+            response_str = await asyncio.wait_for(ai_ws.recv(), timeout=TIMEOUT)
+            response_data = json.loads(response_str)
+            print(f"[MCP->TestAI] Respuesta recibida: {json.dumps(response_data, indent=2)}")
+
+            # 3. Validar la respuesta
+            assert response_data["status"] == "success"
+            payload = json.loads(response_data["payload"])
+            assert payload["success"] is True
+            # Unity serializa los strings de retorno con comillas dobles
+            assert 'TestCube' in payload["output"]
+            print("--- TEST COMPLETADO CON ÉXITO ---")
+            print("Verifica que el cubo 'TestCube' ha aparecido en la jerarquía de tu escena en Unity.")
+
+        except asyncio.TimeoutError:
+            pytest.fail(f"Timeout: No se recibió respuesta de Unity en {TIMEOUT} segundos.")
+
+@pytest.mark.asyncio
+async def test_screenshot_command_real():
+    """
+    Test de integración REAL para el comando de captura de pantalla.
+    """
+    print("\n--- INICIANDO TEST: 'test_screenshot_command_real' ---")
+    print("Este test solicitará una captura de pantalla a Unity y la guardará como 'test_screenshot.png'.")
+
+    async with websockets.connect(f"{WEBSOCKET_BASE_URI}{AI_CLIENT_ID}") as ai_ws:
+        print(f"[TestAI] Conectado al servidor como '{AI_CLIENT_ID}'.")
+
+        # 1. Preparar y enviar el comando especial de captura de pantalla
+        command_message = {
+            "type": "command",
+            "payload": json.dumps({
+                "code": "TAKE_SCREENSHOT",
+                "additional_references": []
+            })
+        }
+        print(f"[TestAI->MCP] Enviando comando: {command_message}")
+        await ai_ws.send(json.dumps(command_message))
+
+        # 2. Esperar la respuesta de Unity
+        print("[TestAI] Esperando respuesta del servidor...")
+        try:
+            response_str = await asyncio.wait_for(ai_ws.recv(), timeout=TIMEOUT)
+            response_data = json.loads(response_str)
+            print(f"[MCP->TestAI] Respuesta recibida con éxito.")
+
+            # 3. Validar la respuesta
+            assert response_data["status"] == "success"
+            payload = json.loads(response_data["payload"])
+            assert payload["success"] is True
+            assert payload["error"] is None
+
+            # 4. Comprobar que la salida es una imagen PNG válida en base64
+            output_base64 = payload["output"]
+            assert output_base64 is not None, "La salida de la captura de pantalla no puede ser nula."
+
+            image_data = base64.b64decode(output_base64)
+            # La cabecera de un fichero PNG siempre empieza con estos 8 bytes
+            is_png = image_data.startswith(b'\x89PNG\r\n\x1a\n')
+            assert is_png, "La respuesta no es una imagen PNG válida."
+
+            # Opcional: Guardar la imagen para verificarla manualmente
+            output_path = "test_screenshot.png"
+            with open(output_path, "wb") as f:
+                f.write(image_data)
+            print(f"Screenshot guardada en: {os.path.abspath(output_path)}")
+
+            print("--- TEST COMPLETADO CON ÉXITO ---")
+
+        except asyncio.TimeoutError:
+            pytest.fail(f"Timeout: No se recibió respuesta de Unity en {TIMEOUT} segundos.")
+        except Exception as e:
+            pytest.fail(f"El test falló con una excepción: {e}")

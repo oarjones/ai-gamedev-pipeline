@@ -23,3 +23,12 @@ class BaseMessage(BaseModel):
 class Message(BaseModel):
     type: Literal['command', 'query']
     data: Union[CommandRequest, QueryRequest]
+
+class UnityMessage(BaseModel):
+    """
+    Modelo genérico para la comunicación, compatible con el cliente C#.
+    """
+    type: str  # 'command' o 'query'
+    action: Optional[str] = None
+    payload: str # Un JSON string que contiene los datos específicos
+    request_id: Optional[str] = None
