@@ -3,7 +3,7 @@ import base64
 import json
 from typing import List, Optional
 
-MCP_BASE_URL = "http://127.0.0.1:8000"
+MCP_BASE_URL = "http://127.0.0.1:8001"
 
 def run_command(command: str, additional_assemblies: Optional[List[str]] = None):
     """Función helper para enviar un comando al servidor MCP."""

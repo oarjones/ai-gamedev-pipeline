@@ -1,0 +1,13 @@
+feat: Add GameObject details and project file scanning
+
+This commit expands the environment awareness capabilities of the AI by adding functionality to inspect individual GameObjects and list project files.
+
+Key changes include:
+- **`unity_project/Assets/Editor/MCP/EnvironmentScanner.cs`:**
+  - Implemented `GetGameObjectDetailsAsJson(int instanceId)` to retrieve detailed information about a GameObject, including its name, instance ID, active status, tag, layer, transform properties, and a selection of public properties from its components using reflection.
+  - Implemented `GetProjectFilesAsJson(string path)` to list subdirectories and files within a specified relative path under the Assets folder, with security checks to prevent directory traversal.
+- **`unity_project/Assets/Editor/MCP/CommandDispatcher.cs`:**
+  - Modified the `DispatchMessage` method to recognize and handle new query actions:
+    - `get_gameobject_details`: Calls `EnvironmentScanner.GetGameObjectDetailsAsJson()` with the provided `instanceId`.
+    - `get_project_files`: Calls `EnvironmentScanner.GetProjectFilesAsJson()` with the provided `path`.
+  - Ensures proper parameter extraction and error handling for these new queries.

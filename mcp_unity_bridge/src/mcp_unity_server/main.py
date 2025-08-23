@@ -101,3 +101,11 @@ async def ai_websocket_endpoint(websocket: WebSocket):
 @app.post("/unity/run-command")
 async def run_command_in_unity():
     raise HTTPException(status_code=405, detail="This endpoint is deprecated. Please use the /ws/ai WebSocket for communication.")
+
+if __name__ == "__main__":
+    import uvicorn
+    from .config import get_settings
+
+    settings = get_settings()
+    # Pass the app as a string 'module:variable' for reload to work correctly.
+    uvicorn.run("mcp_unity_server.main:app", host=settings["mcp_host"], port=settings["mcp_port"], reload=True)

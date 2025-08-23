@@ -5,48 +5,37 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Linq;
+using System;
 
 public static class EnvironmentScanner
 {
     // --- Scene Hierarchy Serialization --- //
-    [System.Serializable]
+    [Serializable]
     public class GameObjectData
     {
         public string name;
         public int instanceId;
         public List<GameObjectData> children;
-
-        public GameObjectData(GameObject go)
-        {
-            name = go.name;
-            instanceId = go.GetInstanceID();
-            children = new List<GameObjectData>();
-        }
     }
 
     public static string GetSceneHierarchyAsJson()
     {
         List<GameObjectData> rootObjectsData = new List<GameObjectData>();
         Scene activeScene = SceneManager.GetActiveScene();
-
         foreach (GameObject rootGameObject in activeScene.GetRootGameObjects())
         {
             rootObjectsData.Add(BuildGameObjectData(rootGameObject));
         }
-
-        Wrapper<List<GameObjectData>> wrapper = new Wrapper<List<GameObjectData>> { data = rootObjectsData };
-        return JsonUtility.ToJson(wrapper, true);
+        return JsonUtility.ToJson(new Wrapper<List<GameObjectData>> { data = rootObjectsData }, true);
     }
 
     private static GameObjectData BuildGameObjectData(GameObject go)
     {
-        GameObjectData data = new GameObjectData(go);
-
+        var data = new GameObjectData { name = go.name, instanceId = go.GetInstanceID(), children = new List<GameObjectData>() };
         foreach (Transform childTransform in go.transform)
         {
             data.children.Add(BuildGameObjectData(childTransform.gameObject));
         }
-
         return data;
     }
 
@@ -85,14 +74,16 @@ public static class EnvironmentScanner
         public string value;
     }
 
+
     public static string GetGameObjectDetailsAsJson(int instanceId)
     {
+        // El código existente aquí es correcto y no necesita cambios.
+        // Lo omito por brevedad, pero debe permanecer como está.
         GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
 
         if (go == null)
         {
-            return JsonUtility.ToJson(new { error = $"GameObject with InstanceID {instanceId} not found."
-        });
+            return JsonUtility.ToJson(new { error = $"GameObject with InstanceID {instanceId} not found." });
         }
 
         GameObjectDetails details = new GameObjectDetails
@@ -121,11 +112,9 @@ public static class EnvironmentScanner
                 properties = new List<PropertyDetail>()
             };
 
-            // Use reflection to get public properties
             PropertyInfo[] properties = comp.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (PropertyInfo prop in properties)
             {
-                // Filter out properties that are not easily serializable or can cause issues
                 if (prop.CanRead && prop.GetIndexParameters().Length == 0 &&
                     (prop.PropertyType.IsPrimitive || prop.PropertyType == typeof(string) ||
                      prop.PropertyType == typeof(Vector2) || prop.PropertyType == typeof(Vector3) ||
@@ -147,24 +136,59 @@ public static class EnvironmentScanner
             details.components.Add(compDetails);
         }
 
-        Wrapper<GameObjectDetails> wrapper = new Wrapper<GameObjectDetails> { data = details };
-        return JsonUtility.ToJson(wrapper, true);
+        return JsonUtility.ToJson(new Wrapper<GameObjectDetails> { data = details }, true);
     }
 
+
     // --- Project Files Scanning --- //
-    [System.Serializable]
+    [Serializable]
     public class ProjectFilesDetails
     {
-        public List<string> directories;
-        public List<string> files;
+        public List<string> directories = new List<string>();
+        public List<string> files = new List<string>();
     }
 
     public static string GetProjectFilesAsJson(string relativePath)
     {
-        string assetsPath = Application.dataPath;
-        string fullPath = Path.Combine(assetsPath, relativePath).Replace("\", "/");
-
-        // Security check: Ensure the path is within the Assets folder
-        if (!fullPath.StartsWith(assetsPath) || Path.GetFullPath(fullPath).Contains(".."))
+        try
         {
-            return JsonUtility.ToJson(new { error = $
+            string assetsPath = Application.dataPath;
+            // Normalizar la ruta de entrada
+            string normalizedRelativePath = (relativePath ?? "").Trim().Replace("\\", "/");
+            string fullPath = Path.GetFullPath(Path.Combine(assetsPath, normalizedRelativePath));
+
+            // Security check: Asegurarse de que la ruta sigue estando dentro de Assets
+            if (!fullPath.StartsWith(Path.GetFullPath(assetsPath)))
+            {
+                throw new Exception("Acceso denegado. La ruta está fuera del directorio del proyecto.");
+            }
+
+            if (!Directory.Exists(fullPath))
+            {
+                throw new DirectoryNotFoundException($"El directorio no existe: {fullPath}");
+            }
+
+            var details = new ProjectFilesDetails();
+            foreach (var dir in Directory.GetDirectories(fullPath))
+            {
+                details.directories.Add(Path.GetFileName(dir));
+            }
+            foreach (var file in Directory.GetFiles(fullPath))
+            {
+                // Ignorar los meta files
+                if (!file.EndsWith(".meta"))
+                {
+                    details.files.Add(Path.GetFileName(file));
+                }
+            }
+
+            return JsonUtility.ToJson(new Wrapper<ProjectFilesDetails> { data = details }, true);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[EnvironmentScanner] Error escaneando archivos: {e.Message}");
+            return JsonUtility.ToJson(new { error = e.Message });
+        }
+    }
+
+}

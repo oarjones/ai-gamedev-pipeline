@@ -12,14 +12,14 @@ using UnityEngine;
 public static class CSharpRunner
 {
 
-    public static CommandResult Execute(string code, List<string> additionalReferences)
+    public static CommandExecutionResult Execute(string code, List<string> additionalReferences)
     {
         if (code == "TAKE_SCREENSHOT")
         {
             return TakeScreenshot();
         }
 
-        var result = new CommandResult();
+        var result = new CommandExecutionResult();
         try
         {
             // Usando CompileWithFallback como solicitaste
@@ -55,63 +55,7 @@ public static class CSharpRunner
         return result;
     }
 
-    //public static CommandResult Execute(string code, List<string> additionalReferences)
-    //{
-    //    if (code == "TAKE_SCREENSHOT")
-    //    {
-    //        return TakeScreenshot();
-    //    }
-
-    //    var result = new CommandResult();
-    //    var consoleOutputBuilder = new StringBuilder();
-    //    var logHandler = new LogHandler(consoleOutputBuilder);
-
-    //    try
-    //    {
-    //        Application.logMessageReceived += logHandler.HandleLog;
-
-    //        var assembly = CompileWithFallback(code, result, additionalReferences);
-    //        if (assembly != null)
-    //        {
-    //            var type = assembly.GetType("DynamicExecutor");
-    //            if (type == null)
-    //            {
-    //                throw new InvalidOperationException("No se pudo encontrar el tipo 'DynamicExecutor' en el ensamblado compilado.");
-    //            }
-
-    //            var method = type.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
-    //            if (method == null)
-    //            {
-    //                throw new InvalidOperationException("No se pudo encontrar el método estático 'Run' en el tipo 'DynamicExecutor'.");
-    //            }
-
-    //            object returnValue = method.Invoke(null, null);
-
-    //            result.success = true;
-    //            string serializedReturnValue = SerializeReturnValue(returnValue);
-    //            string consoleOutput = consoleOutputBuilder.ToString();
-    //            result.output = string.IsNullOrEmpty(consoleOutput) ? serializedReturnValue : $"{consoleOutput}\n---RETURN---\n{serializedReturnValue}";
-    //        }
-    //    }
-    //    catch (Exception e)
-    //    {
-    //        result.success = false;
-    //        result.error = $"[Execution Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}";
-    //    }
-    //    finally
-    //    {
-    //        Application.logMessageReceived -= logHandler.HandleLog;
-    //        // Si ya hay un error, le añadimos el log de la consola para dar más contexto.
-    //        if (!string.IsNullOrEmpty(result.error))
-    //        {
-    //            result.error += @"\n\n---CONSOLE OUTPUT---\" + consoleOutputBuilder.ToString();
-    //        }
-    //    }
-
-    //    return result;
-    //}
-
-    private static (Assembly, string) CompileWithFallback(string code, CommandResult result, List<string> additionalReferences)
+    private static (Assembly, string) CompileWithFallback(string code, CommandExecutionResult result, List<string> additionalReferences)
     {
         var essentialAssemblies = GetEssentialAssemblies();
         if (additionalReferences != null)
@@ -262,7 +206,7 @@ public static class CSharpRunner
 
     #endregion
 
-    private static CommandResult TakeScreenshot()
+    private static CommandExecutionResult TakeScreenshot()
     {
         try
         {
@@ -312,7 +256,7 @@ public static class CSharpRunner
 
                 string base64 = Convert.ToBase64String(png);
 
-                return new CommandResult
+                return new CommandExecutionResult
                 {
                     success = true,
                     output = base64
@@ -329,7 +273,7 @@ public static class CSharpRunner
         }
         catch (Exception e)
         {
-            return new CommandResult
+            return new CommandExecutionResult
             {
                 success = false,
                 error = $"[Screenshot Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}"
