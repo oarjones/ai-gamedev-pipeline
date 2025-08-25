@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using WebSocketSharp;
 using System;
+using Newtonsoft.Json;
 
 [InitializeOnLoad]
 public static class MCPWebSocketClient
@@ -24,7 +25,6 @@ public static class MCPWebSocketClient
         Debug.Log("[MCP] Iniciando cliente WebSocket...");
         try
         {
-            // --- URL Y PUERTO CORREGIDOS ---
             ws = new WebSocket("ws://127.0.0.1:8001/ws/unity_editor");
 
             ws.OnOpen += (sender, e) => Debug.Log("[MCP] Conexión establecida.");
@@ -54,7 +54,13 @@ public static class MCPWebSocketClient
             Debug.LogWarning("[MCP] No se puede enviar respuesta, el WebSocket no está conectado.");
             return;
         }
-        string jsonResponse = JsonUtility.ToJson(response);
+
+        // Usamos Newtonsoft.Json para serializar la respuesta completa
+        string jsonResponse = JsonConvert.SerializeObject(response, Formatting.Indented, new JsonSerializerSettings
+        {
+            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+        });
+
         Debug.Log($"[MCP] Enviando respuesta JSON: {jsonResponse}");
         ws.Send(jsonResponse);
     }

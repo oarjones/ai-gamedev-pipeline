@@ -1,3 +1,5 @@
+// En: Assets/Editor/MCP/CSharpRunner.cs
+
 using Microsoft.CSharp;
 using System;
 using System.CodeDom.Compiler;
@@ -8,21 +10,16 @@ using System.Reflection;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
+using Newtonsoft.Json;
 
 public static class CSharpRunner
 {
 
     public static CommandExecutionResult Execute(string code, List<string> additionalReferences)
     {
-        if (code == "TAKE_SCREENSHOT")
-        {
-            return TakeScreenshot();
-        }
-
         var result = new CommandExecutionResult();
         try
         {
-            // Usando CompileWithFallback como solicitaste
             var (assembly, compilationErrors) = CompileWithFallback(code, result, additionalReferences);
 
             if (assembly != null)
@@ -33,11 +30,9 @@ public static class CSharpRunner
                 var method = type.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
                 if (method == null) throw new InvalidOperationException("No se pudo encontrar el método estático 'Run'.");
 
-                // La invocación ahora es segura porque este método se ejecuta en el hilo principal
                 object returnValue = method.Invoke(null, null);
 
                 result.success = true;
-                // Aseguramos que el valor de retorno se asigna a 'output'
                 result.output = SerializeReturnValue(returnValue);
             }
             else
@@ -170,37 +165,30 @@ public static class CSharpRunner
 
         if (value is UnityEngine.Object unityObject)
         {
-            // For Unity objects, we serialize basic info to avoid issues with objects that are
-            // not fully serializable to JSON or might be destroyed.
-            return JsonUtility.ToJson(new { name = unityObject.name, type = unityObject.GetType().FullName, instanceID = unityObject.GetInstanceID() });
+            return JsonConvert.SerializeObject(new { 
+                name = unityObject.name, 
+                type = unityObject.GetType().FullName, 
+                instanceID = unityObject.GetInstanceID() 
+            });
         }
 
-        // For primitive types or strings, ToString() is usually sufficient and safe.
         var valueType = value.GetType();
         if (valueType.IsPrimitive || value is string)
         {
             return value.ToString();
         }
 
-        // For other complex, non-Unity objects, we attempt to serialize them to JSON.
-        // This will handle lists, dictionaries, and custom serializable classes.
         try
         {
-            // JsonUtility is limited but is the standard in Unity for structured data.
-            // It works well with objects that have the [Serializable] attribute.
-            string json = JsonUtility.ToJson(value);
-
-            // If JsonUtility returns an empty object for a non-primitive type, it likely failed.
-            // In this case, we fall back to ToString() as a last resort.
-            if (json == "{}" && valueType != typeof(object))
+            return JsonConvert.SerializeObject(value, new JsonSerializerSettings
             {
-                return value.ToString();
-            }
-            return json;
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                ContractResolver = new UnityContractResolver()
+            });
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            // If JsonUtility.ToJson fails, we fall back to the safest option.
+            Debug.LogWarning($"[CSharpRunner] Error de serialización con Newtonsoft.Json: {e.Message}. Volviendo a ToString().");
             return value.ToString();
         }
     }
@@ -233,95 +221,5 @@ public static class CSharpRunner
             .FirstOrDefault(a => a.GetName().Name.Equals(cleanAssemblyName, StringComparison.OrdinalIgnoreCase))?.Location;
     }
 
-    private static void LogAssemblies(List<string> assemblies)
-    {
-        // This method is for debugging and can be kept as is.
-    }
-
     #endregion
-
-    private static CommandExecutionResult TakeScreenshot()
-    {
-        try
-        {
-            int width = 1280;
-            int height = 720;
-            SceneView sv = SceneView.lastActiveSceneView ?? SceneView.focusedWindow as SceneView;
-            var go = new GameObject("~TempScreenshotCamera") { hideFlags = HideFlags.HideAndDontSave };
-            var cam = go.AddComponent<Camera>();
-            cam.enabled = false;
-            cam.clearFlags = CameraClearFlags.Skybox;
-            cam.backgroundColor = Color.black;
-            cam.cullingMask = ~0;
-
-            if (sv != null && sv.camera != null)
-            {
-                go.transform.SetPositionAndRotation(sv.camera.transform.position, sv.camera.transform.rotation);
-                cam.fieldOfView = sv.camera.fieldOfView;
-            }
-            else if (Camera.main != null)
-            {
-                go.transform.SetPositionAndRotation(Camera.main.transform.position, Camera.main.transform.rotation);
-                cam.fieldOfView = Camera.main.fieldOfView;
-            }
-            else
-            {
-                go.transform.position = new Vector3(0, 1.5f, -5f);
-                go.transform.LookAt(Vector3.zero);
-                cam.fieldOfView = 60f;
-            }
-
-            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
-            var prevActive = RenderTexture.active;
-            var prevTarget = cam.targetTexture;
-
-            try
-            {
-                cam.targetTexture = rt;
-                cam.Render();
-
-                RenderTexture.active = rt;
-                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-                tex.Apply();
-
-                byte[] png = tex.EncodeToPNG();
-                UnityEngine.Object.DestroyImmediate(tex);
-
-                string base64 = Convert.ToBase64String(png);
-
-                return new CommandExecutionResult
-                {
-                    success = true,
-                    output = base64
-                };
-            }
-            finally
-            {
-                cam.targetTexture = prevTarget;
-                RenderTexture.active = prevActive;
-                rt.Release();
-                UnityEngine.Object.DestroyImmediate(rt);
-                UnityEngine.Object.DestroyImmediate(go);
-            }
-        }
-        catch (Exception e)
-        {
-            return new CommandExecutionResult
-            {
-                success = false,
-                error = $"[Screenshot Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}"
-            };
-        }
-    }
-
-    private class LogHandler
-    {
-        private readonly StringBuilder _stringBuilder;
-        public LogHandler(StringBuilder stringBuilder) { _stringBuilder = stringBuilder; }
-        public void HandleLog(string logString, string stackTrace, LogType type)
-        {
-            _stringBuilder.AppendLine($"[{type}] {logString}");
-        }
-    }
 }

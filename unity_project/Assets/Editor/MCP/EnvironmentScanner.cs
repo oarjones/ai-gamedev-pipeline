@@ -1,3 +1,5 @@
+// En: Assets/Editor/MCP/EnvironmentScanner.cs
+
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.SceneManagement;
@@ -6,19 +8,16 @@ using System.IO;
 using System.Reflection;
 using System.Linq;
 using System;
+using Newtonsoft.Json;
 
+/// <summary>
+/// Proporciona mÃ©todos para escanear y obtener informaciÃ³n sobre el estado del editor de Unity.
+/// </summary>
 public static class EnvironmentScanner
 {
     // --- Scene Hierarchy Serialization --- //
-    [Serializable]
-    public class GameObjectData
-    {
-        public string name;
-        public int instanceId;
-        public List<GameObjectData> children;
-    }
 
-    public static string GetSceneHierarchyAsJson()
+    public static object GetSceneHierarchy()
     {
         List<GameObjectData> rootObjectsData = new List<GameObjectData>();
         Scene activeScene = SceneManager.GetActiveScene();
@@ -26,7 +25,7 @@ public static class EnvironmentScanner
         {
             rootObjectsData.Add(BuildGameObjectData(rootGameObject));
         }
-        return JsonUtility.ToJson(new Wrapper<List<GameObjectData>> { data = rootObjectsData }, true);
+        return new Wrapper<List<GameObjectData>> { data = rootObjectsData };
     }
 
     private static GameObjectData BuildGameObjectData(GameObject go)
@@ -40,127 +39,56 @@ public static class EnvironmentScanner
     }
 
     // --- GameObject Details Serialization --- //
-    [System.Serializable]
-    public class GameObjectDetails
-    {
-        public string name;
-        public int instanceId;
-        public bool isActive;
-        public string tag;
-        public int layer;
-        public TransformDetails transform;
-        public List<ComponentDetails> components;
-    }
 
-    [System.Serializable]
-    public class TransformDetails
+    public static object GetGameObjectDetails(int instanceId)
     {
-        public Vector3 position;
-        public Quaternion rotation;
-        public Vector3 scale;
-    }
-
-    [System.Serializable]
-    public class ComponentDetails
-    {
-        public string typeName;
-        public List<PropertyDetail> properties;
-    }
-
-    [System.Serializable]
-    public class PropertyDetail
-    {
-        public string name;
-        public string value;
-    }
-
-
-    public static string GetGameObjectDetailsAsJson(int instanceId)
-    {
-        // El código existente aquí es correcto y no necesita cambios.
-        // Lo omito por brevedad, pero debe permanecer como está.
         GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
 
         if (go == null)
         {
-            return JsonUtility.ToJson(new { error = $"GameObject with InstanceID {instanceId} not found." });
+            return new { error = $"GameObject with InstanceID {instanceId} not found."
+};
         }
 
-        GameObjectDetails details = new GameObjectDetails
+        var details = new GameObjectDetails
         {
             name = go.name,
             instanceId = go.GetInstanceID(),
-            isActive = go.activeInHierarchy,
-            tag = go.tag,
-            layer = go.layer,
-            transform = new TransformDetails
-            {
-                position = go.transform.position,
-                rotation = go.transform.rotation,
-                scale = go.transform.localScale
-            },
-            components = new List<ComponentDetails>()
+            components = new List<ComponentData>()
         };
 
         foreach (Component comp in go.GetComponents<Component>())
         {
             if (comp == null) continue;
 
-            ComponentDetails compDetails = new ComponentDetails
+            var componentData = new ComponentData
             {
-                typeName = comp.GetType().FullName,
-                properties = new List<PropertyDetail>()
-            };
-
-            PropertyInfo[] properties = comp.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            foreach (PropertyInfo prop in properties)
-            {
-                if (prop.CanRead && prop.GetIndexParameters().Length == 0 &&
-                    (prop.PropertyType.IsPrimitive || prop.PropertyType == typeof(string) ||
-                     prop.PropertyType == typeof(Vector2) || prop.PropertyType == typeof(Vector3) ||
-                     prop.PropertyType == typeof(Vector4) || prop.PropertyType == typeof(Quaternion) ||
-                     prop.PropertyType == typeof(Color) || prop.PropertyType == typeof(Bounds) ||
-                     prop.PropertyType == typeof(Rect) || prop.PropertyType.IsEnum))
+                type = comp.GetType().FullName,
+                json = JsonConvert.SerializeObject(comp, Formatting.None, new JsonSerializerSettings
                 {
-                    try
-                    {
-                        object value = prop.GetValue(comp, null);
-                        compDetails.properties.Add(new PropertyDetail { name = prop.Name, value = value != null ? value.ToString() : "null" });
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogWarning($"[EnvironmentScanner] Could not get property {prop.Name} from {comp.GetType().Name}: {e.Message}");
-                    }
-                }
-            }
-            details.components.Add(compDetails);
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                    ContractResolver = new UnityContractResolver()
+                })
+            };
+            details.components.Add(componentData);
         }
 
-        return JsonUtility.ToJson(new Wrapper<GameObjectDetails> { data = details }, true);
+        return new Wrapper<GameObjectDetails> { data = details };
     }
-
 
     // --- Project Files Scanning --- //
-    [Serializable]
-    public class ProjectFilesDetails
-    {
-        public List<string> directories = new List<string>();
-        public List<string> files = new List<string>();
-    }
 
-    public static string GetProjectFilesAsJson(string relativePath)
+    public static object GetProjectFiles(string relativePath)
     {
         try
         {
             string assetsPath = Application.dataPath;
-            // Normalizar la ruta de entrada
             string normalizedRelativePath = (relativePath ?? "").Trim().Replace("\\", "/");
             string fullPath = Path.GetFullPath(Path.Combine(assetsPath, normalizedRelativePath));
 
-            // Security check: Asegurarse de que la ruta sigue estando dentro de Assets
             if (!fullPath.StartsWith(Path.GetFullPath(assetsPath)))
             {
-                throw new Exception("Acceso denegado. La ruta está fuera del directorio del proyecto.");
+                throw new Exception("Acceso denegado. La ruta estÃ¡ fuera del directorio del proyecto.");
             }
 
             if (!Directory.Exists(fullPath))
@@ -168,27 +96,96 @@ public static class EnvironmentScanner
                 throw new DirectoryNotFoundException($"El directorio no existe: {fullPath}");
             }
 
-            var details = new ProjectFilesDetails();
-            foreach (var dir in Directory.GetDirectories(fullPath))
+            var details = new ProjectFilesDetails
             {
-                details.directories.Add(Path.GetFileName(dir));
-            }
-            foreach (var file in Directory.GetFiles(fullPath))
-            {
-                // Ignorar los meta files
-                if (!file.EndsWith(".meta"))
-                {
-                    details.files.Add(Path.GetFileName(file));
-                }
-            }
+                path = normalizedRelativePath,
+                directories = Directory.GetDirectories(fullPath).Select(Path.GetFileName).ToList(),
+                files = Directory.GetFiles(fullPath).Where(f => !f.EndsWith(".meta")).Select(Path.GetFileName).ToList()
+            };
 
-            return JsonUtility.ToJson(new Wrapper<ProjectFilesDetails> { data = details }, true);
+            return new Wrapper<ProjectFilesDetails> { data = details };
         }
         catch (Exception e)
         {
             Debug.LogError($"[EnvironmentScanner] Error escaneando archivos: {e.Message}");
-            return JsonUtility.ToJson(new { error = e.Message });
+            return new { error = e.Message };
         }
     }
 
+    // --- Screenshot --- //
+
+    public static CommandExecutionResult TakeScreenshot()
+    {
+        try
+        {
+            int width = 1280;
+            int height = 720;
+            SceneView sv = SceneView.lastActiveSceneView ?? SceneView.focusedWindow as SceneView;
+            var go = new GameObject("~TempScreenshotCamera") { hideFlags = HideFlags.HideAndDontSave };
+            var cam = go.AddComponent<Camera>();
+            cam.enabled = false;
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.backgroundColor = Color.black;
+            cam.cullingMask = ~0;
+
+            if (sv != null && sv.camera != null)
+            {
+                go.transform.SetPositionAndRotation(sv.camera.transform.position, sv.camera.transform.rotation);
+                cam.fieldOfView = sv.camera.fieldOfView;
+            }
+            else if (Camera.main != null)
+            {
+                go.transform.SetPositionAndRotation(Camera.main.transform.position, Camera.main.transform.rotation);
+                cam.fieldOfView = Camera.main.fieldOfView;
+            }
+            else
+            {
+                go.transform.position = new Vector3(0, 1.5f, -5f);
+                go.transform.LookAt(Vector3.zero);
+                cam.fieldOfView = 60f;
+            }
+
+            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            var prevActive = RenderTexture.active;
+            var prevTarget = cam.targetTexture;
+
+            try
+            {
+                cam.targetTexture = rt;
+                cam.Render();
+
+                RenderTexture.active = rt;
+                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+
+                byte[] png = tex.EncodeToPNG();
+                UnityEngine.Object.DestroyImmediate(tex);
+
+                string base64 = Convert.ToBase64String(png);
+
+                return new CommandExecutionResult
+                {
+                    success = true,
+                    output = base64
+                };
+            }
+            finally
+            {
+                cam.targetTexture = prevTarget;
+                RenderTexture.active = prevActive;
+                rt.Release();
+                UnityEngine.Object.DestroyImmediate(rt);
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+        catch (Exception e)
+        {
+            return new CommandExecutionResult
+            {
+                success = false,
+                error = $"[Screenshot Error] {e.GetType().Name}: {e.Message}\n{e.StackTrace}"
+            };
+        }
+    }
 }

@@ -4,6 +4,8 @@ using System;
 using System.Collections.Concurrent;
 using UnityEditor;
 using UnityEngine;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 [InitializeOnLoad]
 public static class CommandDispatcher
@@ -31,30 +33,26 @@ public static class CommandDispatcher
         }
     }
 
-    /// <summary>
-    /// Punto de entrada para procesar todos los mensajes del WebSocket.
-    /// </summary>
     public static void ProcessIncomingMessage(string jsonData)
     {
         var response = new UnityResponse();
         try
         {
-            var message = JsonUtility.FromJson<UnityMessage>(jsonData);
+            var message = JsonConvert.DeserializeObject<UnityMessage>(jsonData);
             response.request_id = message.request_id;
 
             switch (message.type)
             {
                 case "command":
-                    var commandPayload = JsonUtility.FromJson<CommandPayload>(message.payload);
+                    var commandPayload = message.payload.ToObject<CommandPayload>();
                     var commandResult = CSharpRunner.Execute(commandPayload.code, commandPayload.additional_references);
-                    response.payload = JsonUtility.ToJson(commandResult);
+                    response.payload = commandResult;
                     response.status = commandResult.success ? "success" : "error";
                     break;
 
                 case "query":
-                    string queryPayload = ProcessQuery(message.action, message.payload);
-                    response.payload = queryPayload;
-                    response.status = "success";
+                    response.payload = ProcessQuery(message.action, message.payload);
+                    response.status = "success"; 
                     break;
 
                 default:
@@ -65,29 +63,26 @@ public static class CommandDispatcher
         {
             Debug.LogError($"[CommandDispatcher] Error procesando mensaje: {e}");
             response.status = "error";
-            response.payload = JsonUtility.ToJson(new { error = e.Message });
+            response.payload = new { error = e.Message, details = e.ToString() };
         }
 
         MCPWebSocketClient.SendResponse(response);
     }
 
-    /// <summary>
-    /// Enruta las 'queries' a la función correspondiente de EnvironmentScanner.
-    /// </summary>
-    private static string ProcessQuery(string action, string payload)
+    private static object ProcessQuery(string action, JToken payload)
     {
         switch (action)
         {
             case "get_scene_hierarchy":
-                return EnvironmentScanner.GetSceneHierarchyAsJson();
+                return EnvironmentScanner.GetSceneHierarchy();
 
             case "get_gameobject_details":
-                var detailsParams = JsonUtility.FromJson<QueryParameters>(payload);
-                return EnvironmentScanner.GetGameObjectDetailsAsJson(detailsParams.instanceId);
+                var detailsParams = payload.ToObject<QueryParameters>();
+                return EnvironmentScanner.GetGameObjectDetails(detailsParams.instanceId);
 
             case "get_project_files":
-                var filesParams = JsonUtility.FromJson<QueryParameters>(payload);
-                return EnvironmentScanner.GetProjectFilesAsJson(filesParams.path);
+                var filesParams = payload.ToObject<QueryParameters>();
+                return EnvironmentScanner.GetProjectFiles(filesParams.path);
 
             default:
                 Debug.LogWarning($"Query desconocida recibida: {action}");
