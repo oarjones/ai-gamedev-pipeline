@@ -91,6 +91,11 @@ public class ProjectFilesDetails
     public List<string> files;
 }
 
+public class ScreenshotData
+{
+    public string image_base64; // Imagen en formato base64
+}
+
 // --- RESOLVERS Y CONVERTERS DE NEWTONSOFT.JSON --- //
 
 /// <summary>

@@ -106,13 +106,13 @@ async def unity_get_project_files(path: str = ".") -> str:
 
 
 @mcp.tool()
-async def unity_capture_screenshot(file_path: str = "Screenshots/capture.png") -> str:
+async def unity_capture_screenshot() -> str:
     """
     Toma una captura de la ventana 'Game' de Unity y la guarda en el proyecto.
     """
-    log.info("Executing query: capture_screenshot to '%s'...", file_path)
-    payload = json.dumps({"path": file_path})
-    message = {"type": "query", "action": "capture_screenshot", "payload": payload}
+    log.info("Executing query: capture_screenshot")
+    
+    message = {"type": "query", "action": "capture_screenshot", "payload": "{}"}
     response = await send_to_unity_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
 

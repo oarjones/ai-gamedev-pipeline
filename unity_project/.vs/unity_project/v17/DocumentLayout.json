@@ -3,23 +3,27 @@
   "WorkspaceRootPath": "D:\\ai-gamedev-pipeline\\unity_project\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\csharprunner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\csharprunner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\environmentscanner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\environmentscanner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\scripts\\pushbutton.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\mcpmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\mcpmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\scripts\\pushbutton.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\pushbutton.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\scripts\\snowmanrotator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\csharprunner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\csharprunner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\scripts\\snowmanrotator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{86B588A5-6AF9-792A-0A8D-34EA7C959619}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\snowmanrotator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
@@ -33,16 +37,25 @@
           "SelectedChildIndex": 8,
           "Children": [
             {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "MCPModels.cs",
+              "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\MCPModels.cs",
+              "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\MCPModels.cs",
+              "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\MCPModels.cs",
+              "RelativeToolTip": "Assets\\Editor\\MCP\\MCPModels.cs",
+              "ViewState": "AgIAAC4AAAAAAAAAAIAzwDsAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-26T06:05:52.758Z",
+              "EditorCaption": ""
+            },
+            {
               "$type": "Bookmark",
               "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             },
             {
               "$type": "Bookmark",
               "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
             },
             {
               "$type": "Bookmark",
@@ -63,7 +76,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "SnowmanRotator.cs",
               "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Scripts\\SnowmanRotator.cs",
               "RelativeDocumentMoniker": "Assets\\Scripts\\SnowmanRotator.cs",
@@ -71,31 +84,30 @@
               "RelativeToolTip": "Assets\\Scripts\\SnowmanRotator.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAARAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-25T19:43:59.941Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-08-25T19:43:59.941Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "EnvironmentScanner.cs",
               "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\EnvironmentScanner.cs",
               "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\EnvironmentScanner.cs",
               "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\EnvironmentScanner.cs",
               "RelativeToolTip": "Assets\\Editor\\MCP\\EnvironmentScanner.cs",
-              "ViewState": "AgIAAE4AAAAAAAAAAAAAwFwAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAALMAAAAAAAAAAAAjwMEAAAApAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-25T19:25:19.804Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "CSharpRunner.cs",
               "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\CSharpRunner.cs",
               "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\CSharpRunner.cs",
               "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\CSharpRunner.cs",
               "RelativeToolTip": "Assets\\Editor\\MCP\\CSharpRunner.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAABgAAAAAAAAAA==",
+              "ViewState": "AgIAABEAAAAAAAAAAAAqwMIAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-25T19:23:50.211Z",
               "EditorCaption": ""
@@ -108,7 +120,7 @@
               "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\CommandDispatcher.cs",
               "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\CommandDispatcher.cs",
               "RelativeToolTip": "Assets\\Editor\\MCP\\CommandDispatcher.cs",
-              "ViewState": "AgIAAEIAAAAAAAAAAAAlwEoAAAAXAAAAAAAAAA==",
+              "ViewState": "AgIAAEQAAAAAAAAAAAAawFMAAAAfAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-25T18:56:51.909Z",
               "EditorCaption": ""

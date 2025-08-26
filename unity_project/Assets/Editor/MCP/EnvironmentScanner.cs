@@ -46,8 +46,7 @@ public static class EnvironmentScanner
 
         if (go == null)
         {
-            return new { error = $"GameObject with InstanceID {instanceId} not found."
-};
+            return new { error = $"GameObject with InstanceID {instanceId} not found." };
         }
 
         var details = new GameObjectDetails
@@ -61,19 +60,97 @@ public static class EnvironmentScanner
         {
             if (comp == null) continue;
 
+            // 1. Extraemos las propiedades seguras a un diccionario.
+            Dictionary<string, object> safeProperties = GetSerializableProperties(comp);
+
+            // 2. Serializamos ESE DICCIONARIO a una cadena JSON.
+            // Esto mantiene el modelo ComponentData intacto.
+            string jsonString = JsonConvert.SerializeObject(safeProperties, Formatting.None);
+
             var componentData = new ComponentData
             {
                 type = comp.GetType().FullName,
-                json = JsonConvert.SerializeObject(comp, Formatting.None, new JsonSerializerSettings
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                    ContractResolver = new UnityContractResolver()
-                })
+                json = jsonString
             };
             details.components.Add(componentData);
         }
 
         return new Wrapper<GameObjectDetails> { data = details };
+    }
+
+    /// <summary>
+    /// (NUEVO MÉTODO) Extrae de forma segura las propiedades serializables de un componente de Unity.
+    /// </summary>
+    private static Dictionary<string, object> GetSerializableProperties(Component comp)
+    {
+        var properties = new Dictionary<string, object>();
+        if (comp == null) return properties;
+
+        PropertyInfo[] componentProperties = comp.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        foreach (var prop in componentProperties)
+        {
+            if (!prop.CanRead || prop.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
+            if (prop.IsDefined(typeof(ObsoleteAttribute), true))
+            {
+                continue;
+            }
+
+            try
+            {
+                object value = prop.GetValue(comp, null);
+
+                switch (value)
+                {
+                    case Vector2 v:
+                        properties[prop.Name] = new { v.x, v.y };
+                        break;
+                    case Vector3 v:
+                        properties[prop.Name] = new { v.x, v.y, v.z };
+                        break;
+                    case Vector4 v:
+                        properties[prop.Name] = new { v.x, v.y, v.z, v.w };
+                        break;
+                    case Quaternion q:
+                        properties[prop.Name] = new { q.x, q.y, q.z, q.w };
+                        break;
+                    case Color c:
+                        properties[prop.Name] = new { c.r, c.g, c.b, c.a };
+                        break;
+                    case string _:
+                    case bool _:
+                    case Enum _:
+                        properties[prop.Name] = value;
+                        break;
+                    case sbyte _:
+                    case byte _:
+                    case short _:
+                    case ushort _:
+                    case int _:
+                    case uint _:
+                    case long _:
+                    case ulong _:
+                    case float _:
+                    case double _:
+                    case decimal _:
+                        properties[prop.Name] = Convert.ToDouble(value);
+                        break;
+                    default:
+                        // Ignoramos tipos complejos que no manejamos explícitamente.
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                // Ignoramos cualquier propiedad que lance un error al ser leída.
+            }
+        }
+
+        return properties;
     }
 
     // --- Project Files Scanning --- //
@@ -114,7 +191,7 @@ public static class EnvironmentScanner
 
     // --- Screenshot --- //
 
-    public static CommandExecutionResult TakeScreenshot()
+    public static object TakeScreenshot()
     {
         try
         {
@@ -164,11 +241,13 @@ public static class EnvironmentScanner
 
                 string base64 = Convert.ToBase64String(png);
 
-                return new CommandExecutionResult
-                {
-                    success = true,
-                    output = base64
-                };
+                //return new CommandExecutionResult
+                //{
+                //    success = true,
+                //    output = base64
+                //};
+
+                return new Wrapper<ScreenshotData> { data = new ScreenshotData { image_base64 = base64 } };
             }
             finally
             {

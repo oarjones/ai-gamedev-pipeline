@@ -77,6 +77,9 @@ public static class CommandDispatcher
             case "get_scene_hierarchy":
                 return EnvironmentScanner.GetSceneHierarchy();
 
+            case "capture_screenshot":
+                return EnvironmentScanner.TakeScreenshot();
+
             case "get_gameobject_details":
                 int instanceId;
                 if (payload.Type == JTokenType.String) // If it's a JValue containing a string
