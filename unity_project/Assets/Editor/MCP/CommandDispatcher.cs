@@ -20,6 +20,7 @@ public static class CommandDispatcher
     public static void EnqueueAction(Action action)
     {
         if (action != null)
+
         {
             actionQueue.Enqueue(action);
         }
@@ -77,12 +78,32 @@ public static class CommandDispatcher
                 return EnvironmentScanner.GetSceneHierarchy();
 
             case "get_gameobject_details":
-                var detailsParams = payload.ToObject<QueryParameters>();
-                return EnvironmentScanner.GetGameObjectDetails(detailsParams.instanceId);
+                int instanceId;
+                if (payload.Type == JTokenType.String) // If it's a JValue containing a string
+                {
+                    // Parse the string as JSON and then get the instanceId
+                    JObject parsedPayload = JObject.Parse(payload.ToString());
+                    instanceId = parsedPayload["instanceId"].Value<int>();
+                }
+                else // If it's a JObject directly
+                {
+                    instanceId = payload["instanceId"].Value<int>();
+                }
+                return EnvironmentScanner.GetGameObjectDetails(instanceId);
 
             case "get_project_files":
-                var filesParams = payload.ToObject<QueryParameters>();
-                return EnvironmentScanner.GetProjectFiles(filesParams.path);
+                string path;
+                if (payload.Type == JTokenType.String) // If it's a JValue containing a string
+                {
+                    // Parse the string as JSON and then get the path
+                    JObject parsedPayload = JObject.Parse(payload.ToString());
+                    path = parsedPayload["path"].Value<string>();
+                }
+                else // If it's a JObject directly
+                {
+                    path = payload["path"].Value<string>();
+                }
+                return EnvironmentScanner.GetProjectFiles(path);
 
             default:
                 Debug.LogWarning($"Query desconocida recibida: {action}");

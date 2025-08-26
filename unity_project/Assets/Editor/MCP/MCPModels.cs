@@ -40,11 +40,7 @@ public class CommandPayload
     public List<string> additional_references;
 }
 
-public class QueryParameters
-{
-    public int instanceId;
-    public string path;
-}
+// REMOVED QueryParameters class
 
 // --- RESULTADOS DE EJECUCIUCIÓN DE CÓDIGO --- //
 

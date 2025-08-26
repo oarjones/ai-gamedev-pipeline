@@ -1,0 +1,3 @@
+# Requirements for the Gemini CLI adapter (mcp_adapter.py)
+mcp[cli]
+websockets
