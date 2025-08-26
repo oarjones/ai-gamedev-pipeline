@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Reflection;
 
 [InitializeOnLoad]
 public static class CommandDispatcher
@@ -56,6 +57,22 @@ public static class CommandDispatcher
                     response.status = "success"; 
                     break;
 
+                // --- NUEVO CASE PARA LA TOOLBOX ---
+                // Se añade la nueva lógica aquí, sin tocar lo demás.
+                case "tool":
+                    response.payload = ProcessToolAction(message.action, message.payload);
+                    // El status dependerá del resultado de la herramienta
+                    if (response.payload is CommandExecutionResult toolResult)
+                    {
+                        response.status = toolResult.success ? "success" : "error";
+                    }
+                    else
+                    {
+                        // Si la herramienta devuelve otro tipo de dato, asumimos éxito
+                        response.status = "success";
+                    }
+                    break;
+
                 default:
                     throw new Exception($"Tipo de mensaje desconocido: {message.type}");
             }
@@ -68,6 +85,47 @@ public static class CommandDispatcher
         }
 
         MCPWebSocketClient.SendResponse(response);
+    }
+
+
+    // --- NUEVO MÉTODO PARA PROCESAR ACCIONES DE LA TOOLBOX ---
+    private static object ProcessToolAction(string action, JToken payload)
+    {
+        try
+        {
+            MethodInfo method = typeof(MCPToolbox).GetMethod(action, BindingFlags.Public | BindingFlags.Static);
+            if (method == null)
+            {
+                throw new Exception($"La herramienta '{action}' no fue encontrada en MCPToolbox.");
+            }
+
+            // Convierte el payload de JToken a los parámetros que el método necesita
+            var parameters = method.GetParameters();
+            var args = new object[parameters.Length];
+            var payloadObj = payload as JObject;
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i];
+                if (payloadObj == null || !payloadObj.TryGetValue(param.Name, StringComparison.OrdinalIgnoreCase, out JToken token))
+                {
+                    throw new Exception($"Falta el argumento requerido '{param.Name}' para la herramienta '{action}'.");
+                }
+                args[i] = token.ToObject(param.ParameterType);
+            }
+
+            // Invoca el método de la Toolbox
+            return method.Invoke(null, args);
+        }
+        catch (Exception e)
+        {
+            // Devolvemos un CommandExecutionResult en caso de error para mantener la consistencia
+            return new CommandExecutionResult
+            {
+                success = false,
+                error = $"Error ejecutando la herramienta '{action}': {e.Message}"
+            };
+        }
     }
 
     private static object ProcessQuery(string action, JToken payload)
