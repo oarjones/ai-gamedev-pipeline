@@ -1,12 +1,12 @@
 # En: mcp_unity_bridge/unity_tools.py
 
 import json
-from typing import Any, Dict
-from mcp.server.fastmcp import FastMCP
-from mcp_adapter import send_to_unity_and_get_response, log
+from typing import Any
+from mcp_adapter import send_to_unity_and_get_response, log, mcp
 
-# Usamos la misma instancia 'mcp' del adaptador para que las herramientas se registren correctamente.
-mcp = FastMCP("unity_editor")
+# Reutilizamos la instancia ``mcp`` creada en ``mcp_adapter`` para registrar
+# las herramientas en el mismo servidor. Crear una nueva instancia aquí
+# impediría que las tools se expusieran correctamente.
 
 @mcp.tool()
 async def create_gameobject(name: str) -> str:
