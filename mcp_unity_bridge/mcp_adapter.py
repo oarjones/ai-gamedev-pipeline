@@ -334,6 +334,24 @@ async def blender_execute_python_file(path: str) -> str:
 
 
 @mcp.tool()
+async def blender_run_macro(name: str, **kwargs: Any) -> str:
+    """Ejecuta un macro predefinido en Blender.
+
+    Args:
+        name: Nombre del macro a ejecutar.
+        **kwargs: Parámetros adicionales que se pasan al macro.
+
+    Returns:
+        La respuesta del puente de Blender con el resultado del macro.
+    """
+    log.info("Blender run_macro: %s", name)
+    params = {"name": name, **kwargs}
+    message = {"command": "run_macro", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
 async def blender_create_cube(
     name: str = "Cube", location: Tuple[float, float, float] = (0, 0, 0)
 ) -> str:
