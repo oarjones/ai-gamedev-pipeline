@@ -26,6 +26,13 @@ mcp = FastMCP("unity_editor")
 # ---------------------------------------------------------------------
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "ws://127.0.0.1:8001/ws/gemini_cli_adapter")
 
+# ---------------------------------------------------------------------
+# Configuración del puente Blender y rutas compartidas
+# ---------------------------------------------------------------------
+BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", "ws://127.0.0.1:8002")
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
+
 
 async def send_to_unity_and_get_response(message: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -51,6 +58,27 @@ async def send_to_unity_and_get_response(message: Dict[str, Any]) -> Dict[str, A
                 return {"status": "ok", "payload": response_str}
     except Exception as e:
         log.error("Error WebSocket al conectar con %s: %s", MCP_SERVER_URL, e)
+        return {"status": "error", "payload": f"WebSocket error: {e}"}
+
+
+async def send_to_blender_and_get_response(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Conecta con el WebSocket de Blender y devuelve la respuesta como dict."""
+    try:
+        import websockets  # type: ignore
+    except Exception as e:
+        log.error("Falta el paquete 'websockets' para Blender: %s", e)
+        return {"status": "error", "payload": "Missing dependency 'websockets'. Install it in this venv."}
+
+    try:
+        async with websockets.connect(BLENDER_SERVER_URL) as websocket:  # type: ignore
+            await websocket.send(json.dumps(message))
+            response_str = await websocket.recv()
+            try:
+                return json.loads(response_str)
+            except Exception:
+                return {"status": "ok", "payload": response_str}
+    except Exception as e:
+        log.error("Error WebSocket al conectar con %s: %s", BLENDER_SERVER_URL, e)
         return {"status": "error", "payload": f"WebSocket error: {e}"}
 
 
@@ -221,6 +249,57 @@ async def set_component_property(instanceId: int, componentType: str, propertyNa
     }
     response = await send_to_unity_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def generate_asset_and_import(name: str = "BlenderCube", filename: str = "blender_cube.fbx") -> str:
+    """Genera un asset en Blender y lo importa en Unity.
+
+    1. Envía comandos al puente de Blender para crear un objeto simple y exportarlo como FBX
+       en la carpeta compartida ``Assets/Generated`` del proyecto de Unity.
+    2. Verifica que el archivo fue creado correctamente.
+    3. Ordena a Unity importar el FBX recién generado.
+
+    Args:
+        name: Nombre del objeto que se creará en Blender.
+        filename: Nombre del archivo FBX a generar dentro de ``Assets/Generated``.
+
+    Returns:
+        Cadena JSON con el resultado de cada paso.
+    """
+
+    # 1) Crear un cubo y exportarlo desde Blender
+    create_msg = {"command": "create_cube", "params": {"name": name}}
+    blender_create = await send_to_blender_and_get_response(create_msg)
+    if blender_create.get("status") != "ok":
+        return json.dumps({"status": "error", "step": "blender_create", "detail": blender_create}, indent=2, ensure_ascii=False)
+
+    export_msg = {"command": "export_fbx", "params": {"path": filename}}
+    blender_export = await send_to_blender_and_get_response(export_msg)
+    if blender_export.get("status") != "ok":
+        return json.dumps({"status": "error", "step": "blender_export", "detail": blender_export}, indent=2, ensure_ascii=False)
+
+    exported_path = blender_export.get("path") or ""
+    if not exported_path or not os.path.exists(exported_path):
+        return json.dumps({"status": "error", "step": "file_check", "path": exported_path}, indent=2, ensure_ascii=False)
+
+    # Ruta relativa para Unity (Assets/...)
+    relative_path = os.path.relpath(exported_path, UNITY_PROJECT_DIR).replace("\\", "/")
+
+    # 2) Importar en Unity
+    unity_msg = {"type": "command", "action": "ImportFBX", "payload": {"path": relative_path}}
+    unity_response = await send_to_unity_and_get_response(unity_msg)
+
+    overall_status = "success" if unity_response.get("status") == "success" else "error"
+
+    result = {
+        "status": overall_status,
+        "blender_create": blender_create,
+        "blender_export": blender_export,
+        "unity": unity_response,
+        "fbx_path": relative_path,
+    }
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 
