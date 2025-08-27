@@ -5,6 +5,8 @@ import asyncio
 import threading
 import json
 import os
+import io
+from contextlib import redirect_stdout, redirect_stderr
 
 # Importa bpy si se ejecuta dentro de Blender; si no, usa stubs
 try:  # pragma: no cover - dependencia de Blender
@@ -88,6 +90,27 @@ def export_fbx(path):
     return full_path
 
 
+def execute_python(code):
+    """Ejecuta código Python y captura stdout/stderr."""
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exec(code, globals(), {})
+    except Exception as exc:  # pragma: no cover
+        exc.stdout = stdout.getvalue()
+        exc.stderr = stderr.getvalue()
+        raise
+    return stdout.getvalue(), stderr.getvalue()
+
+
+def execute_python_file(path):
+    """Ejecuta un archivo Python especificado."""
+    with open(path, "r") as f:
+        code = f.read()
+    return execute_python(code)
+
+
 async def handler(websocket, path=None):
     """Maneja comandos JSON vía WebSocket (compat. Py3.5)."""
     print("Cliente de WebSocket conectado.")
@@ -122,6 +145,28 @@ async def handler(websocket, path=None):
                 elif cmd == "transform":
                     success = apply_transform(**params)
                     ack = {"status": "ok" if success else "error"}
+                elif cmd == "execute_python":
+                    try:
+                        stdout, stderr = execute_python(params.get("code", ""))
+                        ack = {"status": "ok", "stdout": stdout, "stderr": stderr}
+                    except Exception as exc_exec:  # pragma: no cover
+                        ack = {
+                            "status": "error",
+                            "stdout": getattr(exc_exec, "stdout", ""),
+                            "stderr": getattr(exc_exec, "stderr", ""),
+                            "error": str(exc_exec),
+                        }
+                elif cmd == "execute_python_file":
+                    try:
+                        stdout, stderr = execute_python_file(params.get("path", ""))
+                        ack = {"status": "ok", "stdout": stdout, "stderr": stderr}
+                    except Exception as exc_file:  # pragma: no cover
+                        ack = {
+                            "status": "error",
+                            "stdout": getattr(exc_file, "stdout", ""),
+                            "stderr": getattr(exc_file, "stderr", ""),
+                            "error": str(exc_file),
+                        }
                 else:
                     ack = {"status": "ok", "echo": data}
             except Exception as exc:  # pragma: no cover
