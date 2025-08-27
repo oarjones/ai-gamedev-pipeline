@@ -1,6 +1,7 @@
 # En: mcp_unity_bridge/src/mcp_unity_server/main.py
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from typing import Dict, Any
 import json
 import uuid
@@ -39,6 +40,36 @@ class ConnectionManager:
             print(f"Error: Mensaje de {sender_id} no enviado (Unity desconectado).")
 
 manager = ConnectionManager()
+
+
+class ImportFBXRequest(BaseModel):
+    path: str
+
+
+@app.post("/import_fbx")
+async def import_fbx(req: ImportFBXRequest):
+    if manager.unity_client_id not in manager.active_connections:
+        return {"status": "error", "message": "Unity Editor no está conectado."}
+
+    request_id = str(uuid.uuid4())
+    message = {
+        "type": "command",
+        "action": "ImportFBX",
+        "payload": {"path": req.path},
+        "request_id": request_id,
+    }
+    await manager.send_json_to_client(message, manager.unity_client_id)
+
+    ensure_request_id = str(uuid.uuid4())
+    ensure_message = {
+        "type": "command",
+        "action": "EnsureCameraAndLight",
+        "payload": {},
+        "request_id": ensure_request_id,
+    }
+    await manager.send_json_to_client(ensure_message, manager.unity_client_id)
+
+    return {"status": "ok", "request_id": request_id}
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
