@@ -16,3 +16,30 @@ El sistema se basará en una arquitectura de microservicios, con un "puente" (se
 ## Estado Actual
 
 Proyecto en fase de inicialización. El primer objetivo es implementar el `mcp_unity_bridge`.
+
+## Ejemplos de ejecución
+
+### Unity Bridge
+```sh
+python -m mcp_unity_server.main
+```
+
+### Blender Bridge
+```sh
+blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py
+```
+
+### Adaptador unificado
+```sh
+python mcp_unity_bridge/mcp_adapter.py
+```
+
+También puedes lanzar todo el stack con:
+```sh
+./launch_unified_adapter.sh
+```
+ o en Windows:
+```bat
+launch_unified_adapter.bat
+```
+
