@@ -46,10 +46,15 @@ public static class CommandDispatcher
             switch (message.type)
             {
                 case "command":
-                    var commandPayload = message.payload.ToObject<CommandPayload>();
-                    var commandResult = CSharpRunner.Execute(commandPayload.code, commandPayload.additional_references);
-                    response.payload = commandResult;
-                    response.status = commandResult.success ? "success" : "error";
+                    response.payload = ProcessCommand(message.action, message.payload);
+                    if (response.payload is CommandExecutionResult cmdResult)
+                    {
+                        response.status = cmdResult.success ? "success" : "error";
+                    }
+                    else
+                    {
+                        response.status = "success";
+                    }
                     break;
 
                 case "query":
@@ -85,6 +90,56 @@ public static class CommandDispatcher
         }
 
         MCPWebSocketClient.SendResponse(response);
+    }
+
+
+    private static object ProcessCommand(string action, JToken payload)
+    {
+        try
+        {
+            switch (action)
+            {
+                case "ImportFBX":
+                    string fbxPath = payload["path"].Value<string>();
+                    GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(fbxPath);
+                    if (prefab == null)
+                        throw new Exception($"No se encontró prefab en la ruta {fbxPath}");
+                    GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+                    EnsureCameraAndLight();
+                    return new { instanceId = instance.GetInstanceID() };
+
+                case "EnsureCameraAndLight":
+                    EnsureCameraAndLight();
+                    return new { ensured = true };
+
+                default:
+                    var commandPayload = payload.ToObject<CommandPayload>();
+                    return CSharpRunner.Execute(commandPayload.code, commandPayload.additional_references);
+            }
+        }
+        catch (Exception e)
+        {
+            return new CommandExecutionResult
+            {
+                success = false,
+                error = e.Message
+            };
+        }
+    }
+
+    private static void EnsureCameraAndLight()
+    {
+        if (Camera.main == null)
+        {
+            var camGO = new GameObject("Main Camera", typeof(Camera));
+            camGO.tag = "MainCamera";
+        }
+
+        if (Object.FindObjectOfType<Light>() == null)
+        {
+            var lightGO = new GameObject("Directional Light", typeof(Light));
+            lightGO.GetComponent<Light>().type = LightType.Directional;
+        }
     }
 
 
