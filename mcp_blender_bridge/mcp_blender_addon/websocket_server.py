@@ -1,4 +1,3 @@
-from __future__ import print_function
 import asyncio
 import threading
 import json
@@ -13,12 +12,16 @@ server_thread = None
 loop = None
 server = None
 
-@asyncio.coroutine
-def handler(websocket, path):
+async def handler(websocket, path):
+    """Gestiona la comunicación con un cliente WebSocket.
+
+    Implementado con ``async``/``await`` para asegurar compatibilidad
+    con Python 3.5 (Blender 2.79).
+    """
     print("Cliente de WebSocket conectado.")
     try:
         while True:
-            message = yield from websocket.recv()
+            message = await websocket.recv()
             if message is None:
                 break
 
@@ -29,7 +32,7 @@ def handler(websocket, path):
                 data = {"message": message}
 
             ack = {"status": "ok", "echo": data}
-            yield from websocket.send(json.dumps(ack))
+            await websocket.send(json.dumps(ack))
     except Exception as e:
         print("Excepción en handler: {0}".format(e))
     finally:
@@ -73,7 +76,7 @@ def start_server():
 def stop_server():
     global server_thread, loop, server
     try:
-        if loop is not None and loop.is_running():
+        if loop is not None:
             # Cerrar el servidor y luego parar el loop de forma thread-safe
             def _stop():
                 try:
@@ -86,7 +89,10 @@ def stop_server():
                 except Exception as e:
                     print("Error al parar el loop: {0}".format(e))
 
-            loop.call_soon_threadsafe(_stop)
+            try:
+                loop.call_soon_threadsafe(_stop)
+            except Exception as e:
+                print("Error al programar el cierre del loop: {0}".format(e))
 
             if server_thread is not None:
                 server_thread.join(timeout=2.0)
