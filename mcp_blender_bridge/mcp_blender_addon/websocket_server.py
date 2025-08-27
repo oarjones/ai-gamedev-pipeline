@@ -4,6 +4,7 @@
 import asyncio
 import threading
 import json
+import os
 
 # Importa bpy si se ejecuta dentro de Blender; si no, usa stubs
 try:  # pragma: no cover - dependencia de Blender
@@ -16,6 +17,10 @@ try:
 except Exception as ex:  # pragma: no cover
     print("No se pudo importar 'websockets': {0}".format(ex))
     websockets = None
+
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+GENERATED_DIR = os.path.join(BASE_DIR, "unity_project", "Assets", "Generated")
 
 server_thread = None
 loop = None
@@ -72,6 +77,17 @@ def apply_transform(name, translation=None, rotation=None, scale=None):
     return True
 
 
+def export_fbx(path):
+    """Exporta la escena actual como FBX en la carpeta compartida."""
+    if bpy is None:  # pragma: no cover
+        print("bpy no disponible: export_fbx es un stub")
+        return path
+    full_path = os.path.join(GENERATED_DIR, path)
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    bpy.ops.export_scene.fbx(filepath=full_path)
+    return full_path
+
+
 async def handler(websocket, path=None):
     """Maneja comandos JSON vía WebSocket (compat. Py3.5)."""
     print("Cliente de WebSocket conectado.")
@@ -100,6 +116,9 @@ async def handler(websocket, path=None):
                 elif cmd == "create_light":
                     obj_name = create_light(**params)
                     ack = {"status": "ok", "object": obj_name}
+                elif cmd == "export_fbx":
+                    exported = export_fbx(**params)
+                    ack = {"status": "ok", "path": exported}
                 elif cmd == "transform":
                     success = apply_transform(**params)
                     ack = {"status": "ok" if success else "error"}
