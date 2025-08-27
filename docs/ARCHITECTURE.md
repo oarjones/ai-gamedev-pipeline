@@ -26,3 +26,28 @@ El proyecto se organiza en tres componentes principales que permiten a un agente
 - Los archivos generados se guardan en `unity_project/Assets/Generated/`, carpeta compartida con Unity para que el editor detecte los nuevos assets.
 
 Estos tres procesos conforman el stack mínimo para que el agente de IA interactúe con los editores.
+
+## Ejecución remota en Blender
+
+El servidor WebSocket del add-on de Blender expone comandos para ejecutar código Python dentro de la escena en curso.
+
+### `execute_python` y `execute_python_file`
+
+- `execute_python` evalúa un bloque de código enviado desde el cliente.
+- `execute_python_file` carga y ejecuta un archivo de script ubicado en la máquina donde corre Blender.
+
+### Macros
+
+Los macros son módulos almacenados en `mcp_blender_addon/macros` que definen una función `run(**kwargs)`.
+El comando `run_macro` importa el módulo solicitado y ejecuta dicha función.
+
+Ejemplo de petición:
+
+```json
+{"command": "run_macro", "params": {"name": "assign_material", "object_name": "Cube", "material_name": "Demo"}}
+```
+
+### Seguridad
+
+Tanto la ejecución de código como los macros pueden ejecutar instrucciones arbitrarias con los permisos del usuario que
+corre Blender. Sólo deben utilizarse con scripts de confianza y en entornos controlados.

@@ -64,3 +64,47 @@ También puedes lanzar todo el stack con:
 launch_unified_adapter.bat
 ```
 
+
+## Ejecución remota en Blender
+
+### `execute_python` / `execute_python_file`
+
+El servidor WebSocket puede evaluar código Python enviado por el cliente.
+
+```python
+await websocket.send(json.dumps({"command": "execute_python", "params": {"code": "print('hola')"}}))
+```
+
+Para ejecutar un archivo almacenado en la máquina que corre Blender:
+
+```python
+await websocket.send(json.dumps({"command": "execute_python_file", "params": {"path": "/ruta/script.py"}}))
+```
+
+### Macros
+
+Los macros son módulos dentro de `mcp_blender_bridge/mcp_blender_addon/macros` que definen una función `run(**kwargs)`.
+Se invocan con el comando `run_macro`.
+
+```python
+await websocket.send(json.dumps({
+    "command": "run_macro",
+    "params": {
+        "name": "assign_material",
+        "object_name": "Cube",
+        "material_name": "Demo"
+    }
+}))
+```
+
+### Cargar macros personalizados
+
+1. Crea un archivo Python en `mcp_blender_bridge/mcp_blender_addon/macros/` con un nombre único.
+2. Define en él una función `run(**kwargs)` que contenga la lógica del macro.
+3. Reinicia el servidor WebSocket si estaba en ejecución.
+4. Desde el cliente, llama a `run_macro` indicando el nombre del archivo sin `.py` y los parámetros necesarios.
+
+### Seguridad
+
+Ejecutar código remoto otorga acceso completo al entorno de Blender.
+Utiliza estas capacidades solo con scripts y macros de confianza y evita exponer el puerto a redes públicas.
