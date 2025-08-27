@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "D:\\ai-gamedev-pipeline\\unity_project\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\mcptoolbox.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\mcptoolbox.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\commanddispatcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|d:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\mcptoolbox.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|solutionrelative:assets\\editor\\mcp\\mcptoolbox.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{22F9A3EF-601A-D331-6B70-5726454C71C3}|Assembly-CSharp-Editor.csproj|D:\\ai-gamedev-pipeline\\unity_project\\assets\\editor\\mcp\\mcpmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -38,7 +38,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 9,
           "Children": [
             {
               "$type": "Document",
@@ -67,13 +67,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "MCPToolbox.cs",
               "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\MCPToolbox.cs",
               "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\MCPToolbox.cs",
               "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\MCPToolbox.cs",
               "RelativeToolTip": "Assets\\Editor\\MCP\\MCPToolbox.cs",
-              "ViewState": "AgIAAD4AAAAAAAAAAAAwwFQAAAAUAAAAAAAAAA==",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABcAAAAmAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-26T06:29:59.756Z",
               "EditorCaption": ""
@@ -88,8 +88,7 @@
               "RelativeToolTip": "Assets\\Editor\\MCP\\MCPModels.cs",
               "ViewState": "AgIAABoAAAAAAAAAAAAQwCQAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-26T06:05:52.758Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-08-26T06:05:52.758Z"
             },
             {
               "$type": "Document",
@@ -129,13 +128,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "CommandDispatcher.cs",
               "DocumentMoniker": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\CommandDispatcher.cs",
               "RelativeDocumentMoniker": "Assets\\Editor\\MCP\\CommandDispatcher.cs",
               "ToolTip": "D:\\ai-gamedev-pipeline\\unity_project\\Assets\\Editor\\MCP\\CommandDispatcher.cs",
               "RelativeToolTip": "Assets\\Editor\\MCP\\CommandDispatcher.cs",
-              "ViewState": "AgIAAFoAAAAAAAAAAAAAAGcAAAA1AAAAAAAAAA==",
+              "ViewState": "AgIAAHsAAAAAAAAAAAAuwIcAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-25T18:56:51.909Z",
               "EditorCaption": ""

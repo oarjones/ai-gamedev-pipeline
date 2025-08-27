@@ -135,7 +135,7 @@ public static class CommandDispatcher
             camGO.tag = "MainCamera";
         }
 
-        if (Object.FindObjectOfType<Light>() == null)
+        if (UnityEngine.Object.FindObjectOfType<Light>() == null)
         {
             var lightGO = new GameObject("Directional Light", typeof(Light));
             lightGO.GetComponent<Light>().type = LightType.Directional;
