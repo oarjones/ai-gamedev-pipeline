@@ -39,3 +39,25 @@ Blender 2.79 viene con su propio intérprete de Python. Para instalar `websocket
     Y luego intenta instalar `websockets` de nuevo.
 
 Una vez que la instalación se haya completado, el add-on debería funcionar correctamente la próxima vez que habilites el add-on en Blender.
+
+## Macros
+
+El complemento incluye un sistema de *macros* que permite extender las operaciones disponibles.
+Cada macro es un archivo `.py` dentro de `macros/` que expone una función pública `run(**kwargs)`.
+
+Ejemplo de llamada por WebSocket:
+
+```json
+{
+  "command": "run_macro",
+  "params": {"name": "extrude_mesh", "object_name": "Cube", "distance": 1.0}
+}
+```
+
+Para crear un nuevo macro:
+
+1. Crea un archivo dentro de `macros/` con un nombre único, por ejemplo `mi_macro.py`.
+2. Define en ese archivo una función `run(**kwargs)` que realice la operación deseada.
+3. Desde el cliente envía el comando `run_macro` con `name` igual al nombre del archivo (sin `.py`).
+
+Se incluyen macros de ejemplo: `extrude_mesh`, `apply_boolean` y `assign_material`.
