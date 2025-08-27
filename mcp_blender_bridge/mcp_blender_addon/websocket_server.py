@@ -5,6 +5,7 @@ import asyncio
 import threading
 import json
 import os
+import importlib
 import io
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -111,6 +112,22 @@ def execute_python_file(path):
     return execute_python(code)
 
 
+def run_macro(name, **kwargs):
+    """Importa y ejecuta un macro ubicado en mcp_blender_addon/macros."""
+    try:
+        module = importlib.import_module('.macros.' + name, package=__package__)
+    except ImportError:
+        return {'status': 'error', 'error': "Macro '{}' no encontrado".format(name)}
+    if not hasattr(module, 'run'):
+        return {'status': 'error', 'error': "Macro '{}' sin función run".format(name)}
+    try:
+        result = module.run(**kwargs)
+        return {'status': 'ok', 'result': result}
+    except TypeError as exc:
+        return {'status': 'error', 'error': str(exc)}
+    except Exception as exc:  # pragma: no cover
+        return {'status': 'error', 'error': str(exc)}
+
 async def handler(websocket, path=None):
     """Maneja comandos JSON vía WebSocket (compat. Py3.5)."""
     print("Cliente de WebSocket conectado.")
@@ -167,6 +184,8 @@ async def handler(websocket, path=None):
                             "stderr": getattr(exc_file, "stderr", ""),
                             "error": str(exc_file),
                         }
+                elif cmd == "run_macro":
+                    ack = run_macro(**params)
                 else:
                     ack = {"status": "ok", "echo": data}
             except Exception as exc:  # pragma: no cover
