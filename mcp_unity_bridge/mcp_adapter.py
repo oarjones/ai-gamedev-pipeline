@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 # SDK MCP (stdio por defecto)
 from mcp.server.fastmcp import FastMCP
@@ -300,6 +300,78 @@ async def generate_asset_and_import(name: str = "BlenderCube", filename: str = "
         "fbx_path": relative_path,
     }
     return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_create_cube(
+    name: str = "Cube", location: Tuple[float, float, float] = (0, 0, 0)
+) -> str:
+    """Crea un cubo en la escena de Blender."""
+    log.info("Blender create_cube: %s", name)
+    payload = {"name": name, "location": list(location)}
+    message = {"command": "create_cube", "params": payload}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_create_plane(
+    name: str = "Plane", location: Tuple[float, float, float] = (0, 0, 0)
+) -> str:
+    """Crea un plano en la escena de Blender."""
+    log.info("Blender create_plane: %s", name)
+    payload = {"name": name, "location": list(location)}
+    message = {"command": "create_plane", "params": payload}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_create_light(
+    name: str = "Light",
+    light_type: str = "POINT",
+    location: Tuple[float, float, float] = (0, 0, 0),
+) -> str:
+    """Crea una luz en la escena de Blender."""
+    log.info("Blender create_light: %s (%s)", name, light_type)
+    payload = {
+        "name": name,
+        "light_type": light_type,
+        "location": list(location),
+    }
+    message = {"command": "create_light", "params": payload}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_export_fbx(path: str) -> str:
+    """Exporta la escena de Blender como un archivo FBX."""
+    log.info("Blender export_fbx: %s", path)
+    message = {"command": "export_fbx", "params": {"path": path}}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_transform(
+    name: str,
+    translation: Optional[Tuple[float, float, float]] = None,
+    rotation: Optional[Tuple[float, float, float]] = None,
+    scale: Optional[Tuple[float, float, float]] = None,
+) -> str:
+    """Aplica transformaciones a un objeto en Blender."""
+    log.info("Blender transform: %s", name)
+    params: Dict[str, Any] = {"name": name}
+    if translation is not None:
+        params["translation"] = list(translation)
+    if rotation is not None:
+        params["rotation"] = list(rotation)
+    if scale is not None:
+        params["scale"] = list(scale)
+    message = {"command": "transform", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
 
 
 
