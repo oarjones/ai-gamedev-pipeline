@@ -20,4 +20,9 @@ El proyecto se organiza en tres componentes principales que permiten a un agente
 - Permite que el adaptador invoque acciones sobre Blender mediante Python (`bpy`).
 - Puede iniciarse con Blender en modo consola: `blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py`.
 
+### Flujo de exportación de assets
+
+- El comando `export_fbx(path)` envía a Blender la orden de exportar la escena actual en formato FBX.
+- Los archivos generados se guardan en `unity_project/Assets/Generated/`, carpeta compartida con Unity para que el editor detecte los nuevos assets.
+
 Estos tres procesos conforman el stack mínimo para que el agente de IA interactúe con los editores.
