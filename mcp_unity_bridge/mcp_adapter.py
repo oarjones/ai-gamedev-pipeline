@@ -312,6 +312,28 @@ async def blender_execute_python(code: str) -> str:
 
 
 @mcp.tool()
+async def blender_execute_python_file(path: str) -> str:
+    """Ejecuta un archivo Python dentro del entorno de Blender.
+
+    El archivo debe existir y ser accesible desde la instancia de Blender que
+    recibe el comando. La respuesta incluye la salida estándar y cualquier
+    error producido durante la ejecución.
+
+    Args:
+        path: Ruta al archivo Python desde la perspectiva de Blender.
+
+    Returns:
+        Una cadena JSON con la respuesta del puente de Blender, incluyendo
+        stdout y stderr.
+    """
+
+    log.info("Blender execute_python_file: %s", path)
+    message = {"command": "execute_python_file", "params": {"path": path}}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
 async def blender_create_cube(
     name: str = "Cube", location: Tuple[float, float, float] = (0, 0, 0)
 ) -> str:
