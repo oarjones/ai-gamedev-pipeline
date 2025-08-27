@@ -303,6 +303,15 @@ async def generate_asset_and_import(name: str = "BlenderCube", filename: str = "
 
 
 @mcp.tool()
+async def blender_execute_python(code: str) -> str:
+    """Ejecuta código Python en Blender y retorna stdout y stderr."""
+    log.info("Blender execute_python")
+    message = {"command": "execute_python", "params": {"code": code}}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
 async def blender_create_cube(
     name: str = "Cube", location: Tuple[float, float, float] = (0, 0, 0)
 ) -> str:
