@@ -153,7 +153,7 @@ def ping() -> str:
 
 
 @mcp.tool()
-async def create_gameobject(name: str) -> str:
+async def unity_create_gameobject(name: str) -> str:
     """
     Crea un nuevo GameObject vacío en la escena de Unity.
 
@@ -176,7 +176,7 @@ async def create_gameobject(name: str) -> str:
 
 
 @mcp.tool()
-async def find_gameobject(name: str) -> str:
+async def unity_find_gameobject(name: str) -> str:
     """
     Busca un GameObject en la escena por su nombre.
 
@@ -197,7 +197,7 @@ async def find_gameobject(name: str) -> str:
     return json.dumps(response, indent=2, ensure_ascii=False)
 
 @mcp.tool()
-async def add_component(instanceId: int, componentType: str) -> str:
+async def unity_add_component(instanceId: int, componentType: str) -> str:
     """
     Añade un componente a un GameObject existente en Unity.
 
@@ -222,7 +222,7 @@ async def add_component(instanceId: int, componentType: str) -> str:
     return json.dumps(response, indent=2, ensure_ascii=False)
 
 @mcp.tool()
-async def set_component_property(instanceId: int, componentType: str, propertyName: str, value: Any) -> str:
+async def unity_set_component_property(instanceId: int, componentType: str, propertyName: str, value: Any) -> str:
     """
     Establece el valor de una propiedad en un componente de un GameObject.
 
@@ -250,56 +250,6 @@ async def set_component_property(instanceId: int, componentType: str, propertyNa
     response = await send_to_unity_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
 
-
-@mcp.tool()
-async def generate_asset_and_import(name: str = "BlenderCube", filename: str = "blender_cube.fbx") -> str:
-    """Genera un asset en Blender y lo importa en Unity.
-
-    1. Envía comandos al puente de Blender para crear un objeto simple y exportarlo como FBX
-       en la carpeta compartida ``Assets/Generated`` del proyecto de Unity.
-    2. Verifica que el archivo fue creado correctamente.
-    3. Ordena a Unity importar el FBX recién generado.
-
-    Args:
-        name: Nombre del objeto que se creará en Blender.
-        filename: Nombre del archivo FBX a generar dentro de ``Assets/Generated``.
-
-    Returns:
-        Cadena JSON con el resultado de cada paso.
-    """
-
-    # 1) Crear un cubo y exportarlo desde Blender
-    create_msg = {"command": "create_cube", "params": {"name": name}}
-    blender_create = await send_to_blender_and_get_response(create_msg)
-    if blender_create.get("status") != "ok":
-        return json.dumps({"status": "error", "step": "blender_create", "detail": blender_create}, indent=2, ensure_ascii=False)
-
-    export_msg = {"command": "export_fbx", "params": {"path": filename}}
-    blender_export = await send_to_blender_and_get_response(export_msg)
-    if blender_export.get("status") != "ok":
-        return json.dumps({"status": "error", "step": "blender_export", "detail": blender_export}, indent=2, ensure_ascii=False)
-
-    exported_path = blender_export.get("path") or ""
-    if not exported_path or not os.path.exists(exported_path):
-        return json.dumps({"status": "error", "step": "file_check", "path": exported_path}, indent=2, ensure_ascii=False)
-
-    # Ruta relativa para Unity (Assets/...)
-    relative_path = os.path.relpath(exported_path, UNITY_PROJECT_DIR).replace("\\", "/")
-
-    # 2) Importar en Unity
-    unity_msg = {"type": "command", "action": "ImportFBX", "payload": {"path": relative_path}}
-    unity_response = await send_to_unity_and_get_response(unity_msg)
-
-    overall_status = "success" if unity_response.get("status") == "success" else "error"
-
-    result = {
-        "status": overall_status,
-        "blender_create": blender_create,
-        "blender_export": blender_export,
-        "unity": unity_response,
-        "fbx_path": relative_path,
-    }
-    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()

@@ -14,14 +14,15 @@ bpy.ops.object.delete()
 bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
 """
 
-EXPORT_PATH = r"D:\ai-gamedev-pipeline\unity_project\Assets\Generated\test_cube.fbx"
 
+EXPORT_PATH = r"D:\ai-gamedev-pipeline\unity_project\Assets\Generated\test_cube.fbx"
+NAVE_PATH= r"D:\ai-gamedev-pipeline\mcp_unity_bridge\nave.py"
 
 async def main():
     print("Conectando a", URI)
     async with websockets.connect(URI, ping_interval=20, ping_timeout=20) as ws:
         # 1) execute_python
-        msg1 = {"command": "execute_python", "params": {"code": EXEC_CODE}}
+        msg1 = {"command": "execute_python_file", "params": {"path": NAVE_PATH}}
         await ws.send(json.dumps(msg1))
         print(">> enviado execute_python")
         resp1 = await asyncio.wait_for(ws.recv(), timeout=30)
@@ -33,6 +34,7 @@ async def main():
         print(">> enviado export_fbx")
         resp2 = await asyncio.wait_for(ws.recv(), timeout=30)
         print("<< respuesta export_fbx:", resp2)
+
 
         # Mantener vivo un poco y luego cerrar
         await asyncio.sleep(1)
