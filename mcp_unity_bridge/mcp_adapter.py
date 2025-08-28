@@ -83,7 +83,7 @@ async def send_to_blender_and_get_response(message: Dict[str, Any]) -> Dict[str,
 
 
 # ---------------------------------------------------------------------
-# TOOLS (tus herramientas originales, adaptadas a logging y helpers)
+# TOOLS Unity (sin cambios)
 # ---------------------------------------------------------------------
 
 @mcp.tool()
@@ -139,7 +139,7 @@ async def unity_capture_screenshot() -> str:
     Toma una captura de la ventana 'Game' de Unity y la guarda en el proyecto.
     """
     log.info("Executing query: capture_screenshot")
-    
+
     message = {"type": "query", "action": "capture_screenshot", "payload": "{}"}
     response = await send_to_unity_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
@@ -251,10 +251,18 @@ async def unity_set_component_property(instanceId: int, componentType: str, prop
     return json.dumps(response, indent=2, ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------
+# TOOLS Blender (actualizadas al websocket_server.py)
+# ---------------------------------------------------------------------
 
 @mcp.tool()
 async def blender_execute_python(code: str) -> str:
-    """Ejecuta código Python en Blender y retorna stdout y stderr."""
+    """
+    Ejecuta código Python en Blender y retorna stdout y stderr.
+
+    Ejemplo de llamada al servicio:
+    {"command": "execute_python", "params": {"code": "print('hola')"}}
+    """
     log.info("Blender execute_python")
     message = {"command": "execute_python", "params": {"code": code}}
     response = await send_to_blender_and_get_response(message)
@@ -263,18 +271,13 @@ async def blender_execute_python(code: str) -> str:
 
 @mcp.tool()
 async def blender_execute_python_file(path: str) -> str:
-    """Ejecuta un archivo Python dentro del entorno de Blender.
+    """
+    Ejecuta un archivo Python dentro del entorno de Blender.
 
-    El archivo debe existir y ser accesible desde la instancia de Blender que
-    recibe el comando. La respuesta incluye la salida estándar y cualquier
-    error producido durante la ejecución.
+    El archivo debe existir y ser accesible desde la instancia de Blender.
 
-    Args:
-        path: Ruta al archivo Python desde la perspectiva de Blender.
-
-    Returns:
-        Una cadena JSON con la respuesta del puente de Blender, incluyendo
-        stdout y stderr.
+    Ejemplo de llamada al servicio:
+    {"command": "execute_python_file", "params": {"path": "scripts/macro.py"}}
     """
 
     log.info("Blender execute_python_file: %s", path)
@@ -284,68 +287,27 @@ async def blender_execute_python_file(path: str) -> str:
 
 
 @mcp.tool()
-async def blender_run_macro(name: str, **kwargs: Any) -> str:
-    """Ejecuta un macro predefinido en Blender.
-
-    Args:
-        name: Nombre del macro a ejecutar.
-        **kwargs: Parámetros adicionales que se pasan al macro.
-
-    Returns:
-        La respuesta del puente de Blender con el resultado del macro.
+async def blender_identify() -> str:
     """
-    log.info("Blender run_macro: %s", name)
-    params = {"name": name, **kwargs}
-    message = {"command": "run_macro", "params": params}
-    response = await send_to_blender_and_get_response(message)
-    return json.dumps(response, indent=2, ensure_ascii=False)
+    Obtiene información de Blender y del servidor WebSocket.
 
-
-@mcp.tool()
-async def blender_create_cube(
-    name: str = "Cube", location: Tuple[float, float, float] = (0, 0, 0)
-) -> str:
-    """Crea un cubo en la escena de Blender."""
-    log.info("Blender create_cube: %s", name)
-    payload = {"name": name, "location": list(location)}
-    message = {"command": "create_cube", "params": payload}
-    response = await send_to_blender_and_get_response(message)
-    return json.dumps(response, indent=2, ensure_ascii=False)
-
-
-@mcp.tool()
-async def blender_create_plane(
-    name: str = "Plane", location: Tuple[float, float, float] = (0, 0, 0)
-) -> str:
-    """Crea un plano en la escena de Blender."""
-    log.info("Blender create_plane: %s", name)
-    payload = {"name": name, "location": list(location)}
-    message = {"command": "create_plane", "params": payload}
-    response = await send_to_blender_and_get_response(message)
-    return json.dumps(response, indent=2, ensure_ascii=False)
-
-
-@mcp.tool()
-async def blender_create_light(
-    name: str = "Light",
-    light_type: str = "POINT",
-    location: Tuple[float, float, float] = (0, 0, 0),
-) -> str:
-    """Crea una luz en la escena de Blender."""
-    log.info("Blender create_light: %s (%s)", name, light_type)
-    payload = {
-        "name": name,
-        "light_type": light_type,
-        "location": list(location),
-    }
-    message = {"command": "create_light", "params": payload}
+    Ejemplo de llamada al servicio:
+    {"command": "identify", "params": {}}
+    """
+    log.info("Blender identify")
+    message = {"command": "identify", "params": {}}
     response = await send_to_blender_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
 async def blender_export_fbx(path: str) -> str:
-    """Exporta la escena de Blender como un archivo FBX."""
+    """
+    Exporta la escena de Blender como un archivo FBX.
+
+    Ejemplo de llamada al servicio:
+    {"command": "export_fbx", "params": {"path": "Assets/Generated/model.fbx"}}
+    """
     log.info("Blender export_fbx: %s", path)
     message = {"command": "export_fbx", "params": {"path": path}}
     response = await send_to_blender_and_get_response(message)
@@ -353,25 +315,400 @@ async def blender_export_fbx(path: str) -> str:
 
 
 @mcp.tool()
-async def blender_transform(
+async def blender_geom_create_base(
     name: str,
-    translation: Optional[Tuple[float, float, float]] = None,
-    rotation: Optional[Tuple[float, float, float]] = None,
-    scale: Optional[Tuple[float, float, float]] = None,
+    outline: Any,
+    thickness: float = 0.2,
+    mirror_x: bool = False,
 ) -> str:
-    """Aplica transformaciones a un objeto en Blender."""
-    log.info("Blender transform: %s", name)
-    params: Dict[str, Any] = {"name": name}
-    if translation is not None:
-        params["translation"] = list(translation)
-    if rotation is not None:
-        params["rotation"] = list(rotation)
-    if scale is not None:
-        params["scale"] = list(scale)
-    message = {"command": "transform", "params": params}
+    """
+    Crea una base extruida a partir de un contorno 2D (XY).
+
+    Ejemplo de llamada al servicio:
+    {"command": "geom.create_base", "params": {"name":"Base","outline":[[0,0],[1,0],[1,1],[0,1]],"thickness":0.2,"mirror_x":false}}
+    """
+    log.info("Blender geom.create_base: %s", name)
+    params: Dict[str, Any] = {
+        "name": name,
+        "outline": outline,
+        "thickness": float(thickness),
+        "mirror_x": bool(mirror_x),
+    }
+    message = {"command": "geom.create_base", "params": params}
     response = await send_to_blender_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
 
+
+@mcp.tool()
+async def blender_select_faces_by_range(object: str, conds: Any) -> str:
+    """
+    Selecciona caras cuyo centro cumpla un conjunto de rangos por eje.
+
+    Ejemplo de llamada al servicio:
+    {"command": "select.faces_by_range", "params": {"object": "Mesh", "conds": [{"axis":"y","min":0.0}]}}
+    """
+    log.info("Blender select.faces_by_range: %s", object)
+    params = {"object": object, "conds": conds}
+    message = {"command": "select.faces_by_range", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_select_faces_in_bbox(object: str, bbox_min: Tuple[float, float, float], bbox_max: Tuple[float, float, float]) -> str:
+    """
+    Selecciona caras cuyo centro esté dentro de una caja AABB dada (min/max).
+
+    Ejemplo de llamada al servicio:
+    {"command": "select.faces_in_bbox", "params": {"object":"Mesh", "min":[-1,-1,-1], "max":[1,1,1]}}
+    """
+    log.info("Blender select.faces_in_bbox: %s", object)
+    params = {"object": object, "min": list(bbox_min), "max": list(bbox_max)}
+    message = {"command": "select.faces_in_bbox", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_select_faces_by_normal(
+    object: str,
+    axis: Tuple[float, float, float] = (0, 0, 1),
+    min_dot: float = 0.5,
+    max_dot: float = 1.0,
+) -> str:
+    """
+    Selecciona caras por dirección de normal según producto punto con un eje.
+
+    Ejemplo de llamada al servicio:
+    {"command": "select.faces_by_normal", "params": {"object":"Mesh","axis":[0,0,1],"min_dot":0.5,"max_dot":1.0}}
+    """
+    log.info("Blender select.faces_by_normal: %s", object)
+    params = {"object": object, "axis": list(axis), "min_dot": float(min_dot), "max_dot": float(max_dot)}
+    message = {"command": "select.faces_by_normal", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_select_grow(object: str, selection_id: int, steps: int = 1) -> str:
+    """
+    Expande (crece) una selección de caras N veces siguiendo conectividad.
+
+    Ejemplo de llamada al servicio:
+    {"command": "select.grow", "params": {"object":"Mesh","selection_id":123,"steps":2}}
+    """
+    log.info("Blender select.grow: %s", object)
+    params = {"object": object, "selection_id": int(selection_id), "steps": int(steps)}
+    message = {"command": "select.grow", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_select_verts_by_curvature(object: str, min_curv: float = 0.08, in_bbox: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Selecciona vértices cuya curvatura aproximada supere un umbral (opcionalmente dentro de una AABB).
+
+    Ejemplo de llamada al servicio:
+    {"command": "select.verts_by_curvature", "params": {"object":"Mesh","min_curv":0.1,"in_bbox":{"min":[-1,-1,-1],"max":[1,1,1]}}}
+    """
+    log.info("Blender select.verts_by_curvature: %s", object)
+    params: Dict[str, Any] = {"object": object, "min_curv": float(min_curv)}
+    if in_bbox is not None:
+        params["in_bbox"] = in_bbox
+    message = {"command": "select.verts_by_curvature", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_edit_extrude_selection(
+    object: str,
+    selection_id: int,
+    translate: Tuple[float, float, float] = (0, 0, 0),
+    scale_about_center: Tuple[float, float, float] = (1, 1, 1),
+    inset: float = 0.0,
+) -> str:
+    """
+    Extruye la selección de caras y aplica transformaciones locales.
+
+    Ejemplo de llamada al servicio:
+    {"command": "edit.extrude_selection", "params": {"object":"Mesh","selection_id":123,"translate":[0,0,0.2],"scale_about_center":[1,1,1],"inset":0.02}}
+    """
+    log.info("Blender edit.extrude_selection: %s", object)
+    params = {
+        "object": object,
+        "selection_id": int(selection_id),
+        "translate": list(translate),
+        "scale_about_center": list(scale_about_center),
+        "inset": float(inset),
+    }
+    message = {"command": "edit.extrude_selection", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_edit_move_verts(
+    object: str,
+    selection_id: int,
+    translate: Tuple[float, float, float] = (0, 0, 0),
+    scale_about_center: Tuple[float, float, float] = (1, 1, 1),
+) -> str:
+    """
+    Mueve y/o escala los vértices de una selección.
+
+    Ejemplo de llamada al servicio:
+    {"command": "edit.move_verts", "params": {"object":"Mesh","selection_id":123,"translate":[0,0,0.1],"scale_about_center":[1,1,1]}}
+    """
+    log.info("Blender edit.move_verts: %s", object)
+    params = {
+        "object": object,
+        "selection_id": int(selection_id),
+        "translate": list(translate),
+        "scale_about_center": list(scale_about_center),
+    }
+    message = {"command": "edit.move_verts", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_edit_sculpt_selection(object: str, selection_id: int, moves: Any) -> str:
+    """
+    Esculpe una selección aplicando una lista de movimientos sobre vértices/caras.
+
+    Nota: El servidor espera la clave 'move' (no 'moves').
+
+    Ejemplo de llamada al servicio:
+    {"command": "edit.sculpt_selection", "params": {"object":"Mesh","selection_id":123,"move":[{"translate":[0,0,0.1]}]}}
+    """
+    log.info("Blender edit.sculpt_selection: %s", object)
+    params = {"object": object, "selection_id": int(selection_id), "move": moves}
+    message = {"command": "edit.sculpt_selection", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_geom_mirror_x(object: str, merge_dist: float = 0.0008) -> str:
+    """
+    Espeja la malla respecto al eje X y fusiona vértices cercanos.
+
+    Ejemplo de llamada al servicio:
+    {"command": "geom.mirror_x", "params": {"object":"Mesh","merge_dist":0.0008}}
+    """
+    log.info("Blender geom.mirror_x: %s", object)
+    params = {"object": object, "merge_dist": float(merge_dist)}
+    message = {"command": "geom.mirror_x", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_geom_cleanup(object: str, merge_dist: float = 0.0008, recalc: bool = True) -> str:
+    """
+    Limpieza de geometría: soldar vértices y recálculo opcional de normales.
+
+    Ejemplo de llamada al servicio:
+    {"command": "geom.cleanup", "params": {"object":"Mesh","merge_dist":0.001,"recalc":true}}
+    """
+    log.info("Blender geom.cleanup: %s", object)
+    params = {"object": object, "merge_dist": float(merge_dist), "recalc": bool(recalc)}
+    message = {"command": "geom.cleanup", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_stats(object: str) -> str:
+    """
+    Devuelve estadísticas de la malla (caras, tris aproximados, AABB, etc.).
+
+    Ejemplo de llamada al servicio:
+    {"command": "mesh.stats", "params": {"object":"Mesh"}}
+    """
+    log.info("Blender mesh.stats: %s", object)
+    message = {"command": "mesh.stats", "params": {"object": object}}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_validate(object: str, check_self_intersections: bool = False) -> str:
+    """
+    Valida la malla y opcionalmente detecta auto-intersecciones.
+
+    Ejemplo de llamada al servicio:
+    {"command": "mesh.validate", "params": {"object":"Mesh","check_self_intersections":false}}
+    """
+    log.info("Blender mesh.validate: %s", object)
+    params = {"object": object, "check_self_intersections": bool(check_self_intersections)}
+    message = {"command": "mesh.validate", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_snapshot(object: str) -> str:
+    """
+    Crea un snapshot efímero de la malla para poder restaurar más tarde.
+
+    Ejemplo de llamada al servicio:
+    {"command": "mesh.snapshot", "params": {"object":"Mesh"}}
+    """
+    log.info("Blender mesh.snapshot: %s", object)
+    message = {"command": "mesh.snapshot", "params": {"object": object}}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_restore(snapshot_id: int, object: Optional[str] = None) -> str:
+    """
+    Restaura una malla desde un snapshot previo.
+
+    Ejemplo de llamada al servicio:
+    {"command": "mesh.restore", "params": {"snapshot_id": 42, "object": "Mesh"}}
+    """
+    log.info("Blender mesh.restore: %s", snapshot_id)
+    params: Dict[str, Any] = {"snapshot_id": int(snapshot_id)}
+    if object is not None:
+        params["object"] = object
+    message = {"command": "mesh.restore", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_similarity_iou_top(
+    object: str,
+    image_path: str,
+    res: int = 256,
+    margin: float = 0.05,
+    threshold: float = 0.5,
+) -> str:
+    """
+    Compara la silueta superior (XY) con una imagen binaria y devuelve IoU.
+
+    Ejemplo de llamada al servicio:
+    {"command": "similarity.iou_top", "params": {"object":"Mesh","image_path":"ref.png","res":256,"margin":0.05,"threshold":0.5}}
+    """
+    log.info("Blender similarity.iou_top: %s", object)
+    params = {
+        "object": object,
+        "image_path": image_path,
+        "res": int(res),
+        "margin": float(margin),
+        "threshold": float(threshold),
+    }
+    message = {"command": "similarity.iou_top", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_similarity_iou_side(
+    object: str,
+    image_path: str,
+    res: int = 256,
+    margin: float = 0.05,
+    threshold: float = 0.5,
+) -> str:
+    """
+    Compara la silueta lateral (XZ) con una imagen binaria y devuelve IoU.
+
+    Ejemplo de llamada al servicio:
+    {"command": "similarity.iou_side", "params": {"object":"Mesh","image_path":"ref.png","res":256,"margin":0.05,"threshold":0.5}}
+    """
+    log.info("Blender similarity.iou_side: %s", object)
+    params = {
+        "object": object,
+        "image_path": image_path,
+        "res": int(res),
+        "margin": float(margin),
+        "threshold": float(threshold),
+    }
+    message = {"command": "similarity.iou_side", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_similarity_iou_combo(
+    object: str,
+    image_top: str,
+    image_side: str,
+    res: int = 256,
+    margin: float = 0.05,
+    threshold: float = 0.5,
+    alpha: float = 0.5,
+) -> str:
+    """
+    IoU combinado de TOP(XY) y SIDE(XZ) ponderado por alpha.
+
+    Ejemplo de llamada al servicio:
+    {"command": "similarity.iou_combo", "params": {"object":"Mesh","image_top":"top.png","image_side":"side.png","res":256,"margin":0.05,"threshold":0.5,"alpha":0.5}}
+    """
+    log.info("Blender similarity.iou_combo: %s", object)
+    params = {
+        "object": object,
+        "image_top": image_top,
+        "image_side": image_side,
+        "res": int(res),
+        "margin": float(margin),
+        "threshold": float(threshold),
+        "alpha": float(alpha),
+    }
+    message = {"command": "similarity.iou_combo", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_merge_stitch(
+    object_a: str,
+    object_b: str,
+    out_name: str = "Merged",
+    delete: str = "B_inside_A",
+    weld_dist: float = 0.001,
+    res: int = 256,
+    margin: float = 0.03,
+) -> str:
+    """
+    Fusiona dos mallas en un único objeto, recortando interiores y soldando vértices.
+
+    Ejemplo de llamada al servicio:
+    {"command": "merge.stitch", "params": {"object_a":"A","object_b":"B","out_name":"Merged","delete":"B_inside_A","weld_dist":0.001,"res":256,"margin":0.03}}
+    """
+    log.info("Blender merge.stitch: %s + %s", object_a, object_b)
+    params = {
+        "object_a": object_a,
+        "object_b": object_b,
+        "out_name": out_name,
+        "delete": delete,
+        "weld_dist": float(weld_dist),
+        "res": int(res),
+        "margin": float(margin),
+    }
+    message = {"command": "merge.stitch", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_normals_recalc(object: str, ensure_outside: bool = True) -> str:
+    """
+    Recalcula normales de la malla (opcionalmente asegura orientación hacia fuera).
+
+    Ejemplo de llamada al servicio:
+    {"command": "mesh.normals_recalc", "params": {"object":"Mesh","ensure_outside":true}}
+    """
+    log.info("Blender mesh.normals_recalc: %s", object)
+    params = {"object": object, "ensure_outside": bool(ensure_outside)}
+    message = {"command": "mesh.normals_recalc", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------
@@ -382,3 +719,4 @@ if __name__ == "__main__":
     # Ejecuta este archivo con 'python -u' y/o PYTHONUNBUFFERED=1 para evitar delays de buffer.
     log.info("Arrancando servidor MCP 'unity_editor' (stdio). URL puente Unity: %s", MCP_SERVER_URL)
     mcp.run()
+

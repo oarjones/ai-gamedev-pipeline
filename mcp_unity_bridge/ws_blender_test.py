@@ -22,18 +22,11 @@ async def main():
     print("Conectando a", URI)
     async with websockets.connect(URI, ping_interval=20, ping_timeout=20) as ws:
         # 1) execute_python
-        msg1 = {"command": "execute_python_file", "params": {"path": NAVE_PATH}}
+        msg1 = {"command": "execute_python", "params": {"code": EXEC_CODE}}
         await ws.send(json.dumps(msg1))
         print(">> enviado execute_python")
         resp1 = await asyncio.wait_for(ws.recv(), timeout=30)
         print("<< respuesta execute_python:", resp1)
-
-        # 2) export_fbx
-        msg2 = {"command": "export_fbx", "params": {"path": EXPORT_PATH}}
-        await ws.send(json.dumps(msg2))
-        print(">> enviado export_fbx")
-        resp2 = await asyncio.wait_for(ws.recv(), timeout=30)
-        print("<< respuesta export_fbx:", resp2)
 
 
         # Mantener vivo un poco y luego cerrar
