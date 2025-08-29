@@ -1,110 +1,81 @@
-# AI GameDev Pipeline
+MCP Blender Add-on (WS Scaffold)
+================================
 
-Este repositorio contiene el proyecto para construir una pipeline de desarrollo de videojuegos completamente automatizada y dirigida por un agente de IA.
+Minimal, dependency-free scaffold for a Blender 4.5 add-on exposing a JSON-over-WebSocket command server with a simple command registry and an executor to marshal Blender API calls to the main thread.
 
-## Visión del Proyecto
+Folder structure
+----------------
+- `mcp_blender_addon/` — Add-on package
+  - `__init__.py` — add-on entry; starts WS server on enable
+  - `websocket_server.py` — tiny stdlib WS server (RFC6455 subset)
+  - `server/` — infrastructure
+    - `registry.py` — command registry/dispatcher
+    - `executor.py` — main-thread executor using `bpy.app.timers`
+    - `context.py` — lightweight app context
+    - `utils.py` — JSON helpers and responses
+    - `logging.py` — basic logger setup
+  - `commands/` — sample command namespaces
+    - `modeling.py`, `topology.py`, `normals.py`
+  - `tests/`
+    - `smoke_client.py` — stdlib WS client for smoke testing
 
-El objetivo es crear un ecosistema donde un agente de IA pueda orquestar un flujo de trabajo completo a través de múltiples aplicaciones de software (Unity, Blender, etc.) para facilitar y acelerar la creación de videojuegos. La meta es permitir que el desarrollador se centre en las mecánicas y la visión creativa, mientras que la IA se encarga de la implementación técnica.
+Requirements
+------------
+- Blender 4.5 (Python 3.10+ runtime)
+- No external Python dependencies
 
-## Arquitectura Planificada
+Install & Enable
+----------------
+1) In Blender, go to `Edit > Preferences > Add-ons`.
+2) Click `Install...`, select the project folder (or zip it first), and enable "MCP Blender Add-on (WS Scaffold)".
+3) Configure Host/Port under the add-on’s Preferences if needed.
 
-El sistema se basará en una arquitectura de microservicios, con un "puente" (servidor MCP) para cada aplicación de software:
+Start/Stop
+----------
+- Use the 3D View > Sidebar (N) > `MCP` > `MCP Server` panel.
+- Click `Start` to launch and `Stop` to shut down. Defaults to `127.0.0.1:8765` unless changed in Preferences.
 
-- **`mcp_unity_bridge`**: Un servidor en Python que se comunica con el editor de Unity para ejecutar scripts de C#, manipular escenas y gestionar los assets del proyecto.
-- **`mcp_blender_bridge`**: Un servidor en Python que se comunica con Blender para ejecutar scripts de Python (`bpy`), permitiendo el modelado 3D, texturizado y animación de forma programática.
+JSON Contract
+-------------
+- Request: `{ "command": "namespace.action", "params": { ... } }`
+- Response (success): `{ "status": "ok", "result": { ... } }`
+- Response (error): `{ "status": "error", "error": "message", "code": "optional" }`
 
-## Estado Actual
+Built-in Commands (examples)
+----------------------------
+- `server.ping` → `{ "pong": true }`
+- `modeling.echo` → echoes provided params
+- `modeling.get_version` → Blender version (if running in Blender)
+- `topology.count_mesh_objects` → counts mesh objects (runs via executor)
+- `normals.recalculate_selected` → recalculates normals for selected mesh objects (via executor)
 
-Proyecto en fase de inicialización. El primer objetivo es implementar el `mcp_unity_bridge`.
+Smoke Test
+----------
+After enabling the add-on (server listening), run from this repo root:
 
-## Ejemplos de ejecución
-
-### Unity Bridge
-```sh
-python -m mcp_unity_server.main
+```
+python -m mcp_blender_addon.tests.smoke_client --host 127.0.0.1 --port 8765 --command server.ping
 ```
 
-### Blender Bridge
-```sh
-blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py
+Expected output (example):
+
+```
+{"status": "ok", "result": {"pong": true}}
 ```
 
-### Instalación para Blender 2.79
+You can send other commands, e.g.:
 
-Blender 2.79 incluye Python 3.5. Para ejecutar el servidor WebSocket debes
-instalar la versión compatible de la librería `websockets` dentro del entorno
-de Blender:
-
-1. Descarga [Blender&nbsp;2.79](https://download.blender.org/release/Blender2.79/).
-2. Abre una terminal en la carpeta de Blender y prepara `pip`:
-   ```sh
-   ./2.79/python/bin/python3.5 -m ensurepip
-   ./2.79/python/bin/pip install websockets==7.0
-   ```
-3. Desde la raíz de este repositorio ejecuta:
-   ```sh
-   blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py
-   ```
-
-Si `blender` no está en el `PATH` usa la ruta completa al ejecutable.
-La única dependencia externa es `websockets==7.0`, necesaria porque las
-versiones más recientes requieren Python&nbsp;3.7 o superior.
-
-### Adaptador unificado
-```sh
-python mcp_unity_bridge/mcp_adapter.py
+```
+python -m mcp_blender_addon.tests.smoke_client --command modeling.echo --params '{"hello":"world"}'
 ```
 
-También puedes lanzar todo el stack con:
-```sh
-./launch_unified_adapter.sh
-```
- o en Windows:
-```bat
-launch_unified_adapter.bat
-```
+Executor Notes
+--------------
+- Blender API interactions must occur on the main thread.
+- The `Executor` queues tasks and executes them via `bpy.app.timers`.
+- Command handlers that need Blender should call through the executor (see `topology.py`, `normals.py`).
 
-
-## Ejecución remota en Blender
-
-### `execute_python` / `execute_python_file`
-
-El servidor WebSocket puede evaluar código Python enviado por el cliente.
-
-```python
-await websocket.send(json.dumps({"command": "execute_python", "params": {"code": "print('hola')"}}))
-```
-
-Para ejecutar un archivo almacenado en la máquina que corre Blender:
-
-```python
-await websocket.send(json.dumps({"command": "execute_python_file", "params": {"path": "/ruta/script.py"}}))
-```
-
-### Macros
-
-Los macros son módulos dentro de `mcp_blender_bridge/mcp_blender_addon/macros` que definen una función `run(**kwargs)`.
-Se invocan con el comando `run_macro`.
-
-```python
-await websocket.send(json.dumps({
-    "command": "run_macro",
-    "params": {
-        "name": "assign_material",
-        "object_name": "Cube",
-        "material_name": "Demo"
-    }
-}))
-```
-
-### Cargar macros personalizados
-
-1. Crea un archivo Python en `mcp_blender_bridge/mcp_blender_addon/macros/` con un nombre único.
-2. Define en él una función `run(**kwargs)` que contenga la lógica del macro.
-3. Reinicia el servidor WebSocket si estaba en ejecución.
-4. Desde el cliente, llama a `run_macro` indicando el nombre del archivo sin `.py` y los parámetros necesarios.
-
-### Seguridad
-
-Ejecutar código remoto otorga acceso completo al entorno de Blender.
-Utiliza estas capacidades solo con scripts y macros de confianza y evita exponer el puerto a redes públicas.
+Development Tips
+----------------
+- Keep commands side-effect free unless necessary; always route bpy/bmesh via the executor.
+- Avoid external libs to keep compatibility with Blender’s Python.
