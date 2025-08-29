@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 
 # SDK MCP (stdio por defecto)
 from mcp.server.fastmcp import FastMCP
@@ -709,6 +709,336 @@ async def blender_mesh_normals_recalc(object: str, ensure_outside: bool = True) 
     message = {"command": "mesh.normals_recalc", "params": params}
     response = await send_to_blender_and_get_response(message)
     return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# SIMILARITY: FRONT + COMBO3
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_similarity_iou_front(object: str, image_path: str, res: int = 256, margin: float = 0.05, threshold: float = 0.5) -> str:
+    """
+    Calcula IoU entre la silueta frontal (plano YZ local) del objeto y una imagen de referencia.
+
+    Ejemplo de llamada al servicio:
+    {"command": "similarity.iou_front", "params": {"object":"Model","image_path":"D:/refs/front.png","res":256,"margin":0.05,"threshold":0.5}}
+    """
+    log.info("Blender similarity.iou_front: %s", object)
+    params = {"object": object, "image_path": image_path, "res": int(res), "margin": float(margin), "threshold": float(threshold)}
+    message = {"command": "similarity.iou_front", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_similarity_iou_combo3(
+    object: str,
+    image_top: str,
+    image_side: str,
+    image_front: str,
+    res: int = 256,
+    margin: float = 0.05,
+    threshold: float = 0.5,
+    alpha: float = 0.34,
+    beta: float = 0.33,
+    gamma: float = 0.33,
+) -> str:
+    """
+    Calcula IoU combinado para 3 vistas (TOP/XY, SIDE/XZ, FRONT/YZ) con pesos alpha/beta/gamma (suman ≈1).
+
+    Ejemplo de llamada al servicio:
+    {"command": "similarity.iou_combo3",
+     "params": {"object":"Model","image_top":"D:/refs/top.png","image_side":"D:/refs/side.png","image_front":"D:/refs/front.png",
+                "res":256,"margin":0.05,"threshold":0.5,"alpha":0.34,"beta":0.33,"gamma":0.33}}
+    """
+    log.info("Blender similarity.iou_combo3: %s", object)
+    params = {
+        "object": object,
+        "image_top": image_top,
+        "image_side": image_side,
+        "image_front": image_front,
+        "res": int(res),
+        "margin": float(margin),
+        "threshold": float(threshold),
+        "alpha": float(alpha),
+        "beta": float(beta),
+        "gamma": float(gamma),
+    }
+    message = {"command": "similarity.iou_combo3", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# SELECTION: EDGE LOOPS & RINGS
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_select_edge_loop_from_edge(object: str, edge_index: int) -> str:
+    """
+    Selecciona un edge-loop partiendo del índice de una arista. Devuelve selection_id y recuento.
+
+    Ejemplo:
+    {"command": "select.edge_loop_from_edge", "params": {"object":"Model","edge_index":120}}
+    """
+    log.info("Blender select.edge_loop_from_edge: %s (edge=%s)", object, edge_index)
+    params = {"object": object, "edge_index": int(edge_index)}
+    message = {"command": "select.edge_loop_from_edge", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_select_edge_ring_from_edge(object: str, edge_index: int) -> str:
+    """
+    Selecciona un edge-ring partiendo del índice de una arista. Devuelve selection_id y recuento.
+
+    Ejemplo:
+    {"command": "select.edge_ring_from_edge", "params": {"object":"Model","edge_index":120}}
+    """
+    log.info("Blender select.edge_ring_from_edge: %s (edge=%s)", object, edge_index)
+    params = {"object": object, "edge_index": int(edge_index)}
+    message = {"command": "select.edge_ring_from_edge", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# LOOP CUT / SUBDIVISIÓN
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_mesh_loop_insert(
+    object: str,
+    edges: Optional[List[int]] = None,
+    selection_id: Optional[int] = None,
+    cuts: int = 1,
+    smooth: float = 0.0,
+) -> str:
+    """
+    Inserta cortes a lo largo de un conjunto de aristas (loop/ring). Acepta lista de edges o selection_id con edges.
+
+    Ejemplo:
+    {"command":"mesh.loop_insert","params":{"object":"Model","selection_id":7,"cuts":2,"smooth":0.0}}
+    """
+    log.info("Blender mesh.loop_insert: %s (cuts=%s)", object, cuts)
+    params = {"object": object, "edges": edges, "selection_id": selection_id, "cuts": int(cuts), "smooth": float(smooth)}
+    message = {"command": "mesh.loop_insert", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# BEVEL PARAMÉTRICO
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_mesh_bevel(
+    object: str,
+    edges: Optional[List[int]] = None,
+    verts: Optional[List[int]] = None,
+    selection_id: Optional[int] = None,
+    offset: float = 0.01,
+    segments: int = 2,
+    profile: float = 0.7,
+    clamp: bool = True,
+    auto_sharp_angle: Optional[float] = None,
+) -> str:
+    """
+    Aplica bevel (bmesh.ops.bevel) sobre edges/verts (sin bpy.ops).
+    Puede derivar la selección desde selection_id o usar edges/verts directos.
+    'auto_sharp_angle' detecta aristas “duras” automáticamente (en grados).
+
+    Ejemplo:
+    {"command":"mesh.bevel","params":{"object":"Model","selection_id":7,"offset":0.01,"segments":3,"profile":0.7,"clamp":true}}
+    """
+    log.info("Blender mesh.bevel: %s (offset=%s, segments=%s)", object, offset, segments)
+    params = {
+        "object": object,
+        "edges": edges,
+        "verts": verts,
+        "selection_id": selection_id,
+        "offset": float(offset),
+        "segments": int(segments),
+        "profile": float(profile),
+        "clamp": bool(clamp),
+        "auto_sharp_angle": float(auto_sharp_angle) if auto_sharp_angle is not None else None,
+    }
+    message = {"command": "mesh.bevel", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# GEODESIC SELECT
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_select_geodesic(object: str, seed_vert: Optional[int] = None, selection_id: Optional[int] = None, radius: float = 0.25) -> str:
+    """
+    Selecciona vértices por distancia geodésica a lo largo de la superficie desde una semilla (vert o selection_id).
+
+    Ejemplo:
+    {"command":"select.geodesic","params":{"object":"Model","seed_vert":42,"radius":0.3}}
+    """
+    log.info("Blender select.geodesic: %s (seed=%s, radius=%s)", object, seed_vert, radius)
+    params = {"object": object, "seed_vert": seed_vert, "selection_id": selection_id, "radius": float(radius)}
+    message = {"command": "select.geodesic", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# SNAP A SILUETA (IMAGEN)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_edit_snap_to_silhouette(
+    object: str,
+    selection_id: int,
+    plane: str = "XY",
+    image_path: str = "",
+    strength: float = 0.5,
+    iterations: int = 8,
+    step: float = 1.0,
+    res: int = 256,
+    margin: float = 0.05,
+    threshold: float = 0.5,
+) -> str:
+    """
+    Atrae vértices seleccionados hacia el borde de una silueta 2D (imagen) en el plano dado (XY/XZ/YZ).
+
+    Ejemplo:
+    {"command":"edit.snap_to_silhouette","params":{
+      "object":"Model","selection_id":7,"plane":"XY","image_path":"D:/refs/top.png",
+      "strength":0.6,"iterations":8,"step":1.0,"res":256,"margin":0.05,"threshold":0.5}}
+    """
+    log.info("Blender edit.snap_to_silhouette: %s (plane=%s)", object, plane)
+    params = {
+        "object": object,
+        "selection_id": int(selection_id),
+        "plane": plane,
+        "image_path": image_path,
+        "strength": float(strength),
+        "iterations": int(iterations),
+        "step": float(step),
+        "res": int(res),
+        "margin": float(margin),
+        "threshold": float(threshold),
+    }
+    message = {"command": "edit.snap_to_silhouette", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# LANDMARKS 2D → 3D
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_constraint_landmarks_apply(object: str, plane: str = "XY", points: List[dict] = []) -> str:
+    """
+    Aplica landmarks 2D (uv en 0..1) con radio/strength en el plano indicado.
+    Cada punto: {"uv":[u,v], "radius":0.1, "strength":0.8}
+
+    Ejemplo:
+    {"command":"constraint.landmarks_apply","params":{
+      "object":"Model","plane":"YZ","points":[{"uv":[0.62,0.38],"radius":0.08,"strength":0.9}]}}
+    """
+    log.info("Blender constraint.landmarks_apply: %s (plane=%s, points=%d)", object, plane, len(points) if points else 0)
+    params = {"object": object, "plane": plane, "points": points or []}
+    message = {"command": "constraint.landmarks_apply", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# SIMETRÍAS AVANZADAS
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_geom_mirror_plane(
+    object: str,
+    plane_point: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+    plane_normal: Tuple[float, float, float] = (1.0, 0.0, 0.0),
+    merge_dist: float = 0.0008,
+) -> str:
+    """
+    Duplica y refleja la malla respecto a un plano arbitrario (punto + normal). Suelda con merge_dist.
+
+    Ejemplo:
+    {"command":"geom.mirror_plane","params":{"object":"Model","plane_point":[0,0,0],"plane_normal":[0.3,0.7,0.6],"merge_dist":0.0008}}
+    """
+    log.info("Blender geom.mirror_plane: %s", object)
+    params = {"object": object, "plane_point": list(plane_point), "plane_normal": list(plane_normal), "merge_dist": float(merge_dist)}
+    message = {"command": "geom.mirror_plane", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_geom_symmetry_radial(object: str, axis: str = "Z", count: int = 6, merge_dist: float = 0.0008) -> str:
+    """
+    Simetría radial n-fold duplicando y rotando la malla alrededor del eje local indicado. Suelda con merge_dist.
+
+    Ejemplo:
+    {"command":"geom.symmetry_radial","params":{"object":"Model","axis":"Z","count":8,"merge_dist":0.0008}}
+    """
+    log.info("Blender geom.symmetry_radial: %s (axis=%s, count=%s)", object, axis, count)
+    params = {"object": object, "axis": axis, "count": int(count), "merge_dist": float(merge_dist)}
+    message = {"command": "geom.symmetry_radial", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# TOPOLOGÍA & REPARACIÓN
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def blender_mesh_triangulate_beautify(object: str) -> str:
+    """
+    Triangula la malla y aplica 'beautify' para mejorar la calidad angular.
+
+    Ejemplo:
+    {"command":"mesh.triangulate_beautify","params":{"object":"Model"}}
+    """
+    log.info("Blender mesh.triangulate_beautify: %s", object)
+    params = {"object": object}
+    message = {"command": "mesh.triangulate_beautify", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_bridge_loops(object: str, loops: List[List[int]]) -> str:
+    """
+    Puentea bordes entre loops (cada loop es una lista de índices de arista).
+
+    Ejemplo:
+    {"command":"mesh.bridge_loops","params":{"object":"Model","loops":[[10,11,12],[47,48,49]]}}
+    """
+    log.info("Blender mesh.bridge_loops: %s (loops=%d)", object, len(loops) if loops else 0)
+    params = {"object": object, "loops": loops}
+    message = {"command": "mesh.bridge_loops", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def blender_mesh_fill_holes(object: str) -> str:
+    """
+    Rellena agujeros detectando bordes frontera (len(link_faces)==1).
+
+    Ejemplo:
+    {"command":"mesh.fill_holes","params":{"object":"Model"}}
+    """
+    log.info("Blender mesh.fill_holes: %s", object)
+    params = {"object": object}
+    message = {"command": "mesh.fill_holes", "params": params}
+    response = await send_to_blender_and_get_response(message)
+    return json.dumps(response, indent=2, ensure_ascii=False)
+
 
 
 # ---------------------------------------------------------------------
