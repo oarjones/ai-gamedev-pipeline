@@ -34,7 +34,7 @@ _log = get_logger(__name__)
 
 # Singletons for this add-on session
 _executor: Executor | None = None
-_server: websocket_server.WebSocketServer | None = None
+_server_running: bool = False
 
 
 def _ensure_singletons():
@@ -48,9 +48,9 @@ def register():
     _ensure_singletons()
     assert _executor
 
-    # Initialize executor consumer if in Blender
+    # Initialize executor pump if in Blender (ensures main-thread execution)
     if bpy is not None:
-        _executor.start()
+        _executor.start_pump()
 
     # Trigger autoregistration of commands via decorators
     from . import commands  # noqa: F401
@@ -62,41 +62,39 @@ def register():
 
 def unregister():
     """Blender entry point when disabling the add-on."""
-    global _server, _executor
+    global _executor
     try:
-        if _server is not None:
-            _server.stop()
-            _server = None
+        stop_server()
     finally:
         if bpy is not None:
             _unregister_ui()
         if _executor is not None:
-            _executor.stop()
+            _executor.stop_pump()
 
 
 # --- Server control helpers ---
 
 def start_server(host: str = "127.0.0.1", port: int = 8765) -> None:
-    global _server
+    global _server_running
     _ensure_singletons()
     assert _executor
-    if _server is not None:
-        _log.info("Server already running at ws://%s:%d", _server.host, _server.port)
+    if _server_running:
+        _log.info("Server already running")
         return
-    _server = websocket_server.WebSocketServer(host=host, port=port, registry=None, executor=_executor)
-    _server.start()
+    # Wire enqueue callback and start async server
+    websocket_server.set_enqueue(_executor.enqueue)
+    websocket_server.start_server(host, port)
+    _server_running = True
     _log.info("WebSocket server started on ws://%s:%d", host, port)
 
 
 def stop_server() -> None:
-    global _server
-    if _server is None:
-        return
+    global _server_running
     try:
-        _server.stop()
+        websocket_server.stop_server()
         _log.info("WebSocket server stopped")
     finally:
-        _server = None
+        _server_running = False
 
 
 # --- Blender UI (only defined when bpy is available) ---
@@ -164,7 +162,7 @@ if bpy is not None:
             host = getattr(prefs, "host", "127.0.0.1")
             port = int(getattr(prefs, "port", 8765))
 
-            running = _server is not None
+            running = _server_running
             row = layout.row()
             row.label(text=f"Status: {'Running' if running else 'Stopped'}")
             layout.separator()

@@ -9,6 +9,7 @@ import socket
 import struct
 import sys
 import time
+from datetime import datetime
 
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -106,17 +107,113 @@ def main(argv: list[str]) -> int:
         help="Command to send (e.g., server.ping, modeling.echo)",
     )
     ap.add_argument("--params", default="{}", help="JSON params object")
+    ap.add_argument("--selftest", action="store_true", help="Run a short context-based self test")
+    ap.add_argument("--identify", action="store_true", help="Send identify message instead of a command")
+    ap.add_argument("--suite", choices=["single", "smoke"], default="single", help="Run a predefined smoke suite")
     args = ap.parse_args(argv)
 
-    s = ws_connect(args.host, args.port)
-    payload = json.dumps({"command": args.command, "params": json.loads(args.params)})
-    ws_send_text(s, payload)
-    resp = ws_recv_text(s)
-    print(resp)
-    s.close()
-    return 0
+    def save_log(step: str, payload_raw: str | None, payload_obj: dict | None) -> None:
+        day = datetime.now().strftime("%Y%m%d")
+        base = os.path.join("Generated", "logs", day)
+        os.makedirs(base, exist_ok=True)
+        path = os.path.join(base, f"{step}.json")
+        try:
+            if payload_obj is not None:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(payload_obj, f, ensure_ascii=False, indent=2)
+            elif payload_raw is not None:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(payload_raw)
+        except Exception as e:
+            print(f"Failed to write log {path}: {e}")
+
+    if args.suite == "smoke":
+        s = ws_connect(args.host, args.port)
+        # 01 Identify
+        ws_send_text(s, json.dumps({"identify": True}))
+        r1_raw = ws_recv_text(s)
+        print(r1_raw)
+        try:
+            r1 = json.loads(r1_raw)
+        except Exception:
+            r1 = None
+        save_log("01_identify", r1_raw, r1)
+
+        # 02 Create primitive (cube)
+        name = "SmokeCube"
+        cparams = {"type": "cube", "size": 1.0, "name": name}
+        ws_send_text(s, json.dumps({"command": "modeling.create_primitive", "params": cparams}))
+        r2_raw = ws_recv_text(s)
+        print(r2_raw)
+        try:
+            r2 = json.loads(r2_raw)
+        except Exception:
+            r2 = None
+        save_log("02_create_primitive", r2_raw, r2)
+
+        # 03 Extrude normals on all cube faces (indices 0..5)
+        eparams = {"object": name, "face_indices": [0, 1, 2, 3, 4, 5], "distance": 0.2}
+        ws_send_text(s, json.dumps({"command": "modeling.extrude_normal", "params": eparams}))
+        r3_raw = ws_recv_text(s)
+        print(r3_raw)
+        try:
+            r3 = json.loads(r3_raw)
+        except Exception:
+            r3 = None
+        save_log("03_extrude_normal", r3_raw, r3)
+
+        # 04 Bevel edges on first 12 edges
+        bparams = {"object": name, "edge_indices": list(range(12)), "offset": 0.05, "segments": 2, "clamp": True}
+        ws_send_text(s, json.dumps({"command": "topology.bevel_edges", "params": bparams}))
+        r4_raw = ws_recv_text(s)
+        print(r4_raw)
+        try:
+            r4 = json.loads(r4_raw)
+        except Exception:
+            r4 = None
+        save_log("04_bevel_edges", r4_raw, r4)
+
+        # 05 Recalc normals outward
+        nparams = {"object": name, "outside": True}
+        ws_send_text(s, json.dumps({"command": "normals.recalc", "params": nparams}))
+        r5_raw = ws_recv_text(s)
+        print(r5_raw)
+        try:
+            r5 = json.loads(r5_raw)
+        except Exception:
+            r5 = None
+        save_log("05_normals_recalc", r5_raw, r5)
+
+        s.close()
+        return 0
+
+    if args.identify:
+        s = ws_connect(args.host, args.port)
+        ws_send_text(s, json.dumps({"identify": True}))
+        print(ws_recv_text(s))
+        s.close()
+        return 0
+    elif args.selftest:
+        s = ws_connect(args.host, args.port)
+        for cmd, p in [
+            ("server.ping", {}),
+            ("topology.ensure_object_mode", {}),
+            ("topology.touch_active", {}),
+        ]:
+            ws_send_text(s, json.dumps({"command": cmd, "params": p}))
+            print(ws_recv_text(s))
+            time.sleep(0.05)
+        s.close()
+        return 0
+    else:
+        s = ws_connect(args.host, args.port)
+        payload = json.dumps({"command": args.command, "params": json.loads(args.params)})
+        ws_send_text(s, payload)
+        resp = ws_recv_text(s)
+        print(resp)
+        s.close()
+        return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-

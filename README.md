@@ -1,28 +1,28 @@
 MCP Blender Add-on (WS Scaffold)
 ================================
 
-Minimal, dependency-free scaffold for a Blender 4.5 add-on exposing a JSON-over-WebSocket command server with a simple command registry and an executor to marshal Blender API calls to the main thread.
+Minimal scaffold for a Blender 4.5 add-on exposing a JSON-over-WebSocket command server using `websockets` (asyncio). Commands never execute `bpy` in WS threads; instead, an executor pumps tasks on Blender’s main thread via `bpy.app.timers`.
 
-Folder structure
+Folder Structure
 ----------------
 - `mcp_blender_addon/` — Add-on package
-  - `__init__.py` — add-on entry; starts WS server on enable
-  - `websocket_server.py` — tiny stdlib WS server (RFC6455 subset)
+  - `__init__.py` — add-on entry; UI to start/stop server
+  - `websocket_server.py` — asyncio `websockets` server (no bpy access)
   - `server/` — infrastructure
-    - `registry.py` — command registry/dispatcher
-    - `executor.py` — main-thread executor using `bpy.app.timers`
-    - `context.py` — lightweight app context
-    - `utils.py` — JSON helpers and responses
-    - `logging.py` — basic logger setup
-  - `commands/` — sample command namespaces
+    - `registry.py` — global command registry + decorators
+    - `executor.py` — main-thread pump using `bpy.app.timers`
+    - `context.py` — session context + bmesh helpers
+    - `utils.py` — JSON helpers
+    - `logging.py` — console + rotating file logging
+  - `commands/` — tool namespaces
     - `modeling.py`, `topology.py`, `normals.py`
   - `tests/`
-    - `smoke_client.py` — stdlib WS client for smoke testing
+    - `smoke_client.py` — stdlib WS client + smoke suite
 
 Requirements
 ------------
 - Blender 4.5 (Python 3.10+ runtime)
-- No external Python dependencies
+- Python package `websockets` available in Blender’s Python
 
 Install & Enable
 ----------------
@@ -37,37 +37,29 @@ Start/Stop
 
 JSON Contract
 -------------
-- Request: `{ "command": "namespace.action", "params": { ... } }`
-- Response (success): `{ "status": "ok", "result": { ... } }`
-- Response (error): `{ "status": "error", "error": "message", "code": "optional" }`
+- Identify: `{ "identify": true }` → `{ "status": "ok", "result": { "blender_version": [4,5,0], "ws_version": "...", "module": "mcp_blender_addon" } }`
+- Command: `{ "command": "namespace.action", "params": { ... } }`
+- Success: `{ "status": "ok", "result": { ... } }`
+- Error: `{ "status": "error", "tool": "<component>", "message": "...", "trace": "..." }`
 
-Built-in Commands (examples)
-----------------------------
+Built-in Tools (examples)
+-------------------------
 - `server.ping` → `{ "pong": true }`
-- `modeling.echo` → echoes provided params
-- `modeling.get_version` → Blender version (if running in Blender)
-- `topology.count_mesh_objects` → counts mesh objects (runs via executor)
-- `normals.recalculate_selected` → recalculates normals for selected mesh objects (via executor)
+- `server.list_commands` → list of available command names
+- `modeling.create_primitive` → create cube/plane/cylinder via bmesh
+- `modeling.extrude_normal` → extrude faces along average normal
+- `topology.bevel_edges` → bevel selected edges
+- `topology.merge_by_distance` → remove doubles
+- `normals.recalc` → recalc normals outward/inward
 
-Smoke Test
-----------
-After enabling the add-on (server listening), run from this repo root:
-
-```
-python -m mcp_blender_addon.tests.smoke_client --host 127.0.0.1 --port 8765 --command server.ping
-```
-
-Expected output (example):
-
-```
-{"status": "ok", "result": {"pong": true}}
-```
-
-You can send other commands, e.g.:
-
-```
-python -m mcp_blender_addon.tests.smoke_client --command modeling.echo --params '{"hello":"world"}'
-```
+Smoke Tests
+-----------
+- Full suite with logs:
+  - `python -m mcp_blender_addon.tests.smoke_client --suite smoke`
+  - Logs saved under `Generated/logs/YYYYMMDD/` as JSON files per step.
+- Single command:
+  - `python -m mcp_blender_addon.tests.smoke_client --command server.ping`
+  - Identify only: `python -m mcp_blender_addon.tests.smoke_client --identify`
 
 Executor Notes
 --------------
@@ -75,7 +67,13 @@ Executor Notes
 - The `Executor` queues tasks and executes them via `bpy.app.timers`.
 - Command handlers that need Blender should call through the executor (see `topology.py`, `normals.py`).
 
-Development Tips
-----------------
-- Keep commands side-effect free unless necessary; always route bpy/bmesh via the executor.
-- Avoid external libs to keep compatibility with Blender’s Python.
+Logging
+-------
+- Console logs go to stdout; a rotating file log is written to:
+  - Windows/macOS/Linux: `~/.mcp_blender_addon/logs/addon.log` (1MB x 3 backups)
+
+WebSockets Library
+------------------
+- The add-on’s WS server uses the `websockets` package. If Blender’s Python lacks it, install into Blender’s Python environment, e.g. (Windows example):
+  - `"C:\\Program Files\\Blender Foundation\\Blender 4.5\\4.5\\python\\bin\\python.exe" -m ensurepip`
+  - `"...python.exe" -m pip install websockets`

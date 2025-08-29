@@ -1,222 +1,158 @@
 from __future__ import annotations
 
-import base64
-import hashlib
+import asyncio
 import json
-import socket
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .server.logging import get_logger
-from .server.registry import get as get_command
-from .server.utils import parse_json_message
-from .server.executor import Executor
-from .server.context import SessionContext
+from .server.executor import MCP_MAX_TASKS
+
+_log = get_logger(__name__)
+
+# Provided by addon at runtime to enqueue commands
+_enqueue: Optional[Callable[[str, Dict[str, Any]], Any]] = None
+
+# Server loop/thread handles
+_loop: Optional[asyncio.AbstractEventLoop] = None
+_server: Optional[asyncio.AbstractServer] = None
+_thread: Optional[threading.Thread] = None
+_stopping = threading.Event()
 
 
-WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+def set_enqueue(fn: Callable[[str, Dict[str, Any]], Any]) -> None:
+    global _enqueue
+    _enqueue = fn
 
 
-class WebSocketServer:
-    """Very small WebSocket server (RFC 6455 subset) using stdlib only.
+def start_server(host: str, port: int) -> None:
+    global _thread
+    if _thread and _thread.is_alive():
+        _log.info("WS server already running on ws://%s:%d", host, port)
+        return
+    _stopping.clear()
+    _thread = threading.Thread(target=_run_loop, args=(host, port), name="WS-Server", daemon=True)
+    _thread.start()
 
-    - Supports text frames from client (opcode 1) and sends text frames.
-    - Handles payload lengths up to 65535 (no 64-bit lengths).
-    - One thread for accept, per-connection handled sequentially (no broadcast).
-    - Intended for local development/tools; not production-grade.
-    """
 
-    def __init__(self, host: str, port: int, registry: object, executor: Executor):
-        self.host = host
-        self.port = port
-        self._executor = executor
-        self._log = get_logger(__name__)
-        self._sock: Optional[socket.socket] = None
-        self._thread: Optional[threading.Thread] = None
-        self._stopping = threading.Event()
-
-    def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        self._stopping.clear()
-        self._thread = threading.Thread(target=self._serve, name="WS-Server", daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stopping.set()
+def stop_server() -> None:
+    global _loop, _server, _thread
+    _stopping.set()
+    if _loop and _server:
         try:
-            if self._sock:
-                try:
-                    self._sock.shutdown(socket.SHUT_RDWR)
-                except Exception:
-                    pass
-                self._sock.close()
-        finally:
-            self._sock = None
-        if self._thread:
-            self._thread.join(timeout=1.0)
-            self._thread = None
+            fut = asyncio.run_coroutine_threadsafe(_shutdown(), _loop)
+            fut.result(timeout=2.0)
+        except Exception:
+            pass
+    if _thread:
+        _thread.join(timeout=2.0)
+    _loop = None
+    _server = None
+    _thread = None
 
-    # --- Internal server loop ---
 
-    def _serve(self) -> None:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((self.host, self.port))
-        s.listen(1)
-        self._sock = s
-        self._log.info("Listening on ws://%s:%d", self.host, self.port)
-        while not self._stopping.is_set():
-            try:
-                s.settimeout(0.5)
-                conn, addr = s.accept()
-            except socket.timeout:
-                continue
-            except OSError:
-                break
-            threading.Thread(target=self._handle_conn, args=(conn, addr), daemon=True).start()
+def _run_loop(host: str, port: int) -> None:
+    try:
+        import websockets
+    except Exception as e:  # pragma: no cover - dependency missing
+        _log.error("websockets library not available: %s", e)
+        return
 
-    def _handle_conn(self, conn: socket.socket, addr) -> None:
-        conn.settimeout(5.0)
+    async def handler(ws):
+        peer = getattr(ws, "remote_address", ("?", 0))
+        _log.info("WS connected: %s", peer)
         try:
-            if not self._handshake(conn):
-                conn.close()
-                return
-            self._log.info("WebSocket connected: %s", addr)
-            while not self._stopping.is_set():
-                msg = self._recv_ws_text(conn)
-                if msg is None:
-                    break
-                jm, err = parse_json_message(msg)
-                if err:
-                    self._send_ws_text(conn, json.dumps({"status": "error", "message": err, "tool": "server", "trace": ""}))
-                    continue
-                try:
-                    result = self._dispatch(jm.command, jm.params)
-                    self._send_ws_text(conn, json.dumps(result))
-                except KeyError as e:
-                    self._send_ws_text(conn, json.dumps({"status": "error", "tool": "server", "message": str(e), "trace": "", "code": "unknown_command"}))
-                except Exception as e:  # noqa: BLE001
-                    self._send_ws_text(conn, json.dumps({"status": "error", "tool": "server", "message": str(e), "trace": "", "code": "exception"}))
-        except Exception as e:  # noqa: BLE001
-            self._log.info("Connection error: %s", e)
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            async for raw in ws:
+                resp = await _handle_message(raw)
+                await ws.send(json.dumps(resp))
+        except Exception as e:
+            _log.info("WS connection closed: %s", e)
 
-    def _dispatch(self, name: str, params: Dict[str, Any]) -> Any:
-        # Dispatch using decorator-driven registry. Handlers receive SessionContext first.
-        fn = get_command(name)
-        if not fn:
-            raise KeyError(f"unknown command: {name}")
+    async def main():
+        nonlocal host, port
+        srv = await websockets.serve(handler, host, port, ping_interval=20, ping_timeout=20, max_size=8 * 1024 * 1024)
+        _log.info("Listening on ws://%s:%d", host, port)
+        return srv
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    global _loop, _server
+    _loop = loop
+    _server = loop.run_until_complete(main())
+    try:
+        loop.run_until_complete(_wait_for_stop())
+    finally:
+        loop.run_until_complete(_shutdown())
+        loop.close()
+
+
+async def _wait_for_stop():
+    while not _stopping.is_set():
+        await asyncio.sleep(0.1)
+
+
+async def _shutdown():
+    global _server
+    try:
+        if _server:
+            _server.close()
+            await _server.wait_closed()
+    except Exception:
+        pass
+
+
+async def _handle_message(raw: str) -> Dict[str, Any]:
+    # Validate JSON
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        return {"status": "error", "tool": "server", "message": f"invalid JSON: {e}", "trace": ""}
+
+    if isinstance(data, dict) and data.get("identify"):
         try:
             import bpy  # type: ignore
-            has_bpy = True
+            blender_version = tuple(getattr(bpy.app, "version", (0, 0, 0)))  # type: ignore
         except Exception:
-            has_bpy = False
-        ctx = SessionContext(has_bpy=has_bpy, executor=self._executor)
-        return fn(ctx, params)
-
-    # --- WebSocket protocol helpers (tiny subset) ---
-
-    def _handshake(self, conn: socket.socket) -> bool:
-        # Read HTTP request
-        request = self._recv_until(conn, b"\r\n\r\n", max_bytes=8192)
-        if not request:
-            return False
-        headers = self._parse_http_headers(request.decode("utf-8", "replace"))
-        if headers.get("upgrade", "").lower() != "websocket":
-            return False
-        key = headers.get("sec-websocket-key")
-        if not key:
-            return False
-        accept = base64.b64encode(hashlib.sha1((key + WS_GUID).encode()).digest()).decode()
-        response = (
-            "HTTP/1.1 101 Switching Protocols\r\n"
-            "Upgrade: websocket\r\n"
-            "Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
-        )
-        conn.sendall(response.encode("utf-8"))
-        return True
-
-    @staticmethod
-    def _parse_http_headers(raw: str) -> Dict[str, str]:
-        lines = raw.split("\r\n")
-        out: Dict[str, str] = {}
-        for ln in lines[1:]:
-            if not ln or ":" not in ln:
-                continue
-            k, v = ln.split(":", 1)
-            out[k.strip().lower()] = v.strip()
-        return out
-
-    @staticmethod
-    def _recv_until(conn: socket.socket, token: bytes, max_bytes: int) -> bytes | None:
-        buf = b""
-        while token not in buf:
-            chunk = conn.recv(1024)
-            if not chunk:
-                return None
-            buf += chunk
-            if len(buf) > max_bytes:
-                return None
-        return buf
-
-    def _recv_exact(self, conn: socket.socket, n: int) -> bytes | None:
-        buf = b""
-        while len(buf) < n:
-            chunk = conn.recv(n - len(buf))
-            if not chunk:
-                return None
-            buf += chunk
-        return buf
-
-    def _recv_ws_text(self, conn: socket.socket) -> Optional[str]:
-        # Read frame header
-        hdr = self._recv_exact(conn, 2)
-        if not hdr:
-            return None
-        b1, b2 = hdr[0], hdr[1]
-        fin = (b1 & 0x80) != 0
-        opcode = b1 & 0x0F
-        masked = (b2 & 0x80) != 0
-        length = b2 & 0x7F
-        if opcode == 0x8:  # close
-            return None
-        if opcode != 0x1:  # only text frames supported
-            return None
-        if length == 126:
-            ext = self._recv_exact(conn, 2)
-            if not ext:
-                return None
-            length = int.from_bytes(ext, "big")
-        elif length == 127:
-            # Not supported in this minimal implementation
-            return None
-        mask_key = self._recv_exact(conn, 4) if masked else None
-        payload = self._recv_exact(conn, length)
-        if payload is None:
-            return None
-        if masked and mask_key:
-            payload = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+            blender_version = None
         try:
-            return payload.decode("utf-8")
+            import websockets
+            ws_version = getattr(websockets, "__version__", "?")
         except Exception:
-            return None
+            ws_version = "?"
+        return {
+            "status": "ok",
+            "result": {
+                "blender_version": blender_version,
+                "ws_version": ws_version,
+                "module": "mcp_blender_addon",
+            },
+        }
 
-    def _send_ws_text(self, conn: socket.socket, text: str) -> None:
-        payload = text.encode("utf-8")
-        b1 = 0x80 | 0x1  # FIN + text
-        length = len(payload)
-        if length < 126:
-            header = bytes([b1, length])
-        elif length <= 0xFFFF:
-            header = bytes([b1, 126]) + length.to_bytes(2, "big")
-        else:
-            # Very large payloads not supported in this minimal server
-            header = bytes([b1, 126]) + (0).to_bytes(2, "big")
-        frame = header + payload
-        conn.sendall(frame)
+    if not isinstance(data, dict):
+        return {"status": "error", "tool": "server", "message": "invalid message (must be object)", "trace": ""}
+
+    cmd = data.get("command")
+    params = data.get("params", {})
+    if not isinstance(cmd, str) or not isinstance(params, dict):
+        return {"status": "error", "tool": "server", "message": "invalid command payload", "trace": ""}
+
+    # Backpressure: external check if queue is beyond capacity
+    if _enqueue is None:
+        return {"status": "error", "tool": "server", "message": "server not ready", "trace": ""}
+
+    try:
+        exec_obj = getattr(_enqueue, "__self__", None)
+        if exec_obj is not None and hasattr(exec_obj, "qsize") and hasattr(exec_obj, "capacity"):
+            if exec_obj.qsize() >= exec_obj.capacity():
+                return {"status": "error", "tool": "executor", "message": "server busy", "trace": ""}
+    except Exception:
+        pass
+
+    # Enqueue and wait without blocking the event loop
+    task = _enqueue(cmd, params)
+    loop = asyncio.get_running_loop()
+    try:
+        payload = await asyncio.wait_for(loop.run_in_executor(None, task.wait, 10.0), timeout=10.5)
+        return payload
+    except asyncio.TimeoutError:
+        return {"status": "error", "tool": "executor", "message": "timeout", "trace": ""}

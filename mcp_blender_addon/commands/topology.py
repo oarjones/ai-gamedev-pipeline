@@ -22,3 +22,138 @@ def count_mesh_objects(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
 
     count = ctx.run_main(_impl)
     return {"count": int(count)}
+
+
+@command("topology.ensure_object_mode")
+@tool
+def ensure_object_mode(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    if bpy is None:
+        return {"mode": "NONE"}
+
+    def _impl():
+        return ctx.ensure_object_mode()
+
+    mode = ctx.run_main(_impl)
+    return {"mode": str(mode)}
+
+
+@command("topology.touch_active")
+@tool
+def touch_active(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    if bpy is None:
+        return {"touched": False}
+
+    def _impl():
+        obj = ctx.active_object()
+        if obj is None or obj.type != "MESH":
+            return False
+        ctx.ensure_object_mode()
+        bm = ctx.bm_from_object(obj)
+        try:
+            # No-op change; simply writes back ensuring paths are safe
+            pass
+        finally:
+            ctx.bm_to_object(obj, bm)
+        return True
+
+    touched = ctx.run_main(_impl)
+    return {"touched": bool(touched)}
+
+
+@command("topology.bevel_edges")
+@tool
+def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    if bpy is None:
+        raise RuntimeError("Blender API not available")
+
+    try:
+        import bmesh  # type: ignore
+    except Exception as e:
+        raise RuntimeError(f"bmesh unavailable: {e}")
+
+    obj_name = params.get("object")
+    edges = params.get("edge_indices")
+    offset = float(params.get("offset", 0.0))
+    segments = int(params.get("segments", 2))
+    clamp = bool(params.get("clamp", True))
+    if not isinstance(obj_name, str) or not isinstance(edges, (list, tuple)):
+        raise ValueError("params must include 'object': str and 'edge_indices': list[int]")
+    edge_indices = [int(i) for i in edges]
+
+    obj = bpy.data.objects.get(obj_name)
+    if obj is None or obj.type != "MESH":
+        raise ValueError(f"object not found or not a mesh: {obj_name}")
+
+    def _impl():
+        ctx.ensure_object_mode()
+        bm = ctx.bm_from_object(obj)
+        try:
+            bm.edges.ensure_lookup_table()
+            bm.faces.ensure_lookup_table()
+            ecount_before = len(bm.edges)
+            fcount_before = len(bm.faces)
+            sel_edges = []
+            max_e = ecount_before - 1
+            for i in edge_indices:
+                if i < 0 or i > max_e:
+                    raise IndexError(f"edge index out of range: {i}")
+                sel_edges.append(bm.edges[i])
+            if not sel_edges or offset == 0.0:
+                return {"created_edges": 0, "created_faces": 0}
+
+            bmesh.ops.bevel(
+                bm,
+                geom=sel_edges,
+                offset=offset,
+                segments=max(1, int(segments)),
+                clamp_overlap=bool(clamp),
+                affect='EDGES',
+            )
+            bm.normal_update()
+            ecount_after = len(bm.edges)
+            fcount_after = len(bm.faces)
+            created_e = max(0, ecount_after - ecount_before)
+            created_f = max(0, fcount_after - fcount_before)
+        finally:
+            ctx.bm_to_object(obj, bm)
+            ctx.ensure_object_mode()
+        return {"created_edges": int(created_e), "created_faces": int(created_f)}
+
+    return ctx.run_main(_impl)
+
+
+@command("topology.merge_by_distance")
+@tool
+def merge_by_distance(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    if bpy is None:
+        raise RuntimeError("Blender API not available")
+
+    try:
+        import bmesh  # type: ignore
+    except Exception as e:
+        raise RuntimeError(f"bmesh unavailable: {e}")
+
+    obj_name = params.get("object")
+    dist = float(params.get("distance", 0.0001))
+    if not isinstance(obj_name, str):
+        raise ValueError("params must include 'object': str")
+
+    obj = bpy.data.objects.get(obj_name)
+    if obj is None or obj.type != "MESH":
+        raise ValueError(f"object not found or not a mesh: {obj_name}")
+
+    def _impl():
+        ctx.ensure_object_mode()
+        bm = ctx.bm_from_object(obj)
+        try:
+            v_before = len(bm.verts)
+            bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=dist)
+            v_after = len(bm.verts)
+            bm.normal_update()
+            removed = max(0, v_before - v_after)
+        finally:
+            ctx.bm_to_object(obj, bm)
+            ctx.ensure_object_mode()
+        return {"removed_verts": int(removed)}
+
+    return ctx.run_main(_impl)
