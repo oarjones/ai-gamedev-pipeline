@@ -7,15 +7,13 @@ try:
 except Exception:  # pragma: no cover
     bpy = None  # type: ignore
 
-from ..server.registry import Registry
-from ..server.executor import Executor
+from ..server.registry import command, tool
+from ..server.context import SessionContext
 
 
-def register(registry: Registry, executor: Executor) -> None:
-    registry.register("normals.recalculate_selected", lambda params: _recalc_selected(executor))
-
-
-def _recalc_selected(executor: Executor) -> Dict[str, Any]:
+@command("normals.recalculate_selected")
+@tool
+def recalc_selected(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     if bpy is None:
         return {"updated": 0}
 
@@ -28,6 +26,5 @@ def _recalc_selected(executor: Executor) -> Dict[str, Any]:
                 count += 1
         return count
 
-    updated = executor.submit(_impl)
+    updated = ctx.run_main(_impl)
     return {"updated": int(updated)}
-

@@ -7,21 +7,19 @@ try:
 except Exception:  # pragma: no cover
     bpy = None  # type: ignore
 
-from ..server.registry import Registry
-from ..server.executor import Executor
+from ..server.registry import command, tool
+from ..server.context import SessionContext
 
 
-def register(registry: Registry, executor: Executor) -> None:
-    registry.register("modeling.echo", _echo)
-    registry.register("modeling.get_version", lambda params: _get_version())
-
-
-def _echo(params: Dict[str, Any]) -> Dict[str, Any]:
+@command("modeling.echo")
+@tool
+def echo(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     return {"echo": params}
 
 
-def _get_version():
+@command("modeling.get_version")
+@tool
+def get_version(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     if bpy is None:
         return {"blender": None}
     return {"blender": list(getattr(bpy.app, "version", (0, 0, 0)))}
-

@@ -7,21 +7,18 @@ try:
 except Exception:  # pragma: no cover
     bpy = None  # type: ignore
 
-from ..server.registry import Registry
-from ..server.executor import Executor
+from ..server.registry import command, tool
+from ..server.context import SessionContext
 
 
-def register(registry: Registry, executor: Executor) -> None:
-    registry.register("topology.count_mesh_objects", lambda params: _count_mesh_objects(executor))
-
-
-def _count_mesh_objects(executor: Executor) -> Dict[str, Any]:
+@command("topology.count_mesh_objects")
+@tool
+def count_mesh_objects(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     if bpy is None:
         return {"count": 0}
 
     def _impl():
         return sum(1 for o in bpy.data.objects if o.type == "MESH")
 
-    count = executor.submit(_impl)
+    count = ctx.run_main(_impl)
     return {"count": int(count)}
-

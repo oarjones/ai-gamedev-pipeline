@@ -28,22 +28,17 @@ except Exception:  # pragma: no cover - outside Blender
 
 from .server.logging import get_logger
 from .server.executor import Executor
-from .server.registry import Registry
 from . import websocket_server
-from .commands import modeling, topology, normals
 
 _log = get_logger(__name__)
 
 # Singletons for this add-on session
-_registry: Registry | None = None
 _executor: Executor | None = None
 _server: websocket_server.WebSocketServer | None = None
 
 
 def _ensure_singletons():
-    global _registry, _executor
-    if _registry is None:
-        _registry = Registry()
+    global _executor
     if _executor is None:
         _executor = Executor()
 
@@ -51,17 +46,14 @@ def _ensure_singletons():
 def register():
     """Blender entry point when enabling the add-on."""
     _ensure_singletons()
-    assert _registry and _executor
+    assert _executor
 
     # Initialize executor consumer if in Blender
     if bpy is not None:
         _executor.start()
 
-    # Register built-in commands
-    modeling.register(_registry, _executor)
-    topology.register(_registry, _executor)
-    normals.register(_registry, _executor)
-    _registry.register("server.ping", lambda params: {"pong": True})
+    # Trigger autoregistration of commands via decorators
+    from . import commands  # noqa: F401
 
     # Register Blender UI (preferences, operators, panel)
     if bpy is not None:
@@ -87,11 +79,11 @@ def unregister():
 def start_server(host: str = "127.0.0.1", port: int = 8765) -> None:
     global _server
     _ensure_singletons()
-    assert _registry and _executor
+    assert _executor
     if _server is not None:
         _log.info("Server already running at ws://%s:%d", _server.host, _server.port)
         return
-    _server = websocket_server.WebSocketServer(host=host, port=port, registry=_registry, executor=_executor)
+    _server = websocket_server.WebSocketServer(host=host, port=port, registry=None, executor=_executor)
     _server.start()
     _log.info("WebSocket server started on ws://%s:%d", host, port)
 

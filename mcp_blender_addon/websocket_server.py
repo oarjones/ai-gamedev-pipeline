@@ -8,9 +8,10 @@ import threading
 from typing import Any, Dict, Optional
 
 from .server.logging import get_logger
-from .server.registry import Registry
-from .server.utils import parse_json_message, ok, error
+from .server.registry import get as get_command
+from .server.utils import parse_json_message
 from .server.executor import Executor
+from .server.context import SessionContext
 
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -25,10 +26,9 @@ class WebSocketServer:
     - Intended for local development/tools; not production-grade.
     """
 
-    def __init__(self, host: str, port: int, registry: Registry, executor: Executor):
+    def __init__(self, host: str, port: int, registry: object, executor: Executor):
         self.host = host
         self.port = port
-        self._registry = registry
         self._executor = executor
         self._log = get_logger(__name__)
         self._sock: Optional[socket.socket] = None
@@ -89,15 +89,15 @@ class WebSocketServer:
                     break
                 jm, err = parse_json_message(msg)
                 if err:
-                    self._send_ws_text(conn, json.dumps(error(err)))
+                    self._send_ws_text(conn, json.dumps({"status": "error", "message": err, "tool": "server", "trace": ""}))
                     continue
                 try:
                     result = self._dispatch(jm.command, jm.params)
-                    self._send_ws_text(conn, json.dumps(ok(result)))
+                    self._send_ws_text(conn, json.dumps(result))
                 except KeyError as e:
-                    self._send_ws_text(conn, json.dumps(error(str(e), code="unknown_command")))
+                    self._send_ws_text(conn, json.dumps({"status": "error", "tool": "server", "message": str(e), "trace": "", "code": "unknown_command"}))
                 except Exception as e:  # noqa: BLE001
-                    self._send_ws_text(conn, json.dumps(error(str(e), code="exception")))
+                    self._send_ws_text(conn, json.dumps({"status": "error", "tool": "server", "message": str(e), "trace": "", "code": "exception"}))
         except Exception as e:  # noqa: BLE001
             self._log.info("Connection error: %s", e)
         finally:
@@ -107,8 +107,17 @@ class WebSocketServer:
                 pass
 
     def _dispatch(self, name: str, params: Dict[str, Any]) -> Any:
-        # If a command handler needs Blender main thread, it should use executor internally.
-        return self._registry.dispatch(name, params)
+        # Dispatch using decorator-driven registry. Handlers receive SessionContext first.
+        fn = get_command(name)
+        if not fn:
+            raise KeyError(f"unknown command: {name}")
+        try:
+            import bpy  # type: ignore
+            has_bpy = True
+        except Exception:
+            has_bpy = False
+        ctx = SessionContext(has_bpy=has_bpy, executor=self._executor)
+        return fn(ctx, params)
 
     # --- WebSocket protocol helpers (tiny subset) ---
 
@@ -211,4 +220,3 @@ class WebSocketServer:
             header = bytes([b1, 126]) + (0).to_bytes(2, "big")
         frame = header + payload
         conn.sendall(frame)
-
