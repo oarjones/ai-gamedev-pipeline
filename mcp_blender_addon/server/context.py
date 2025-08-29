@@ -11,12 +11,6 @@ except Exception:  # pragma: no cover
     bmesh = None  # type: ignore
 
 
-try:
-    import bpy  # type: ignore
-except Exception:  # pragma: no cover
-    bpy = None  # type: ignore
-
-
 @dataclass
 class AppContext:
     """Lightweight context object that can be passed to commands if needed."""
@@ -29,6 +23,10 @@ class AppContext:
 
     def blender_version(self) -> tuple[int, int, int] | None:
         if bpy is None:
+            return None
+        try:
+            return tuple(bpy.app.version)  # type: ignore
+        except Exception:
             return None
 
 
@@ -137,7 +135,3 @@ try:
     from .executor import Executor  # noqa: F401
 except Exception:
     Executor = object  # type: ignore
-        try:
-            return tuple(bpy.app.version)  # type: ignore
-        except Exception:
-            return None

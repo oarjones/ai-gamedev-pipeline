@@ -9,6 +9,7 @@ from .server.logging import get_logger
 from .server.executor import MCP_MAX_TASKS
 
 _log = get_logger(__name__)
+DEFAULT_TASK_TIMEOUT = 30.0
 
 # Provided by addon at runtime to enqueue commands
 _enqueue: Optional[Callable[[str, Dict[str, Any]], Any]] = None
@@ -152,7 +153,13 @@ async def _handle_message(raw: str) -> Dict[str, Any]:
     task = _enqueue(cmd, params)
     loop = asyncio.get_running_loop()
     try:
-        payload = await asyncio.wait_for(loop.run_in_executor(None, task.wait, 10.0), timeout=10.5)
+        # Optional per-request timeout override
+        try:
+            t_override = float(data.get("timeout", DEFAULT_TASK_TIMEOUT))
+        except Exception:
+            t_override = DEFAULT_TASK_TIMEOUT
+        t_override = max(1.0, min(300.0, t_override))
+        payload = await asyncio.wait_for(loop.run_in_executor(None, task.wait, t_override), timeout=t_override + 0.5)
         return payload
     except asyncio.TimeoutError:
         return {"status": "error", "tool": "executor", "message": "timeout", "trace": ""}

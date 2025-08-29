@@ -1,7 +1,7 @@
 MCP Blender Add-on (WS Scaffold)
 ================================
 
-Minimal scaffold for a Blender 4.5 add-on exposing a JSON-over-WebSocket command server using `websockets` (asyncio). Commands never execute `bpy` in WS threads; instead, an executor pumps tasks on Blender’s main thread via `bpy.app.timers`.
+Minimal scaffold for a Blender 4.5 add-on exposing a JSON-over-WebSocket command server using `websockets` (asyncio). Commands never execute `bpy` in WS threads; instead, an executor pumps tasks on Blender's main thread via `bpy.app.timers`.
 
 Folder Structure
 ----------------
@@ -12,7 +12,6 @@ Folder Structure
     - `registry.py` — global command registry + decorators
     - `executor.py` — main-thread pump using `bpy.app.timers`
     - `context.py` — session context + bmesh helpers
-    - `utils.py` — JSON helpers
     - `logging.py` — console + rotating file logging
   - `commands/` — tool namespaces
     - `modeling.py`, `topology.py`, `normals.py`
@@ -21,14 +20,14 @@ Folder Structure
 
 Requirements
 ------------
-- Blender 4.5 (Python 3.10+ runtime)
-- Python package `websockets` available in Blender’s Python
+- Blender 4.5 (ships with Python 3.11)
+- Python package `websockets` available in Blender's Python
 
 Install & Enable
 ----------------
 1) In Blender, go to `Edit > Preferences > Add-ons`.
 2) Click `Install...`, select the project folder (or zip it first), and enable "MCP Blender Add-on (WS Scaffold)".
-3) Configure Host/Port under the add-on’s Preferences if needed.
+3) Configure Host/Port under the add-on's Preferences if needed.
 
 Start/Stop
 ----------
@@ -64,8 +63,8 @@ Smoke Tests
 Executor Notes
 --------------
 - Blender API interactions must occur on the main thread.
-- The `Executor` queues tasks and executes them via `bpy.app.timers`.
-- Command handlers that need Blender should call through the executor (see `topology.py`, `normals.py`).
+- The `Executor` queues tasks and executes them via `bpy.app.timers` (persistent timer).
+- Queue capacity/backpressure: MCP_MAX_TASKS = 256. The server rejects requests once the queue reaches capacity. Current queue usage is shown in the MCP panel.
 
 Logging
 -------
@@ -74,8 +73,12 @@ Logging
 
 WebSockets Library
 ------------------
-- The add-on’s WS server uses the `websockets` package.
+- The add-on's WS server uses the `websockets` package.
 - Easiest: In Blender, open 3D View > Sidebar (N) > MCP > MCP Server and click "Install websockets".
 - Manual install (Windows example):
   - `"C:\\Program Files\\Blender Foundation\\Blender 4.5\\4.5\\python\\bin\\python.exe" -m ensurepip`
   - `"...python.exe" -m pip install websockets`
+
+Timeouts
+--------
+- Default per-command timeout is 30 seconds. You can override per request by adding `timeout` (seconds) at the top level of the JSON message, e.g. `{ "command": "...", "params": { ... }, "timeout": 120 }` (clamped to 1..300s).

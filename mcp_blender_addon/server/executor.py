@@ -71,12 +71,12 @@ class Executor:
         if self._running:
             # Re-register timer to survive script reloads if needed
             try:
-                bpy.app.timers.register(self._consume_timer, first_interval=0.02)  # type: ignore[attr-defined]
+                bpy.app.timers.register(self._consume_timer, first_interval=0.02, persistent=True)  # type: ignore[attr-defined]
             except Exception:
                 pass
             return
         self._running = True
-        bpy.app.timers.register(self._consume_timer, first_interval=0.02)  # type: ignore[attr-defined]
+        bpy.app.timers.register(self._consume_timer, first_interval=0.02, persistent=True)  # type: ignore[attr-defined]
         self._log.info("Executor pump started (timer registered)")
 
     def stop_pump(self) -> None:

@@ -165,6 +165,13 @@ if bpy is not None:
             running = _server_running
             row = layout.row()
             row.label(text=f"Status: {'Running' if running else 'Stopped'}")
+            # Queue status
+            try:
+                qsize = _executor.qsize() if _executor else 0
+                cap = _executor.capacity() if _executor else 0
+                layout.label(text=f"Queue: {qsize} / {cap}")
+            except Exception:
+                pass
             layout.separator()
             layout.prop(prefs, "host") if prefs else None
             layout.prop(prefs, "port") if prefs else None
