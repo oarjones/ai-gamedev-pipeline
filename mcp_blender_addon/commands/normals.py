@@ -10,6 +10,7 @@ except Exception:  # pragma: no cover
 
 from ..server.registry import command, tool
 from ..server.context import SessionContext
+from ..server.validation import get_str, ParamError
 
 
 @command("normals.recalculate_selected")
@@ -34,13 +35,19 @@ def recalc_selected(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, An
 @command("normals.recalc")
 @tool
 def recalc_normals(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Recalculate normals outward or inward.
+
+    Params: { object: str, outside?: bool=true }
+    Returns: { object: str, outside: bool, faces: int }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
-    obj_name = params.get("object")
-    outside = bool(params.get("outside", True))
-    if not isinstance(obj_name, str):
-        raise ValueError("params must include 'object': str")
+    try:
+        obj_name = get_str(params, "object", required=True)
+        outside = bool(params.get("outside", True))
+    except ParamError as e:
+        raise ValueError(str(e))
 
     obj = bpy.data.objects.get(obj_name)
     if obj is None or obj.type != "MESH":

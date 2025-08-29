@@ -9,6 +9,7 @@ except Exception:  # pragma: no cover
 
 from ..server.registry import command, tool
 from ..server.context import SessionContext
+from ..server.validation import get_str, get_list_int, get_float, get_int, ParamError
 
 
 @command("topology.count_mesh_objects")
@@ -63,6 +64,11 @@ def touch_active(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
 @command("topology.bevel_edges")
 @tool
 def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Bevel selected edges using bmesh.ops.bevel.
+
+    Params: { object: str, edge_indices: list[int], offset: float, segments?: int=2, clamp?: bool=true }
+    Returns: { created_edges: int, created_faces: int }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -71,14 +77,14 @@ def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         raise RuntimeError(f"bmesh unavailable: {e}")
 
-    obj_name = params.get("object")
-    edges = params.get("edge_indices")
-    offset = float(params.get("offset", 0.0))
-    segments = int(params.get("segments", 2))
-    clamp = bool(params.get("clamp", True))
-    if not isinstance(obj_name, str) or not isinstance(edges, (list, tuple)):
-        raise ValueError("params must include 'object': str and 'edge_indices': list[int]")
-    edge_indices = [int(i) for i in edges]
+    try:
+        obj_name = get_str(params, "object", required=True)
+        edge_indices = get_list_int(params, "edge_indices", required=True)
+        offset = get_float(params, "offset", default=0.0, nonnegative=True)
+        segments = get_int(params, "segments", default=2, min_value=1)
+        clamp = bool(params.get("clamp", True))
+    except ParamError as e:
+        raise ValueError(str(e))
 
     obj = bpy.data.objects.get(obj_name)
     if obj is None or obj.type != "MESH":
@@ -125,6 +131,11 @@ def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
 @command("topology.merge_by_distance")
 @tool
 def merge_by_distance(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove doubles (merge by distance) across all verts.
+
+    Params: { object: str, distance?: float=0.0001 }
+    Returns: { removed_verts: int }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -133,10 +144,11 @@ def merge_by_distance(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, 
     except Exception as e:
         raise RuntimeError(f"bmesh unavailable: {e}")
 
-    obj_name = params.get("object")
-    dist = float(params.get("distance", 0.0001))
-    if not isinstance(obj_name, str):
-        raise ValueError("params must include 'object': str")
+    try:
+        obj_name = get_str(params, "object", required=True)
+        dist = get_float(params, "distance", default=0.0001, nonnegative=True)
+    except ParamError as e:
+        raise ValueError(str(e))
 
     obj = bpy.data.objects.get(obj_name)
     if obj is None or obj.type != "MESH":

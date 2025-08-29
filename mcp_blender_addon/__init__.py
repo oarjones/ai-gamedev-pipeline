@@ -172,11 +172,48 @@ if bpy is not None:
             row = layout.row()
             row.operator("mcp.server_start", text="Start", icon="PLAY")
             row.operator("mcp.server_stop", text="Stop", icon="PAUSE")
+            layout.separator()
+            row = layout.row()
+            row.operator("mcp.install_websockets", text="Install websockets", icon="IMPORT")
+
+    class MCP_OT_InstallWebsockets(bpy.types.Operator):  # type: ignore
+        bl_idname = "mcp.install_websockets"
+        bl_label = "Install websockets"
+        bl_description = "Install the 'websockets' package into Blender's Python"
+        bl_options = {"REGISTER"}
+
+        def execute(self, context):  # type: ignore
+            import sys as _sys
+            try:
+                import websockets  # type: ignore
+                self.report({"INFO"}, f"websockets already installed: {getattr(websockets, '__version__', '?')}")
+                return {"FINISHED"}
+            except Exception:
+                pass
+            try:
+                import ensurepip  # type: ignore
+                ensurepip.bootstrap()
+            except Exception:
+                pass
+            try:
+                import subprocess
+                subprocess.check_call([_sys.executable, "-m", "pip", "install", "websockets"])
+            except Exception as e:
+                self.report({"ERROR"}, f"pip install failed: {e}")
+                return {"CANCELLED"}
+            try:
+                import websockets  # type: ignore
+                self.report({"INFO"}, f"installed websockets {getattr(websockets, '__version__', '?')}")
+                return {"FINISHED"}
+            except Exception as e:
+                self.report({"ERROR"}, f"import failed after install: {e}")
+                return {"CANCELLED"}
 
     _UI_CLASSES = (
         MCP_AddonPreferences,
         MCP_OT_ServerStart,
         MCP_OT_ServerStop,
+        MCP_OT_InstallWebsockets,
         MCP_PT_ServerPanel,
     )
 

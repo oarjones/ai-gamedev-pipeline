@@ -74,6 +74,8 @@ Logging
 
 WebSockets Library
 ------------------
-- The add-on’s WS server uses the `websockets` package. If Blender’s Python lacks it, install into Blender’s Python environment, e.g. (Windows example):
+- The add-on’s WS server uses the `websockets` package.
+- Easiest: In Blender, open 3D View > Sidebar (N) > MCP > MCP Server and click "Install websockets".
+- Manual install (Windows example):
   - `"C:\\Program Files\\Blender Foundation\\Blender 4.5\\4.5\\python\\bin\\python.exe" -m ensurepip`
   - `"...python.exe" -m pip install websockets`

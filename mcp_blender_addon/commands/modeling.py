@@ -11,17 +11,27 @@ except Exception:  # pragma: no cover
 
 from ..server.registry import command, tool
 from ..server.context import SessionContext
+from ..server.validation import get_str, get_float, get_list_int, ParamError
 
 
 @command("modeling.echo")
 @tool
 def echo(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Echo parameters back to the caller.
+
+    Params: any JSON-serializable object
+    Returns: { echo: <params> }
+    """
     return {"echo": params}
 
 
 @command("modeling.get_version")
 @tool
 def get_version(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Get Blender version, if available.
+
+    Returns: { blender: [major, minor, patch] | null }
+    """
     if bpy is None:
         return {"blender": None}
     return {"blender": list(getattr(bpy.app, "version", (0, 0, 0)))}
@@ -30,6 +40,14 @@ def get_version(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
 @command("modeling.create_primitive")
 @tool
 def create_primitive(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a primitive mesh using bmesh (no bpy.ops).
+
+    Params:
+      - type: "cube" | "cylinder" | "plane"
+      - size: float (uniform scale, > 0)
+      - name: optional object name
+    Returns: { object: str, verts: int, faces: int }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -38,11 +56,12 @@ def create_primitive(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
     except Exception as e:  # pragma: no cover
         raise RuntimeError(f"bmesh unavailable: {e}")
 
-    ptype = str(params.get("type", "cube")).lower()
-    size = float(params.get("size", 1.0))
-    name = params.get("name") or ptype.capitalize()
-    if size <= 0:
-        raise ValueError("size must be > 0")
+    try:
+        ptype = get_str(params, "type", default="cube").lower()
+        size = get_float(params, "size", default=1.0, positive=True)
+        name = get_str(params, "name", default=None, required=False) or ptype.capitalize()
+    except ParamError as e:
+        raise ValueError(str(e))
 
     ctx.ensure_object_mode()
 
@@ -100,15 +119,20 @@ def create_primitive(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
 @command("modeling.extrude_normal")
 @tool
 def extrude_normal(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Extrude selected faces along their average normal by distance.
+
+    Params: { object: str, face_indices: list[int], distance: float }
+    Returns: { object: str, created_faces: int }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
-    obj_name = params.get("object")
-    indices = params.get("face_indices")
-    distance = float(params.get("distance", 0.0))
-    if not isinstance(obj_name, str) or not isinstance(indices, (list, tuple)):
-        raise ValueError("params must include 'object': str and 'face_indices': list[int]")
-    face_indices = [int(i) for i in indices]
+    try:
+        obj_name = get_str(params, "object", required=True)
+        face_indices = get_list_int(params, "face_indices", required=True)
+        distance = get_float(params, "distance", default=0.0)
+    except ParamError as e:
+        raise ValueError(str(e))
 
     obj = bpy.data.objects.get(obj_name)
     if obj is None or obj.type != "MESH":
