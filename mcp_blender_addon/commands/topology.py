@@ -90,23 +90,26 @@ def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     if obj is None or obj.type != "MESH":
         raise ValueError(f"object not found or not a mesh: {obj_name}")
 
-    def _impl():
-        ctx.ensure_object_mode()
-        bm = ctx.bm_from_object(obj)
-        try:
-            bm.edges.ensure_lookup_table()
-            bm.faces.ensure_lookup_table()
-            ecount_before = len(bm.edges)
-            fcount_before = len(bm.faces)
-            sel_edges = []
-            max_e = ecount_before - 1
-            for i in edge_indices:
-                if i < 0 or i > max_e:
-                    raise IndexError(f"edge index out of range: {i}")
-                sel_edges.append(bm.edges[i])
-            if not sel_edges or offset == 0.0:
-                return {"created_edges": 0, "created_faces": 0}
-
+    # Execute the bevel directly.  The executor schedules this handler on
+    # Blender's main thread when necessary, so we avoid calling
+    # `ctx.run_main` here to prevent threading errors on Blender 4.5.
+    ctx.ensure_object_mode()
+    bm = ctx.bm_from_object(obj)
+    try:
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+        ecount_before = len(bm.edges)
+        fcount_before = len(bm.faces)
+        sel_edges = []
+        max_e = ecount_before - 1
+        for i in edge_indices:
+            if i < 0 or i > max_e:
+                raise IndexError(f"edge index out of range: {i}")
+            sel_edges.append(bm.edges[i])
+        if not sel_edges or offset == 0.0:
+            created_e = 0
+            created_f = 0
+        else:
             bmesh.ops.bevel(
                 bm,
                 geom=sel_edges,
@@ -120,12 +123,10 @@ def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
             fcount_after = len(bm.faces)
             created_e = max(0, ecount_after - ecount_before)
             created_f = max(0, fcount_after - fcount_before)
-        finally:
-            ctx.bm_to_object(obj, bm)
-            ctx.ensure_object_mode()
-        return {"created_edges": int(created_e), "created_faces": int(created_f)}
-
-    return ctx.run_main(_impl)
+    finally:
+        ctx.bm_to_object(obj, bm)
+        ctx.ensure_object_mode()
+    return {"created_edges": int(created_e), "created_faces": int(created_f)}
 
 
 @command("topology.merge_by_distance")
@@ -154,18 +155,17 @@ def merge_by_distance(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, 
     if obj is None or obj.type != "MESH":
         raise ValueError(f"object not found or not a mesh: {obj_name}")
 
-    def _impl():
+    # Merge vertices directly without calling run_main.  The executor handles
+    # scheduling on the main thread.
+    ctx.ensure_object_mode()
+    bm = ctx.bm_from_object(obj)
+    try:
+        v_before = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=dist)
+        v_after = len(bm.verts)
+        bm.normal_update()
+        removed = max(0, v_before - v_after)
+    finally:
+        ctx.bm_to_object(obj, bm)
         ctx.ensure_object_mode()
-        bm = ctx.bm_from_object(obj)
-        try:
-            v_before = len(bm.verts)
-            bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=dist)
-            v_after = len(bm.verts)
-            bm.normal_update()
-            removed = max(0, v_before - v_after)
-        finally:
-            ctx.bm_to_object(obj, bm)
-            ctx.ensure_object_mode()
-        return {"removed_verts": int(removed)}
-
-    return ctx.run_main(_impl)
+    return {"removed_verts": int(removed)}

@@ -53,19 +53,21 @@ def recalc_normals(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any
     if obj is None or obj.type != "MESH":
         raise ValueError(f"object not found or not a mesh: {obj_name}")
 
-    def _impl():
-        ctx.ensure_object_mode()
-        me = obj.data
-        me.calc_normals()
-        if not outside:
-            bm = bmesh.new()
-            try:
-                bm.from_mesh(me)
-                bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
-                bm.to_mesh(me)
-                me.update()
-            finally:
-                bm.free()
-        return {"object": obj.name, "outside": bool(outside), "faces": len(me.polygons)}
-
-    return ctx.run_main(_impl)
+    # Perform the recalculation directly.  The executor schedules this
+    # command on the main thread when necessary, so we avoid calling
+    # run_main here.
+    ctx.ensure_object_mode()
+    me = obj.data
+    # Always recalculate normals first
+    me.calc_normals()
+    if not outside:
+        bm = bmesh.new()
+        try:
+            bm.from_mesh(me)
+            # Reverse all faces to flip normals
+            bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+            bm.to_mesh(me)
+            me.update()
+        finally:
+            bm.free()
+    return {"object": obj.name, "outside": bool(outside), "faces": len(me.polygons)}
