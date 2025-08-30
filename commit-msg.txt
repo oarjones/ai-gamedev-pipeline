@@ -1,0 +1,12 @@
+feat(blender-ws): IoU lateral, fusión/cosido de mallas y recálculo de normales
+
+- Añade similarity.iou_side (perfil XZ) y similarity.iou_combo (TOP+SIDE con ponderación).
+- Implementa merge.stitch: fusiona dos mallas, elimina solapes por silueta (XY+XZ),
+  suelda vértices cercanos y intenta cerrar agujeros.
+- Incorpora mesh.normals_recalc con opción ensure_outside para asegurar normales hacia fuera.
+- Comentarios claros por función y nuevos 'elif' de enrutado en el handler.
+- Mantiene enfoque bmesh-only (sin bpy.ops de edición), compatible 2.79 + websockets 7.0.
+
+Notas:
+- Recomendado: export FBX en comando independiente al final del pipeline.
+- Ejemplos de uso en JSON para cliente: similarity.iou_side / .iou_combo / merge.stitch / mesh.normals_recalc.
