@@ -104,4 +104,4 @@ unity_project/**/Desktop.ini
 unity_project/ServerData/
 
 # Commit message
-commit-msg.txt
+msg.txt
