@@ -51,6 +51,352 @@ server_thread = None
 loop = None
 server = None
 
+
+# --- Main-thread task queue (2.79-safe) ---
+import threading, collections, time, logging
+
+_TASKS = collections.deque()
+_TASKS_LOCK = threading.Lock()
+
+class _Task(object):
+    def __init__(self, cmd, params):
+        self.cmd = cmd
+        self.params = params
+        self.event = threading.Event()
+        self.result = None
+
+# Simple logging to a rotating file (optional)
+try:
+    import os as _os
+    LOG_FILE = _os.path.join(_os.path.expanduser("~"), "mcp_blender_addon.log")
+    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="[%(asctime)s] %(levelname)s %(message)s")
+except Exception:
+    pass
+
+
+# === Main-thread dispatcher built from the original handler's command-switch ===
+def _run_command_mainthread(cmd, p):
+    """Runs a command on the main thread. Returns the ACK dict."""
+    # === API de modelado ===
+    if cmd == "geom.create_base":
+        ack = cmd_geom_create_base(
+            name=p.get("name", "Mesh"),
+            outline=p.get("outline", []),
+            thickness=float(p.get("thickness", 0.2)),
+            mirror_x=bool(p.get("mirror_x", False))
+        )
+    elif cmd == "select.faces_by_range":
+        ack = cmd_select_faces_by_range(
+            object_name=p.get("object", ""),
+            conds=p.get("conds", [])
+        )
+    elif cmd == "select.faces_in_bbox":
+        ack = cmd_select_faces_in_bbox(
+            object_name=p.get("object", ""),
+            bbox_min=p.get("min", [-1e9, -1e9, -1e9]),
+            bbox_max=p.get("max", [1e9, 1e9, 1e9])
+        )
+    elif cmd == "select.faces_by_normal":
+        ack = cmd_select_faces_by_normal(
+            object_name=p.get("object", ""),
+            axis=tuple(p.get("axis", (0, 0, 1))),
+            min_dot=float(p.get("min_dot", 0.5)),
+            max_dot=float(p.get("max_dot", 1.0))
+        )
+    elif cmd == "select.grow":
+        ack = cmd_select_grow(
+            object_name=p.get("object", ""),
+            selection_id=int(p.get("selection_id", 0)),
+            steps=int(p.get("steps", 1))
+        )
+    elif cmd == "select.verts_by_curvature":
+        ack = cmd_select_verts_by_curvature(
+            object_name=p.get("object", ""),
+            min_curv=float(p.get("min_curv", 0.08)),
+            in_bbox=p.get("in_bbox", None)
+        )
+    elif cmd == "edit.extrude_selection":
+        ack = cmd_edit_extrude_selection(
+            object_name=p.get("object", ""),
+            selection_id=int(p.get("selection_id", 0)),
+            translate=tuple(p.get("translate", (0, 0, 0))),
+            scale_about_center=tuple(p.get("scale_about_center", (1, 1, 1))),
+            inset=float(p.get("inset", 0.0))
+        )
+    elif cmd == "edit.move_verts":
+        ack = cmd_edit_move_verts(
+            object_name=p.get("object", ""),
+            selection_id=int(p.get("selection_id", 0)),
+            translate=tuple(p.get("translate", (0, 0, 0))),
+            scale_about_center=tuple(p.get("scale_about_center", (1, 1, 1)))
+        )
+    elif cmd == "edit.sculpt_selection":
+        ack = cmd_edit_sculpt_selection(
+            object_name=p.get("object", ""),
+            selection_id=int(p.get("selection_id", 0)),
+            moves=p.get("move", [])
+        )
+    elif cmd == "geom.mirror_x":
+        ack = cmd_geom_mirror_x(
+            object_name=p.get("object", ""),
+            merge_dist=float(p.get("merge_dist", 0.0008))
+        )
+    elif cmd == "geom.cleanup":
+        ack = cmd_geom_cleanup(
+            object_name=p.get("object", ""),
+            merge_dist=float(p.get("merge_dist", 0.0008)),
+            recalc=bool(p.get("recalc", True))
+        )
+    elif cmd == "mesh.stats":
+        ack = cmd_mesh_stats(object_name=p.get("object", ""))
+    elif cmd == "mesh.validate":
+        ack = cmd_mesh_validate(
+            object_name=p.get("object", ""),
+            check_self_intersections=bool(p.get("check_self_intersections", False))
+        )
+    elif cmd == "mesh.snapshot":
+        ack = cmd_mesh_snapshot(object_name=p.get("object", ""))
+    elif cmd == "mesh.restore":
+        ack = cmd_mesh_restore(
+            snapshot_id=int(p.get("snapshot_id", 0)),
+            object_name=p.get("object", None)
+        )
+    elif cmd == "mesh.normals_recalc":
+        ack = cmd_mesh_normals_recalc(
+            object_name=p.get("object",""),
+            ensure_outside=bool(p.get("ensure_outside",True))
+        )
+    elif cmd == "similarity.iou_top":
+        ack = cmd_similarity_iou_top(
+            object_name=p.get("object", ""),
+            image_path=p.get("image_path", ""),
+            res=int(p.get("res", 256)),
+            margin=float(p.get("margin", 0.05)),
+            threshold=float(p.get("threshold", 0.5))
+        )
+    elif cmd == "similarity.iou_side":
+        ack = cmd_similarity_iou_side(
+            object_name=p.get("object",""),
+            image_path=p.get("image_path",""),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.05)),
+            threshold=float(p.get("threshold",0.5))
+        )
+    elif cmd == "similarity.iou_combo":
+        ack = cmd_similarity_iou_combo(
+            object_name=p.get("object",""),
+            image_top=p.get("image_top",""),
+            image_side=p.get("image_side",""),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.05)),
+            threshold=float(p.get("threshold",0.5)),
+            alpha=float(p.get("alpha",0.5))
+        )
+    elif cmd == "merge.stitch":
+        ack = cmd_merge_stitch(
+            object_a=p.get("object_a",""),
+            object_b=p.get("object_b",""),
+            out_name=p.get("out_name","Merged"),
+            delete=p.get("delete","B_inside_A"),
+            weld_dist=float(p.get("weld_dist",0.001)),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.03))
+        )
+
+    # --- IoU FRONT + combo 3 vistas ---
+    elif cmd == "similarity.iou_front":
+        ack = cmd_similarity_iou_front(
+            object_name=p.get("object",""),
+            image_path=p.get("image_path",""),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.05)),
+            threshold=float(p.get("threshold",0.5))
+        )
+    elif cmd == "similarity.iou_combo3":
+        ack = cmd_similarity_iou_combo3(
+            object_name=p.get("object",""),
+            image_top=p.get("image_top",""),
+            image_side=p.get("image_side",""),
+            image_front=p.get("image_front",""),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.05)),
+            threshold=float(p.get("threshold",0.5)),
+            alpha=float(p.get("alpha",0.34)),
+            beta=float(p.get("beta",0.33)),
+            gamma=float(p.get("gamma",0.33))
+        )
+
+    # --- loops & rings ---
+    elif cmd == "select.edge_loop_from_edge":
+        ack = cmd_select_edge_loop_from_edge(
+            object_name=p.get("object",""),
+            edge_index=int(p.get("edge_index",0))
+        )
+    elif cmd == "select.edge_ring_from_edge":
+        ack = cmd_select_edge_ring_from_edge(
+            object_name=p.get("object",""),
+            edge_index=int(p.get("edge_index",0))
+        )
+
+    # --- loop cut / subdivisión ---
+    elif cmd == "mesh.loop_insert":
+        ack = cmd_mesh_loop_insert(
+            object_name=p.get("object",""),
+            edges=p.get("edges",None),
+            selection_id=p.get("selection_id",None),
+            cuts=int(p.get("cuts",1)),
+            smooth=float(p.get("smooth",0.0))
+        )
+
+    # --- bevel ---
+    elif cmd == "mesh.bevel":
+        ack = cmd_mesh_bevel(
+            object_name=p.get("object",""),
+            edges=p.get("edges",None),
+            verts=p.get("verts",None),
+            selection_id=p.get("selection_id",None),
+            offset=float(p.get("offset",0.01)),
+            segments=int(p.get("segments",2)),
+            profile=float(p.get("profile",0.7)),
+            clamp=bool(p.get("clamp",True)),
+            auto_sharp_angle=p.get("auto_sharp_angle",None)
+        )
+
+    # --- geodesic select ---
+    elif cmd == "select.geodesic":
+        ack = cmd_select_geodesic(
+            object_name=p.get("object",""),
+            seed_vert=p.get("seed_vert",None),
+            selection_id=p.get("selection_id",None),
+            radius=float(p.get("radius",0.25))
+        )
+
+    # --- snap a silueta ---
+    elif cmd == "edit.snap_to_silhouette":
+        ack = cmd_edit_snap_to_silhouette(
+            object_name=p.get("object",""),
+            selection_id=int(p.get("selection_id",0)),
+            plane=p.get("plane","XY"),
+            image_path=p.get("image_path",""),
+            strength=float(p.get("strength",0.5)),
+            iterations=int(p.get("iterations",8)),
+            step=float(p.get("step",1.0)),
+            res=int(p.get("res",256)),
+            margin=float(p.get("margin",0.05)),
+            threshold=float(p.get("threshold",0.5))
+        )
+
+    # --- landmarks 2D->3D ---
+    elif cmd == "constraint.landmarks_apply":
+        ack = cmd_constraint_landmarks_apply(
+            object_name=p.get("object",""),
+            plane=p.get("plane","XY"),
+            points=p.get("points",[])
+        )
+
+    # --- simetrías avanzadas ---
+    elif cmd == "geom.mirror_plane":
+        ack = cmd_geom_mirror_plane(
+            object_name=p.get("object",""),
+            plane_point=tuple(p.get("plane_point",(0,0,0))),
+            plane_normal=tuple(p.get("plane_normal",(1,0,0))),
+            merge_dist=float(p.get("merge_dist",0.0008))
+        )
+    elif cmd == "geom.symmetry_radial":
+        ack = cmd_geom_symmetry_radial(
+            object_name=p.get("object",""),
+            axis=p.get("axis","Z"),
+            count=int(p.get("count",6)),
+            merge_dist=float(p.get("merge_dist",0.0008))
+        )
+
+    # --- topología & reparación ---
+    elif cmd == "mesh.triangulate_beautify":
+        ack = cmd_mesh_triangulate_beautify(object_name=p.get("object",""))
+    elif cmd == "mesh.join_quads":
+        ack = cmd_mesh_join_quads(
+            object_name=p.get("object",""),
+            angle_face=float(p.get("angle_face",0.1)),
+            angle_shape=float(p.get("angle_shape",0.5))
+        )
+    elif cmd == "mesh.bridge_loops":
+        ack = cmd_mesh_bridge_loops(
+            object_name=p.get("object",""),
+            loops=p.get("loops",[])
+        )
+    elif cmd == "mesh.fill_holes":
+        ack = cmd_mesh_fill_holes(object_name=p.get("object",""))
+
+
+    # === comandos utilitarios existentes ===
+    elif cmd == "export_fbx":
+        try:
+            ack = {"status": "ok", "path": export_fbx(**p)}
+        except Exception as e:
+            ack = {"status":"error","message":"{}: {}".format(e.__class__.__name__, e),
+                   "trace": traceback.format_exc()}
+    elif cmd == "execute_python":
+        stdout, stderr, err = execute_python(p.get("code", ""))
+        ack = {"status": "ok" if err is None else "error", "stdout": stdout, "stderr": stderr}
+        if err is not None:
+            ack["message"] = err
+    elif cmd == "execute_python_file":
+        try:
+            stdout, stderr, err = execute_python_file(p.get("path", ""))
+            ack = {"status": "ok" if err is None else "error", "stdout": stdout, "stderr": stderr}
+            if err is not None:
+                ack["message"] = err
+        except Exception as e:
+            ack = {"status":"error","message":"{}: {}".format(e.__class__.__name__, e),
+                   "trace": traceback.format_exc()}
+    elif cmd == "identify":
+        ack = {
+            "status": "ok",
+            "module_file": __file__,
+            "websockets_version": getattr(websockets, "__version__", "unknown"),
+            "blender_version": getattr(bpy.app, "version", None),
+        }
+    else:
+        ack = {"status": "ok", "echo": {"command": cmd, "params": p}}
+
+    return ack
+
+# --- Modal operator that pumps the task queue on the main thread ---
+import bpy
+
+class MCP_OT_TaskPump(bpy.types.Operator):
+    bl_idname = "wm.mcp_task_pump"
+    bl_label = "MCP Task Pump"
+    _timer = None
+
+    def modal(self, context, event):
+        if event.type == 'TIMER':
+            while True:
+                with _TASKS_LOCK:
+                    if not _TASKS:
+                        break
+                    t = _TASKS.popleft()
+                try:
+                    res = _run_command_mainthread(t.cmd, t.params)
+                except Exception as e:
+                    import traceback as _tb
+                    res = {"status": "error", "message": "%s: %s" % (e.__class__.__name__, e),
+                           "trace": _tb.format_exc()}
+                t.result = res
+                t.event.set()
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        wm = context.window_manager
+        # 20ms timer; Blender 2.79 signature is event_timer_add(time_step, window)
+        try:
+            self._timer = wm.event_timer_add(0.02, context.window)
+        except TypeError:
+            # Fallback for possible API differences
+            self._timer = wm.event_timer_add(0.02, window=context.window)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
 # =====================================================================================
 # Decorador para tools: captura excepciones y devuelve error estructurado (MCP-friendly)
 # =====================================================================================
@@ -151,16 +497,18 @@ def execute_python_file(path):
 # Almacén efímero de selecciones entre llamadas (IDs para caras/vértices)
 _selection_store = {"next_id": 1, "selections": {}}
 
-def _store_selection(obj_name, faces_idx=None, verts_idx=None):
-    """Guarda una selección efímera (caras o vértices) y devuelve un selection_id."""
+def _store_selection(obj_name, faces_idx=None, verts_idx=None, edges_idx=None):
+    """Guarda una selección efímera (caras, vértices o aristas) y devuelve un selection_id."""
     sid = _selection_store["next_id"]
     _selection_store["next_id"] += 1
     _selection_store["selections"][sid] = {
         "obj": obj_name,
         "faces": faces_idx or [],
-        "verts": verts_idx or []
+        "verts": verts_idx or [],
+        "edges": edges_idx or []
     }
     return sid
+
 
 def _fetch_selection(sid):
     """Recupera una selección efímera por ID."""
@@ -356,6 +704,87 @@ def _mask_sample(mask, bounds, x, y):
     ix = int((x-minx)*sx + 0.5); iy = int((y-miny)*sy + 0.5)
     ix = max(0, min(res_x-1, ix)); iy = max(0, min(res_y-1, iy))
     return bool(mask[iy][ix])
+
+
+# -------- Helpers de plano local (XY/XZ/YZ) --------
+def _plane_axes(plane):
+    plane = plane.upper()
+    if plane == 'XY': return ('x','y')
+    if plane == 'XZ': return ('x','z')
+    if plane == 'YZ': return ('y','z')
+    raise ValueError("Plano no soportado: {}".format(plane))
+
+def _get_uv_from_vec(co, plane):
+    a,b = _plane_axes(plane)
+    return getattr(co, a), getattr(co, b)
+
+def _set_uv_on_vec(co, plane, u, v):
+    a,b = _plane_axes(plane)
+    setattr(co, a, float(u))
+    setattr(co, b, float(v))
+
+def _bounds_on_plane_local(obj, plane):
+    a,b = _plane_axes(plane)
+    vs = obj.data.vertices
+    if not vs:
+        return {'minx':0,'maxx':1,'miny':0,'maxy':1}
+    xs = [getattr(v.co, a) for v in vs]
+    ys = [getattr(v.co, b) for v in vs]
+    return {'minx':min(xs),'maxx':max(xs),'miny':min(ys),'maxy':max(ys)}
+
+def _rasterize_mesh_plane_local(obj, plane='YZ', res=256, margin=0.05):
+    """Rasteriza el OBJ en un plano local ('XY','XZ','YZ'), devolviendo (mask, bounds)."""
+    b = _bounds_on_plane_local(obj, plane)
+    minx,maxx,miny,maxy = b['minx'],b['maxx'],b['miny'],b['maxy']
+    w = maxx-minx; h = maxy-miny
+    pad = margin * max(w, h) + 1e-9
+    minx -= pad; maxx += pad; miny -= pad; maxy += pad
+    sx = (res-1)/(maxx-minx); sy = (res-1)/(maxy-miny)
+
+    def to_px(u,v):
+        return (int((u-minx)*sx+0.5), int((v-miny)*sy+0.5))
+
+    mask = [[False]*res for _ in range(res)]
+    me = obj.data
+    a,bn = _plane_axes(plane)
+    for poly in me.polygons:
+        idxs = list(poly.vertices)
+        if len(idxs) < 3: continue
+        def pick(i):
+            c = me.vertices[i].co
+            return (getattr(c, a), getattr(c, bn))
+        u0,v0 = pick(idxs[0]); x0,y0 = to_px(u0,v0)
+        for i in range(1, len(idxs)-1):
+            u1,v1 = pick(idxs[i]);   x1,y1 = to_px(u1,v1)
+            u2,v2 = pick(idxs[i+1]); x2,y2 = to_px(u2,v2)
+            xmin = max(0, min(x0,x1,x2)); xmax = min(res-1, max(x0,x1,x2))
+            ymin = max(0, min(y0,y1,y2)); ymax = min(res-1, max(y0,y1,y2))
+            denom = float((y1 - y2)*(x0 - x2) + (x2 - x1)*(y0 - y2))
+            if abs(denom) < 1e-9: continue
+            for yy in range(ymin, ymax+1):
+                for xx in range(xmin, xmax+1):
+                    w0 = ((y1 - y2)*(xx - x2) + (x2 - x1)*(yy - y2)) / denom
+                    w1 = ((y2 - y0)*(xx - x2) + (x0 - x2)*(yy - y2)) / denom
+                    w2 = 1.0 - w0 - w1
+                    if w0 >= 0 and w1 >= 0 and w2 >= 0:
+                        mask[yy][xx] = True
+    bounds = {'minx':minx,'maxx':maxx,'miny':miny,'maxy':maxy}
+    return mask, bounds
+
+def _mask_val(mask, x, y):
+    H = len(mask); W = len(mask[0]) if H else 0
+    if W==0 or H==0: return 0.0
+    x = max(0, min(W-1, x)); y = max(0, min(H-1, y))
+    return 1.0 if mask[y][x] else 0.0
+
+def _mask_grad(mask, x, y):
+    """Gradiente simple (centrado) en píxeles: devuelve (gx, gy)."""
+    gx = _mask_val(mask, x+1, y) - _mask_val(mask, x-1, y)
+    gy = _mask_val(mask, x, y+1) - _mask_val(mask, x, y-1)
+    return (gx*0.5, gy*0.5)
+
+
+
 
 def _load_mask_image(path, res=256, threshold=0.5):
     """Carga una imagen y la convierte en máscara booleana (umbral por luminancia) reescalada a res×res."""
@@ -782,6 +1211,16 @@ def cmd_similarity_iou_side(object_name, image_path, res=256, margin=0.05, thres
     return {"status":"ok","iou":score}
 
 @_tool
+def cmd_similarity_iou_front(object_name, image_path, res=256, margin=0.05, threshold=0.5):
+    """Compara la silueta frontal (plano YZ local) con una imagen (IoU)."""
+    obj = _obj(object_name)
+    if obj is None:
+        return {"status":"error","message":"objeto no encontrado"}
+    mesh_mask, _ = _rasterize_mesh_plane_local(obj, plane='YZ', res=int(res), margin=float(margin))
+    ref_mask = _load_mask_image(image_path, int(res), float(threshold))
+    return {"status":"ok","iou": _iou(mesh_mask, ref_mask)}
+
+@_tool
 def cmd_similarity_iou_combo(object_name, image_top, image_side, res=256, margin=0.05, threshold=0.5, alpha=0.5):
     """IoU combinado TOP(XY)+SIDE(XZ). alpha pondera TOP (0..1)."""
     a = float(alpha)
@@ -791,6 +1230,21 @@ def cmd_similarity_iou_combo(object_name, image_top, image_side, res=256, margin
         return {"status":"error","message":"fallo en top o side"}
     combo = a*float(top["iou"]) + (1.0-a)*float(side["iou"])
     return {"status":"ok","iou_top":top["iou"],"iou_side":side["iou"],"iou_combo":combo,"alpha":a}
+
+@_tool
+def cmd_similarity_iou_combo3(object_name, image_top, image_side, image_front,
+                              res=256, margin=0.05, threshold=0.5,
+                              alpha=0.34, beta=0.33, gamma=0.33):
+    """IoU combinado para 3 vistas: TOP(XY), SIDE(XZ), FRONT(YZ) con pesos α,β,γ (suman≈1)."""
+    top  = cmd_similarity_iou_top(object_name, image_top, res=res, margin=margin, threshold=threshold)
+    side = cmd_similarity_iou_side(object_name, image_side, res=res, margin=margin, threshold=threshold)
+    frnt = cmd_similarity_iou_front(object_name, image_front, res=res, margin=margin, threshold=threshold)
+    if top.get("status")!="ok" or side.get("status")!="ok" or frnt.get("status")!="ok":
+        return {"status":"error","message":"fallo en alguna vista"}
+    a,b,c = float(alpha), float(beta), float(gamma)
+    s = a*float(top["iou"]) + b*float(side["iou"]) + c*float(frnt["iou"])
+    return {"status":"ok","iou_top":top["iou"],"iou_side":side["iou"],"iou_front":frnt["iou"],
+            "iou_combo3":s,"alpha":a,"beta":b,"gamma":c}
 
 @_tool
 def cmd_merge_stitch(object_a, object_b, out_name="Merged", delete="B_inside_A",
@@ -922,6 +1376,476 @@ def cmd_mesh_normals_recalc(object_name, ensure_outside=True):
     bm.free()
     return {"status":"ok","flipped":flipped}
 
+
+# Selección por loops & rings de aristas
+
+def _edge_opposite_in_face(e, f):
+    """En un quad f, devuelve la arista opuesta a e (que no comparte vértices)."""
+    ev = {e.verts[0], e.verts[1]}
+    if len(f.verts) != 4: return None
+    for ed in f.edges:
+        if ed is e: continue
+        if (ed.verts[0] not in ev) and (ed.verts[1] not in ev):
+            return ed
+    return None
+
+def _collect_edge_ring(bm, seed_edge):
+    """Recolecta un 'ring' BFS: aristas opuestas a través de quads contiguos."""
+    ring = set()
+    q = [seed_edge]
+    while q:
+        e = q.pop(0)
+        if e in ring: continue
+        ring.add(e)
+        for f in e.link_faces:
+            if len(f.verts) != 4: continue
+            opp = _edge_opposite_in_face(e, f)
+            if opp and opp not in ring:
+                q.append(opp)
+    return list(ring)
+
+def _step_loop(loop, forward=True):
+    """Paso de arista para un edge-loop a través de quads:
+       l -> (dos pasos en face) -> radial al face vecino.
+    """
+    f = loop.face
+    if not f or len(f.verts)!=4:
+        return None
+    nxt = loop.link_loop_next.link_loop_next if forward else loop.link_loop_prev.link_loop_prev
+    if nxt is None: return None
+    nxt = nxt.link_loop_radial_next
+    return nxt
+
+def _collect_edge_loop(bm, seed_edge):
+    """Recolecta edge-loop usando loops radiales (ambas direcciones)."""
+    edges = set([seed_edge])
+    for l in seed_edge.link_loops:
+        # adelante
+        cur = l
+        while True:
+            cur = _step_loop(cur, True)
+            if not cur or cur.edge in edges:
+                break
+            edges.add(cur.edge)
+        # atrás
+        cur = l
+        while True:
+            cur = _step_loop(cur, False)
+            if not cur or cur.edge in edges:
+                break
+            edges.add(cur.edge)
+    return list(edges)
+
+@_tool
+def cmd_select_edge_loop_from_edge(object_name, edge_index):
+    """Devuelve la selección de un edge-loop partiendo de una arista índice."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    if edge_index < 0 or edge_index >= len(bm.edges):
+        bm.free(); return {"status":"error","message":"edge_index fuera de rango"}
+    loop_edges = _collect_edge_loop(bm, bm.edges[edge_index])
+    ids = [e.index for e in loop_edges]
+    sid = _store_selection(obj.name, edges_idx=ids)
+    bm.free()
+    return {"status":"ok","selection_id":sid,"count":len(ids)}
+
+@_tool
+def cmd_select_edge_ring_from_edge(object_name, edge_index):
+    """Devuelve la selección de un edge-ring partiendo de una arista índice."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    if edge_index < 0 or edge_index >= len(bm.edges):
+        bm.free(); return {"status":"error","message":"edge_index fuera de rango"}
+    ring_edges = _collect_edge_ring(bm, bm.edges[edge_index])
+    ids = [e.index for e in ring_edges]
+    sid = _store_selection(obj.name, edges_idx=ids)
+    bm.free()
+    return {"status":"ok","selection_id":sid,"count":len(ids)}
+
+
+# Loop cut / subdividir anillos
+
+@_tool
+def cmd_mesh_loop_insert(object_name, edges=None, selection_id=None, cuts=1, smooth=0.0):
+    """Inserta cortes a lo largo de un conjunto de aristas (loop/ring)."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    eds = []
+    if selection_id:
+        sel = _fetch_selection(selection_id) or {}
+        if sel.get("obj") == object_name:
+            eds = [bm.edges[i] for i in (sel.get("edges") or []) if i < len(bm.edges)]
+    if not eds and edges:
+        eds = [bm.edges[i] for i in edges if i < len(bm.edges)]
+    if not eds:
+        bm.free(); return {"status":"error","message":"sin aristas válidas"}
+    res = bmesh.ops.subdivide_edges(
+        bm, edges=eds, cuts=int(cuts),
+        use_grid_fill=False, smooth=float(smooth)
+    )
+    _bm_to_object(obj, bm)
+    bm.free()
+    nv = len(res.get('geom_inner', []))
+    return {"status":"ok","new_elements": nv}
+
+# Bevel paramétrico (sin bpy.ops)
+
+def _edges_by_sharp(bm, angle_deg):
+    th = math.cos(math.radians(float(angle_deg)))
+    out = []
+    for e in bm.edges:
+        fs = list(e.link_faces)
+        if len(fs)==2:
+            d = fs[0].normal.dot(fs[1].normal)
+            if d <= th:  # ángulo >= threshold
+                out.append(e)
+    return out
+
+def _valid_bevel_geom(bm, geom, min_len=1e-5):
+    """Filtra geometría peligrosa: edges muy cortas o no-manifold, y vértices sin soporte."""
+    import bmesh as _bmesh
+    out = []
+    for g in geom:
+        if isinstance(g, _bmesh.types.BMEdge):
+            if len(g.link_faces) == 2:
+                if (g.verts[0].co - g.verts[1].co).length > float(min_len):
+                    out.append(g)
+        elif isinstance(g, _bmesh.types.BMVert):
+            # vértice válido si tiene alguna arista manifold razonable
+            ok = False
+            for e in g.link_edges:
+                if len(e.link_faces) == 2 and (e.verts[0].co - e.verts[1].co).length > float(min_len):
+                    ok = True; break
+            if ok:
+                out.append(g)
+    return out
+
+
+@_tool
+def cmd_mesh_bevel(object_name, edges=None, verts=None, selection_id=None,
+                   offset=0.01, segments=2, profile=0.7, clamp=True,
+                   auto_sharp_angle=None):
+    """
+    Bevel robusto usando bmesh.ops.bevel, con filtrado de geometría y fallback si falla.
+    """
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+
+    # Construir conjunto inicial
+    geom = []
+    if auto_sharp_angle is not None:
+        geom.extend(_edges_by_sharp(bm, float(auto_sharp_angle)))
+    if selection_id:
+        sel = _fetch_selection(selection_id) or {}
+        if sel.get("obj") == object_name:
+            geom.extend([bm.edges[i] for i in (sel.get("edges") or []) if 0 <= i < len(bm.edges)])
+            geom.extend([bm.verts[i] for i in (sel.get("verts") or []) if 0 <= i < len(bm.verts)])
+    if edges:
+        geom.extend([bm.edges[i] for i in edges if 0 <= i < len(bm.edges)])
+    if verts:
+        geom.extend([bm.verts[i] for i in verts if 0 <= i < len(bm.verts)])
+
+    # Filtrar aristas/vértices peligrosos
+    geom = list(set(_valid_bevel_geom(bm, geom, min_len=1e-6)))
+    if not geom:
+        bm.free()
+        return {"status":"error","message":"sin geometría válida para bevel (posible no-manifold o aristas ~0)"}
+
+    # Limpieza previa: disolver degenerados muy cortos
+    try:
+        bmesh.ops.dissolve_degenerate(bm, edges=bm.edges, dist=1e-6)
+    except Exception:
+        pass
+
+    # Intento principal
+    ok = False
+    note = ""
+    try:
+        res = bmesh.ops.bevel(
+            bm, geom=geom,
+            offset=float(offset), segments=int(segments), profile=float(profile),
+            clamp_overlap=bool(clamp)
+        )
+        ok = True
+    except Exception as e:
+        # Fallback: segmentos 1 y offset reducido
+        try:
+            res = bmesh.ops.bevel(
+                bm, geom=geom,
+                offset=min(float(offset), 0.004), segments=1, profile=0.7,
+                clamp_overlap=True
+            )
+            ok = True
+            note = "fallback_segments1"
+        except Exception as e2:
+            bm.free()
+            return {"status":"error","message":"bevel falló incluso con fallback", "detail":"{} / {}".format(e, e2)}
+
+    # Post: quitar dobles pequeños y actualizar
+    try:
+        _remove_doubles(bm, 0.0005)
+    except Exception:
+        pass
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok","beveled": len(res.get('faces_out', [])), "note": note}
+
+
+
+# Geodesic select (distancia sobre superficie)
+
+@_tool
+def cmd_select_geodesic(object_name, seed_vert=None, selection_id=None, radius=0.25):
+    """Selecciona vértices a distancia geodésica <= radius desde semilla(s)."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    seeds = []
+    if seed_vert is not None and 0 <= int(seed_vert) < len(bm.verts):
+        seeds.append(bm.verts[int(seed_vert)])
+    if selection_id:
+        sel = _fetch_selection(selection_id) or {}
+        if sel.get("obj")==object_name:
+            seeds.extend([bm.verts[i] for i in (sel.get("verts") or []) if i < len(bm.verts)])
+    if not seeds:
+        bm.free(); return {"status":"error","message":"sin semillas"}
+    import heapq
+    dist = {v: 0.0 for v in seeds}
+    pq = [(0.0, v) for v in seeds]
+    seen = set(seeds)
+    while pq:
+        d, v = heapq.heappop(pq)
+        if d > float(radius): break
+        for e in v.link_edges:
+            w = e.other_vert(v)
+            nd = d + (w.co - v.co).length
+            if nd <= float(radius) and (w not in dist or nd < dist[w]):
+                dist[w] = nd
+                heapq.heappush(pq, (nd, w))
+                seen.add(w)
+    ids = [v.index for v in seen]
+    sid = _store_selection(obj.name, verts_idx=ids)
+    bm.free()
+    return {"status":"ok","selection_id":sid,"count":len(ids)}
+
+
+# Snap a silueta (proyección 2D guiada por imagen)
+
+@_tool
+def cmd_edit_snap_to_silhouette(object_name, selection_id, plane='XY', image_path=None,
+                                strength=0.5, iterations=8, step=1.0, res=256, margin=0.05, threshold=0.5):
+    """Atrae vértices seleccionados hacia el borde de la silueta 2D (imagen) en el plano dado."""
+    if not image_path:
+        return {"status":"error","message":"image_path requerido"}
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    sel = _fetch_selection(selection_id) or {}
+    if sel.get("obj") != object_name:
+        bm.free(); return {"status":"error","message":"selección inválida"}
+    vset = [bm.verts[i] for i in (sel.get("verts") or []) if i < len(bm.verts)]
+    if not vset:
+        # si no hay vértices en la selección, derivar de las caras
+        fset = [bm.faces[i] for i in (sel.get("faces") or []) if i < len(bm.faces)]
+        vset = list({v for f in fset for v in f.verts})
+    if not vset:
+        bm.free(); return {"status":"error","message":"no hay vértices a snapear"}
+
+    mask_ref = _load_mask_image(image_path, int(res), float(threshold))
+    mask_mesh, bounds = _rasterize_mesh_plane_local(obj, plane=plane, res=int(res), margin=float(margin))
+    minx,maxx,miny,maxy = bounds['minx'],bounds['maxx'],bounds['miny'],bounds['maxy']
+    sx = (res-1)/(maxx-minx); sy = (res-1)/(maxy-miny)
+    cell = max((maxx-minx)/(res-1), (maxy-miny)/(res-1))
+    step_len = float(step) * cell
+    stren = float(strength)
+
+    moved = 0
+    for v in vset:
+        u0,v0 = _get_uv_from_vec(v.co, plane)
+        u, w = u0, v0
+        for _ in range(int(iterations)):
+            ix = int((u - minx)*sx + 0.5)
+            iy = int((w - miny)*sy + 0.5)
+            inside = mask_ref[iy][ix]
+            gx, gy = _mask_grad(mask_ref, ix, iy)
+            gnorm = math.hypot(gx, gy)
+            if gnorm < 1e-6:
+                break
+            sgn = 1.0 if not inside else -1.0
+            du = sgn * (gx/gnorm) * step_len
+            dv = sgn * (gy/gnorm) * step_len
+            u += du; w += dv
+        # aplicar fracción (strength) del desplazamiento
+        du_fin, dv_fin = (u - u0)*stren, (w - v0)*stren
+        _set_uv_on_vec(v.co, plane, u0 + du_fin, v0 + dv_fin)
+        moved += 1
+
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok","moved":moved}
+
+
+# Landmarks 2D→3D (puntos guía)
+
+@_tool
+def cmd_constraint_landmarks_apply(object_name, plane='XY', points=None, falloff='gauss'):
+    """Aplica landmarks 2D (uv en 0..1) con radio/strength en el plano dado."""
+    if not points:
+        return {"status":"error","message":"sin puntos"}
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    bounds = _bounds_on_plane_local(obj, plane)
+    minx,maxx,miny,maxy = bounds['minx'],bounds['maxx'],bounds['miny'],bounds['maxy']
+    W = (maxx-minx); H = (maxy-miny)
+    moved = 0
+    for v in bm.verts:
+        u, w = _get_uv_from_vec(v.co, plane)
+        un = 0.0 if W<1e-9 else (u - minx)/W
+        wn = 0.0 if H<1e-9 else (w - miny)/H
+        du_sum = dv_sum = 0.0
+        wt_sum = 0.0
+        for p in points:
+            uv = p.get("uv",[0.5,0.5])
+            rad = float(p.get("radius",0.1))
+            stren = float(p.get("strength",0.8))
+            dx = un - float(uv[0]); dy = wn - float(uv[1])
+            d = math.hypot(dx,dy)
+            if d > rad: continue
+            if falloff == 'gauss':
+                sigma = rad/2.0 if rad>1e-9 else 1e-3
+                wgt = math.exp(-0.5*(d/sigma)**2) * stren
+            else:
+                wgt = (1.0 - d/rad) * stren
+            target_u = minx + float(uv[0]) * W
+            target_w = miny + float(uv[1]) * H
+            du_sum += (target_u - u) * wgt
+            dv_sum += (target_w - w) * wgt
+            wt_sum += wgt
+        if wt_sum > 0:
+            _set_uv_on_vec(v.co, plane, u + du_sum/wt_sum, w + dv_sum/wt_sum)
+            moved += 1
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok","moved":moved}
+
+
+# Simetrías avanzadas (plano arbitrario y radial)
+
+@_tool
+def cmd_geom_mirror_plane(object_name, plane_point=(0,0,0), plane_normal=(1,0,0), merge_dist=0.0008):
+    """Duplica y refleja toda la malla respecto a un plano arbitrario (punto+normal en espacio local)."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    P = Vector(plane_point)
+    n = Vector(plane_normal)
+    try: n.normalize()
+    except: return {"status":"error","message":"normal inválida"}
+    # Duplicar
+    dup = bmesh.ops.duplicate(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces))
+    new_vs = [g for g in dup["geom"] if isinstance(g, bmesh.types.BMVert)]
+    # Reflexión (Householder): v' = P + (I - 2nn^T)(v - P)
+    I = Matrix.Identity(3)
+    H = I - 2.0 * Matrix((
+        (n.x*n.x, n.x*n.y, n.x*n.z),
+        (n.y*n.x, n.y*n.y, n.y*n.z),
+        (n.z*n.x, n.z*n.y, n.z*n.z),
+    ))
+    for v in new_vs:
+        p = v.co - P
+        r = Vector((H[0][0]*p.x + H[0][1]*p.y + H[0][2]*p.z,
+                    H[1][0]*p.x + H[1][1]*p.y + H[1][2]*p.z,
+                    H[2][0]*p.x + H[2][1]*p.y + H[2][2]*p.z))
+        v.co = P + r
+    _remove_doubles(bm, float(merge_dist))
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok"}
+
+@_tool
+def cmd_geom_symmetry_radial(object_name, axis='Z', count=6, merge_dist=0.0008):
+    """Simetría radial n-fold duplicando y rotando la malla alrededor del eje local indicado."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    axis = axis.upper()
+    ax = {'X':Vector((1,0,0)), 'Y':Vector((0,1,0)), 'Z':Vector((0,0,1))}.get(axis, Vector((0,0,1)))
+    copies = []
+    base_geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+    for k in range(1, int(count)):
+        ang = (2.0*math.pi)*k/float(count)
+        dup = bmesh.ops.duplicate(bm, geom=base_geom)
+        new_vs = [g for g in dup["geom"] if isinstance(g, bmesh.types.BMVert)]
+        R = Matrix.Rotation(ang, 4, ax)
+        for v in new_vs:
+            v.co = (R * v.co.to_4d()).to_3d()
+        copies.extend(new_vs)
+    _remove_doubles(bm, float(merge_dist))
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok","instances":int(count)}
+
+
+# Topología y reparación
+
+@_tool
+def cmd_mesh_triangulate_beautify(object_name):
+    """Triangula malla y aplica 'beautify' para mejorar calidad angular."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method=0, ngon_method=0)  # BEAUTY/BEAUTY
+    try:
+        bmesh.ops.beautify_fill(bm, edges=bm.edges)
+    except Exception:
+        pass
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok"}
+
+@_tool
+def cmd_mesh_join_quads(object_name, angle_face=0.1, angle_shape=0.5):
+    """Une triángulos coplanares para formar quads cuando es posible."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    bmesh.ops.join_triangles(bm, faces=bm.faces,
+                             angle_face_threshold=float(angle_face),
+                             angle_shape_threshold=float(angle_shape))
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok"}
+
+@_tool
+def cmd_mesh_bridge_loops(object_name, loops):
+    """Puentea bordes: 'loops' es lista de listas de índices de arista."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    eds = []
+    for L in (loops or []):
+        eds.extend([bm.edges[i] for i in L if i < len(bm.edges)])
+    if not eds:
+        bm.free(); return {"status":"error","message":"sin aristas para bridge"}
+    bmesh.ops.bridge_loops(bm, edges=eds)
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok"}
+
+@_tool
+def cmd_mesh_fill_holes(object_name):
+    """Rellena agujeros detectando bordes frontera (len(link_faces)==1)."""
+    obj = _obj(object_name)
+    bm = _bm_from_object(obj)
+    bm.edges.ensure_lookup_table()
+    border_edges = [e for e in bm.edges if len(e.link_faces)==1]
+    if border_edges:
+        try:
+            bmesh.ops.holes_fill(bm, edges=border_edges)
+        except Exception:
+            pass
+    _bm_to_object(obj, bm)
+    bm.free()
+    return {"status":"ok","filled": len(border_edges)}
+
+
+
+
+
+
 # Macros
 @_tool
 def cmd_macro_nose(object_name, y_min=0.85, push_y=0.18, sharpen=0.35):
@@ -989,168 +1913,30 @@ async def handler(websocket, path=None):
             cmd = data.get("command")
             p = data.get("params", {}) or {}
 
-            try:
-                # === API de modelado ===
-                if cmd == "geom.create_base":
-                    ack = cmd_geom_create_base(
-                        name=p.get("name", "Mesh"),
-                        outline=p.get("outline", []),
-                        thickness=float(p.get("thickness", 0.2)),
-                        mirror_x=bool(p.get("mirror_x", False))
-                    )
-                elif cmd == "select.faces_by_range":
-                    ack = cmd_select_faces_by_range(
-                        object_name=p.get("object", ""),
-                        conds=p.get("conds", [])
-                    )
-                elif cmd == "select.faces_in_bbox":
-                    ack = cmd_select_faces_in_bbox(
-                        object_name=p.get("object", ""),
-                        bbox_min=p.get("min", [-1e9, -1e9, -1e9]),
-                        bbox_max=p.get("max", [1e9, 1e9, 1e9])
-                    )
-                elif cmd == "select.faces_by_normal":
-                    ack = cmd_select_faces_by_normal(
-                        object_name=p.get("object", ""),
-                        axis=tuple(p.get("axis", (0, 0, 1))),
-                        min_dot=float(p.get("min_dot", 0.5)),
-                        max_dot=float(p.get("max_dot", 1.0))
-                    )
-                elif cmd == "select.grow":
-                    ack = cmd_select_grow(
-                        object_name=p.get("object", ""),
-                        selection_id=int(p.get("selection_id", 0)),
-                        steps=int(p.get("steps", 1))
-                    )
-                elif cmd == "select.verts_by_curvature":
-                    ack = cmd_select_verts_by_curvature(
-                        object_name=p.get("object", ""),
-                        min_curv=float(p.get("min_curv", 0.08)),
-                        in_bbox=p.get("in_bbox", None)
-                    )
-                elif cmd == "edit.extrude_selection":
-                    ack = cmd_edit_extrude_selection(
-                        object_name=p.get("object", ""),
-                        selection_id=int(p.get("selection_id", 0)),
-                        translate=tuple(p.get("translate", (0, 0, 0))),
-                        scale_about_center=tuple(p.get("scale_about_center", (1, 1, 1))),
-                        inset=float(p.get("inset", 0.0))
-                    )
-                elif cmd == "edit.move_verts":
-                    ack = cmd_edit_move_verts(
-                        object_name=p.get("object", ""),
-                        selection_id=int(p.get("selection_id", 0)),
-                        translate=tuple(p.get("translate", (0, 0, 0))),
-                        scale_about_center=tuple(p.get("scale_about_center", (1, 1, 1)))
-                    )
-                elif cmd == "edit.sculpt_selection":
-                    ack = cmd_edit_sculpt_selection(
-                        object_name=p.get("object", ""),
-                        selection_id=int(p.get("selection_id", 0)),
-                        moves=p.get("move", [])
-                    )
-                elif cmd == "geom.mirror_x":
-                    ack = cmd_geom_mirror_x(
-                        object_name=p.get("object", ""),
-                        merge_dist=float(p.get("merge_dist", 0.0008))
-                    )
-                elif cmd == "geom.cleanup":
-                    ack = cmd_geom_cleanup(
-                        object_name=p.get("object", ""),
-                        merge_dist=float(p.get("merge_dist", 0.0008)),
-                        recalc=bool(p.get("recalc", True))
-                    )
-                elif cmd == "mesh.stats":
-                    ack = cmd_mesh_stats(object_name=p.get("object", ""))
-                elif cmd == "mesh.validate":
-                    ack = cmd_mesh_validate(
-                        object_name=p.get("object", ""),
-                        check_self_intersections=bool(p.get("check_self_intersections", False))
-                    )
-                elif cmd == "mesh.snapshot":
-                    ack = cmd_mesh_snapshot(object_name=p.get("object", ""))
-                elif cmd == "mesh.restore":
-                    ack = cmd_mesh_restore(
-                        snapshot_id=int(p.get("snapshot_id", 0)),
-                        object_name=p.get("object", None)
-                    )
-                elif cmd == "mesh.normals_recalc":
-                    ack = cmd_mesh_normals_recalc(
-                        object_name=p.get("object",""),
-                        ensure_outside=bool(p.get("ensure_outside",True))
-                    )
-                elif cmd == "similarity.iou_top":
-                    ack = cmd_similarity_iou_top(
-                        object_name=p.get("object", ""),
-                        image_path=p.get("image_path", ""),
-                        res=int(p.get("res", 256)),
-                        margin=float(p.get("margin", 0.05)),
-                        threshold=float(p.get("threshold", 0.5))
-                    )
-                elif cmd == "similarity.iou_side":
-                    ack = cmd_similarity_iou_side(
-                        object_name=p.get("object",""),
-                        image_path=p.get("image_path",""),
-                        res=int(p.get("res",256)),
-                        margin=float(p.get("margin",0.05)),
-                        threshold=float(p.get("threshold",0.5))
-                    )
-                elif cmd == "similarity.iou_combo":
-                    ack = cmd_similarity_iou_combo(
-                        object_name=p.get("object",""),
-                        image_top=p.get("image_top",""),
-                        image_side=p.get("image_side",""),
-                        res=int(p.get("res",256)),
-                        margin=float(p.get("margin",0.05)),
-                        threshold=float(p.get("threshold",0.5)),
-                        alpha=float(p.get("alpha",0.5))
-                    )
-                elif cmd == "merge.stitch":
-                    ack = cmd_merge_stitch(
-                        object_a=p.get("object_a",""),
-                        object_b=p.get("object_b",""),
-                        out_name=p.get("out_name","Merged"),
-                        delete=p.get("delete","B_inside_A"),
-                        weld_dist=float(p.get("weld_dist",0.001)),
-                        res=int(p.get("res",256)),
-                        margin=float(p.get("margin",0.03))
-                    )
-
-                # === comandos utilitarios existentes ===
-                elif cmd == "export_fbx":
-                    try:
-                        ack = {"status": "ok", "path": export_fbx(**p)}
-                    except Exception as e:
-                        ack = {"status":"error","message":"{}: {}".format(e.__class__.__name__, e),
-                               "trace": traceback.format_exc()}
-                elif cmd == "execute_python":
-                    stdout, stderr, err = execute_python(p.get("code", ""))
-                    ack = {"status": "ok" if err is None else "error", "stdout": stdout, "stderr": stderr}
-                    if err is not None:
-                        ack["message"] = err
-                elif cmd == "execute_python_file":
-                    try:
-                        stdout, stderr, err = execute_python_file(p.get("path", ""))
-                        ack = {"status": "ok" if err is None else "error", "stdout": stdout, "stderr": stderr}
-                        if err is not None:
-                            ack["message"] = err
-                    except Exception as e:
-                        ack = {"status":"error","message":"{}: {}".format(e.__class__.__name__, e),
-                               "trace": traceback.format_exc()}
-                elif cmd == "identify":
-                    ack = {
-                        "status": "ok",
-                        "module_file": __file__,
-                        "websockets_version": getattr(websockets, "__version__", "unknown"),
-                        "blender_version": getattr(bpy.app, "version", None),
-                    }
+                        # --- Enqueue to main-thread pump and wait for result (non-blocking) ---
+            # Optional backpressure: refuse if queue is too large
+            max_tasks = int(os.environ.get("MCP_MAX_TASKS", "128"))
+            with _TASKS_LOCK:
+                if len(_TASKS) >= max_tasks:
+                    ack = {"status": "error", "message": "server busy: too many queued tasks"}
                 else:
-                    ack = {"status": "ok", "echo": data}
-
-            except Exception as exc:
-                print("[DEBUG] Error procesando '{0}': {1}".format(cmd, exc))
-                traceback.print_exc()
-                ack = {"status": "error", "message": str(exc), "trace": traceback.format_exc()}
+                    t = _Task(cmd, p)
+                    _TASKS.append(t)
+                    tref = t
+            if 'ack' not in locals():
+                loop_local = asyncio.get_event_loop()
+                try:
+                    ok = await asyncio.wait_for(loop_local.run_in_executor(None, tref.event.wait, float(p.get("timeout", 30.0))), timeout=float(p.get("timeout", 31.0)))
+                    if not ok:
+                        ack = {"status": "error", "message": "timeout esperando ejecución en hilo principal"}
+                    else:
+                        ack = tref.result or {"status": "error", "message": "sin resultado"}
+                except asyncio.TimeoutError:
+                    ack = {"status": "error", "message": "timeout esperando ejecución en hilo principal"}            
+                except Exception as exc:
+                    print("[DEBUG] Error procesando '{0}': {1}".format(cmd, exc))
+                    traceback.print_exc()
+                    ack = {"status": "error", "message": str(exc), "trace": traceback.format_exc()}
 
             try:
                 payload = json.dumps(ack)
@@ -1235,3 +2021,23 @@ def stop_server():
         except Exception:
             traceback.print_exc()
     server_thread = None
+
+
+
+def register():
+    try:
+        bpy.utils.register_class(MCP_OT_TaskPump)
+    except Exception:
+        pass
+    # Try to start the pump right away
+    try:
+        bpy.ops.wm.mcp_task_pump()
+    except Exception:
+        # It may fail if no window context; it's fine – user can run it from the UI or call again later.
+        pass
+
+def unregister():
+    try:
+        bpy.utils.unregister_class(MCP_OT_TaskPump)
+    except Exception:
+        pass
