@@ -154,21 +154,31 @@ def extrude_normal(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any
         if not faces:
             raise ValueError("no faces to extrude")
 
-        # Average normal of selected faces
-        avg = Vector((0.0, 0.0, 0.0))
-        for f in faces:
-            avg += f.normal
-        if avg.length == 0.0:
-            raise ValueError("average normal is zero; cannot extrude")
-        avg.normalize()
-        move_vec = avg * distance
-
-        # Extrude region and translate the new geometry along avg normal
-        res = bmesh.ops.extrude_face_region(bm, geom=faces)
-        geom = res.get("geom", [])
-        new_verts = [ele for ele in geom if isinstance(ele, bmesh.types.BMVert)]
-        if new_verts:
-            bmesh.ops.translate(bm, verts=new_verts, vec=move_vec)
+        # If multiple faces with opposing normals are selected (e.g., cube 0..5),
+        # the average may be zero. In Blender 4.5, the intended UX for
+        # "extrude along normal" with multiple faces is to extrude each face
+        # along its own normal. Use discrete face extrusion and translate each
+        # new face accordingly.
+        created = 0
+        if len(faces) == 1:
+            f = faces[0]
+            move_vec = f.normal.normalized() * distance if f.normal.length > 0 else Vector((0.0, 0.0, 0.0))
+            res = bmesh.ops.extrude_face_region(bm, geom=[f])
+            geom = res.get("geom", [])
+            new_verts = [ele for ele in geom if isinstance(ele, bmesh.types.BMVert)]
+            if new_verts and move_vec.length > 0:
+                bmesh.ops.translate(bm, verts=new_verts, vec=move_vec)
+        else:
+            # Discrete extrude returns a list of new faces corresponding to the
+            # originals. Move each new face along its own normal.
+            res = bmesh.ops.extrude_discrete_faces(bm, faces=faces)
+            new_faces = res.get("faces", [])
+            # Map original -> new by index order if lengths match; otherwise move all new faces by their normals
+            for nf in new_faces:
+                n = nf.normal
+                if n.length > 0 and abs(distance) > 0:
+                    mv = n.normalized() * distance
+                    bmesh.ops.translate(bm, verts=list(nf.verts), vec=mv)
 
         bm.normal_update()
         nfaces_after = len(bm.faces)

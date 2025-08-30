@@ -23,9 +23,16 @@ def recalc_selected(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, An
         count = 0
         for obj in bpy.context.selected_objects:
             if obj.type == "MESH":
-                mesh = obj.data
-                mesh.calc_normals()
-                count += 1
+                me = obj.data
+                bm = bmesh.new()
+                try:
+                    bm.from_mesh(me)
+                    bm.normal_update()
+                    bm.to_mesh(me)
+                    me.update()
+                    count += 1
+                finally:
+                    bm.free()
         return count
 
     updated = ctx.run_main(_impl)
@@ -58,16 +65,16 @@ def recalc_normals(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any
     # run_main here.
     ctx.ensure_object_mode()
     me = obj.data
-    # Always recalculate normals first
-    me.calc_normals()
-    if not outside:
-        bm = bmesh.new()
-        try:
-            bm.from_mesh(me)
-            # Reverse all faces to flip normals
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(me)
+        # Recalculate face/vertex normals on BMesh
+        bm.normal_update()
+        # Flip normals for inward option
+        if not outside:
             bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
-            bm.to_mesh(me)
-            me.update()
-        finally:
-            bm.free()
+        bm.to_mesh(me)
+        me.update()
+    finally:
+        bm.free()
     return {"object": obj.name, "outside": bool(outside), "faces": len(me.polygons)}

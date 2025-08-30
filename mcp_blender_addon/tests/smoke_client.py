@@ -109,7 +109,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--params", default="{}", help="JSON params object")
     ap.add_argument("--selftest", action="store_true", help="Run a short context-based self test")
     ap.add_argument("--identify", action="store_true", help="Send identify message instead of a command")
-    ap.add_argument("--suite", choices=["single", "smoke"], default="single", help="Run a predefined smoke suite")
+    ap.add_argument("--suite", choices=["single", "smoke"], default="smoke", help="Run a predefined smoke suite")
     args = ap.parse_args(argv)
 
     def save_log(step: str, payload_raw: str | None, payload_obj: dict | None) -> None:
