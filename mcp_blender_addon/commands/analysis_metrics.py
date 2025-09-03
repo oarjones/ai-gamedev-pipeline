@@ -253,3 +253,29 @@ def mesh_stats(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
         "symmetry": symmetry,
     }
 
+
+@command("analysis.non_manifold_edges")
+@tool
+def non_manifold_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the count of non-manifold edges for a mesh object.
+
+    Params:
+      - object: str (mesh object name)
+
+    Returns: { count: int }
+
+    Example:
+      analysis.non_manifold_edges({"object":"Cube"}) -> {"status":"ok","result":{"count":0}}
+    """
+    if bpy is None or bmesh is None:
+        raise RuntimeError("Blender API not available")
+
+    obj = _get_mesh_object(str(params.get("object", "")))
+    ctx.ensure_object_mode()
+    bm = ctx.bm_from_object(obj)
+    try:
+        bm.edges.ensure_lookup_table()
+        cnt = int(sum(1 for e in bm.edges if not e.is_manifold))
+    finally:
+        ctx.bm_to_object(obj, bm)
+    return {"count": int(cnt)}

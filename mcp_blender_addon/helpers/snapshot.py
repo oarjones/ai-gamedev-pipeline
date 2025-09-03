@@ -379,3 +379,10 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
         overlay_wireframe=overlay_wireframe,
     )
 
+
+# Compatibility alias under helpers.snapshot.capture_view
+@command("helpers.snapshot.capture_view")
+@tool
+def capture_view_alias(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Alias for helpers.capture_view to allow calls under helpers.snapshot namespace."""
+    return capture_view_cmd(ctx, params)

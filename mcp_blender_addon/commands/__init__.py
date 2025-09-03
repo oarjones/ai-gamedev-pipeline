@@ -18,6 +18,8 @@ from . import proc_character as _proc_character  # noqa: F401
 from . import reference_blueprints as _reference_blueprints  # noqa: F401
 from . import reference as _reference  # noqa: F401
 from . import mesh as _mesh  # noqa: F401
+from . import scene as _scene  # noqa: F401
+from . import project as _project  # noqa: F401
 # Import helpers to register commands under the 'helpers' namespace
 from ..helpers import snapshot as _helpers_snapshot  # noqa: F401
 
