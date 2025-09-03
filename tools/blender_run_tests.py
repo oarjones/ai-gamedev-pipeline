@@ -21,12 +21,17 @@ def _bootstrap_code(project_root: str, test_modules: List[str]) -> str:
         f"""
         import sys, os, importlib
         sys.path.insert(0, {project_root!r})
-        # Register add-on (ensures commands are imported)
+        # Register add-on (ensures commands are imported) and start WS server
         import mcp_blender_addon as addon
         try:
             addon.register()
         except Exception as e:
             print("[bootstrap] register failed:", e)
+        try:
+            addon.start_server("127.0.0.1", 8765)
+            print("[bootstrap] WS server started at ws://127.0.0.1:8765")
+        except Exception as e:
+            print("[bootstrap] start_server failed:", e)
         # Optionally list commands
         try:
             from mcp_blender_addon.commands import _analysis_metrics  # noqa
@@ -97,6 +102,8 @@ def main() -> int:
         return 127
 
 
+# - python tools/blender_run_tests.py --background
+# - o con ruta explícita de Blender: python tools/blender_run_tests.py --background --blender "C:\Path\To\blender.exe"
+
 if __name__ == "__main__":
     raise SystemExit(main())
-
