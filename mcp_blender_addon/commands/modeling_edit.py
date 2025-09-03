@@ -222,15 +222,14 @@ def bevel_edges(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
             after = _counts_from_mesh(me)
             return {"object": obj.name, "before": before, "after": after, "non_manifold": nonm}
 
+        # Call bevel with arguments compatible with Blender 4.5 (omit deprecated args like vertex_only)
         bmesh.ops.bevel(
             bm,
             geom=edges,
             offset=offset,
             segments=max(1, segments),
             profile=0.5,
-            vertex_only=False,
             clamp_overlap=clamp_overlap,
-            affect='EDGES',
             loop_slide=True,
         )
         bm.normal_update()
