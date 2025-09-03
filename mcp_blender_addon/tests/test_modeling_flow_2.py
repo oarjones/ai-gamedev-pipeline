@@ -152,8 +152,10 @@ def run() -> int:
                 "shading": "SOLID",
                 "solid_wire": True,
                 "enhance": True,
-                "color_type": "MATERIAL",
+                "color_type": "SINGLE",
+                "single_color": [0.9, 0.45, 0.2],
                 "bg": "WORLD",
+                "world_color": [1.0, 1.0, 1.0],
                 "return_base64": False,
             },
         )

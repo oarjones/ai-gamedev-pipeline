@@ -228,7 +228,9 @@ def capture_view(
     enhance: bool = False,
     solid_wire: bool = False,
     color_type: str | None = None,
+    single_color: list[float] | tuple[float, float, float] | None = None,
     bg: str | None = None,
+    world_color: list[float] | tuple[float, float, float] | None = None,
     light_setup: str | None = None,
 ) -> Dict[str, Any]:
     """Capture a PNG snapshot of the active 3D Viewport.
@@ -253,6 +255,20 @@ def capture_view(
         raise ValueError(f"invalid color_type: {color_type}; must be one of {sorted(VALID_COLOR_TYPES)}")
     if bg is not None and str(bg).upper() not in VALID_BG:
         raise ValueError(f"invalid bg: {bg}; must be one of {sorted(VALID_BG)}")
+    if single_color is not None:
+        try:
+            if not (isinstance(single_color, (list, tuple)) and len(single_color) == 3):
+                raise ValueError
+            _ = [float(single_color[0]), float(single_color[1]), float(single_color[2])]
+        except Exception:
+            raise ValueError("single_color must be [r,g,b]")
+    if world_color is not None:
+        try:
+            if not (isinstance(world_color, (list, tuple)) and len(world_color) == 3):
+                raise ValueError
+            _ = [float(world_color[0]), float(world_color[1]), float(world_color[2])]
+        except Exception:
+            raise ValueError("world_color must be [r,g,b]")
 
     handle = _find_view3d()
     win = area = region = space = r3d = None  # type: ignore
@@ -330,11 +346,31 @@ def capture_view(
                     space.shading.color_type = str(color_type).upper()  # type: ignore[attr-defined]
                 except Exception:
                     pass
+            if single_color is not None:
+                try:
+                    rgb = [float(single_color[0]), float(single_color[1]), float(single_color[2])]
+                    space.shading.single_color = rgb  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             if bg is not None:
                 try:
                     space.shading.background_type = str(bg).upper()  # type: ignore[attr-defined]
                 except Exception:
                     pass
+        # Optionally set world background color for stronger contrast
+        prev_world = getattr(bpy.context.scene, "world", None)
+        prev_world_color = None
+        if world_color is not None:
+            try:
+                scene_world = bpy.context.scene.world
+                if scene_world is None:
+                    scene_world = bpy.data.worlds.new("MCP_SNAPSHOT_WORLD")
+                    bpy.context.scene.world = scene_world
+                if hasattr(scene_world, "color"):
+                    prev_world_color = tuple(scene_world.color[:])  # type: ignore[index]
+                    scene_world.color = (float(world_color[0]), float(world_color[1]), float(world_color[2]))  # type: ignore[assignment]
+            except Exception:
+                prev_world_color = None
 
         # Scene render settings for exact output size
         scene = bpy.context.scene
@@ -512,6 +548,13 @@ def capture_view(
             r3d.view_perspective = prev["view_perspective"]
         except Exception:
             pass
+        # Restore world color
+        try:
+            if world_color is not None and prev_world is not None and prev_world_color is not None:
+                if getattr(bpy.context.scene, "world", None) is prev_world and hasattr(prev_world, "color"):
+                    prev_world.color = prev_world_color  # type: ignore[assignment]
+        except Exception:
+            pass
         try:
             space.shading.type = prev["shading"]
         except Exception:
@@ -574,7 +617,9 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
         enhance = bool(params.get("enhance", False))
         solid_wire = bool(params.get("solid_wire", False))
         color_type = params.get("color_type")
+        single_color = params.get("single_color")
         bg = params.get("bg")
+        world_color = params.get("world_color")
         light_setup = params.get("light_setup")
     except Exception as e:  # noqa: BLE001
         raise ValueError(f"invalid parameters: {e}")
@@ -602,7 +647,9 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
         enhance=enhance,
         solid_wire=solid_wire,
         color_type=color_type,
+        single_color=single_color,
         bg=bg,
+        world_color=world_color,
         light_setup=light_setup,
     )
 
