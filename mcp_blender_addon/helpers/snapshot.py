@@ -245,18 +245,11 @@ def capture_view(
         rnd.resolution_percentage = 100
         rnd.filepath = tmp_path
 
-        # Context override to ensure viewport render uses this 3D View
-        override = {
-            "window": win,
-            "screen": handle.screen,
-            "area": area,
-            "region": region,
-            "space_data": space,
-            "scene": scene,
-        }
-
-        # Perform viewport render (allowed bpy.ops usage)
-        res = bpy.ops.render.render(override, write_still=True, use_viewport=True)
+        # Ensure operator executes in the intended View3D by using temp_override (Blender 4.5+)
+        # Avoid passing a dict override directly to bpy.ops, which is no longer supported.
+        with bpy.context.temp_override(window=win, screen=handle.screen, area=area, region=region, space_data=space, scene=scene):
+            # Perform viewport render (allowed bpy.ops usage)
+            res = bpy.ops.render.render(write_still=True, use_viewport=True)
         if res not in {{"FINISHED"}}:
             log.info("Viewport render returned: %s", res)
 
