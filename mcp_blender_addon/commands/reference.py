@@ -638,10 +638,50 @@ def outline_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
     if w <= 0 or h <= 0:
         raise ValueError("invalid image dimensions")
 
-    # Build alpha mask
+    # Build mask from alpha; if alpha is uniform (fully opaque or fully transparent),
+    # fall back to luminance-based mask where ink = (1 - luminance) >= threshold.
     pix = list(img.pixels)
     alphas = [pix[i + 3] for i in range(0, 4 * w * h, 4)]
-    mask = [1 if a >= threshold else 0 for a in alphas]
+    a_min = min(alphas)
+    a_max = max(alphas)
+    alpha_uniform = (a_max - a_min) <= 1e-6
+
+    def build_mask_from_alpha(thr: float) -> list[int]:
+        return [1 if a >= thr else 0 for a in alphas]
+
+    def build_mask_from_luma(thr: float) -> list[int]:
+        mask_l: list[int] = []
+        # luminance per Rec. 709
+        for i in range(0, 4 * w * h, 4):
+            r = pix[i]
+            g = pix[i + 1]
+            b = pix[i + 2]
+            lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            ink = (1.0 - lum) >= thr
+            mask_l.append(1 if ink else 0)
+        return mask_l
+
+    mask = build_mask_from_alpha(threshold)
+    # If alpha is uniform or mask is empty/full (no edges), try luminance fallback.
+    ones = sum(mask)
+    if alpha_uniform or ones == 0 or ones == (w * h):
+        # Try luminance with adaptive relaxation if needed
+        tried = []
+        for factor in (1.0, 0.85, 0.7, 0.5, 0.35, 0.25):
+            thr_try = max(0.01, min(0.99, threshold * factor))
+            tried.append(thr_try)
+            mask_try = build_mask_from_luma(thr_try)
+            ones_try = sum(mask_try)
+            if 0 < ones_try < (w * h):
+                mask = mask_try
+                threshold = thr_try
+                break
+        else:
+            # As a last resort, accept a very small silhouette if present
+            mask_try = build_mask_from_luma(0.2)
+            if sum(mask_try) > 0:
+                mask = mask_try
+            # Otherwise proceed; marching squares will fail and raise a clear error below
 
     # Marching squares: generate segments
     def pt_key(x: float, y: float) -> tuple[int, int]:
