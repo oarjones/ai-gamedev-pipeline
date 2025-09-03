@@ -77,6 +77,64 @@ def _find_view3d() -> Optional[_View3DHandle]:
     return None
 
 
+def _scene_bbox_world() -> tuple[Vector, Vector] | None:
+    if bpy is None or Vector is None:
+        return None
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = []
+    for obj in getattr(bpy.context.view_layer, "objects", []):
+        try:
+            if obj.type != "MESH":
+                continue
+            for c in obj.bound_box:
+                co = obj.matrix_world @ Vector((c[0], c[1], c[2]))
+                xs.append(float(co.x))
+                ys.append(float(co.y))
+                zs.append(float(co.z))
+        except Exception:
+            pass
+    if not xs:
+        return None
+    return Vector((min(xs), min(ys), min(zs))), Vector((max(xs), max(ys), max(zs)))
+
+
+def _active_or_scene_center() -> Vector:
+    if bpy is None or Vector is None:
+        return Vector((0.0, 0.0, 0.0))
+    try:
+        obj = bpy.context.view_layer.objects.active  # type: ignore[attr-defined]
+        if obj is not None:
+            mnmx = _scene_bbox_world() if obj.type != "MESH" else None
+            if obj.type == "MESH":
+                bb = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+                cx = sum(v.x for v in bb) / 8.0
+                cy = sum(v.y for v in bb) / 8.0
+                cz = sum(v.z for v in bb) / 8.0
+                return Vector((cx, cy, cz))
+            elif mnmx:
+                mn, mx = mnmx
+                return (mn + mx) * 0.5
+    except Exception:
+        pass
+    mnmx = _scene_bbox_world()
+    if mnmx:
+        mn, mx = mnmx
+        return (mn + mx) * 0.5
+    return Vector((0.0, 0.0, 0.0))
+
+
+def _ensure_camera(name: str = "MCP_SNAPSHOT_CAM"):
+    if bpy is None:
+        return None
+    cam = bpy.data.objects.get(name)
+    if cam is None:
+        cam_data = bpy.data.cameras.new(name)
+        cam = bpy.data.objects.new(name, cam_data)
+        (bpy.context.collection or bpy.context.scene.collection).objects.link(cam)
+    return cam
+
+
 def _orientation_quaternion(view: str) -> Matrix:
     """Compute a rotation matrix for the requested view.
 
@@ -186,10 +244,9 @@ def capture_view(
     _validate_inputs(view, perspective, width, height, shading)
 
     handle = _find_view3d()
-    if handle is None:
-        raise RuntimeError("No VIEW_3D area/region available for snapshot")
-
-    win, area, region, space, r3d = handle.window, handle.area, handle.region, handle.space, handle.r3d
+    win = area = region = space = r3d = None  # type: ignore
+    if handle is not None:
+        win, area, region, space, r3d = handle.window, handle.area, handle.region, handle.space, handle.r3d
 
     # Preserve state to restore after snapshot
     prev = {
@@ -245,13 +302,96 @@ def capture_view(
         rnd.resolution_percentage = 100
         rnd.filepath = tmp_path
 
-        # Ensure operator executes in the intended View3D by using temp_override (Blender 4.5+)
-        # Avoid passing a dict override directly to bpy.ops, which is no longer supported.
-        with bpy.context.temp_override(window=win, screen=handle.screen, area=area, region=region, space_data=space, scene=scene):
-            # Perform viewport render (allowed bpy.ops usage)
-            res = bpy.ops.render.render(write_still=True, use_viewport=True)
-        if res not in {{"FINISHED"}}:
-            log.info("Viewport render returned: %s", res)
+        ok = False
+        # Try viewport render path if we have a View3D
+        if handle is not None and win and area and region and space:
+            try:
+                with bpy.context.temp_override(window=win, screen=handle.screen, area=area, region=region, space_data=space, scene=scene):
+                    res = bpy.ops.render.render(write_still=True, use_viewport=True)
+                if res in {"FINISHED"}:
+                    ok = True
+                else:
+                    log.info("Viewport render returned: %s", res)
+            except Exception as e:
+                log.info("Viewport render failed, will fallback to camera: %s", e)
+
+        if not ok:
+            # Fallback: create/position a temporary camera and render from it
+            cam = _ensure_camera()
+            if cam is None:
+                raise RuntimeError("No camera and failed to create one")
+
+            # Configure camera type
+            try:
+                cam.data.type = 'PERSP' if perspective else 'ORTHO'  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+            # Determine target and framing size
+            tgt = _active_or_scene_center()
+            bb = _scene_bbox_world()
+            if bb is not None:
+                mn, mx = bb
+                size_x = max(0.1, float(mx.x - mn.x))
+                size_y = max(0.1, float(mx.y - mn.y))
+                size_z = max(0.1, float(mx.z - mn.z))
+                size = max(size_x, size_y, size_z)
+            else:
+                size_x = size_y = size_z = size = 1.0
+
+            # View direction and up from requested view
+            from mathutils import Vector as _V  # type: ignore
+            v = view.lower()
+            if v == "front":
+                f = _V((0.0, -1.0, 0.0))
+                up = _V((0.0, 0.0, 1.0))
+            elif v == "back":
+                f = _V((0.0, 1.0, 0.0))
+                up = _V((0.0, 0.0, 1.0))
+            elif v == "right":
+                f = _V((1.0, 0.0, 0.0))
+                up = _V((0.0, 0.0, 1.0))
+            elif v == "left":
+                f = _V((-1.0, 0.0, 0.0))
+                up = _V((0.0, 0.0, 1.0))
+            elif v == "top":
+                f = _V((0.0, 0.0, -1.0))
+                up = _V((0.0, -1.0, 0.0))
+            elif v == "bottom":
+                f = _V((0.0, 0.0, 1.0))
+                up = _V((0.0, -1.0, 0.0))
+            else:  # iso
+                f = _V((1.0, -1.0, -1.0)).normalized()
+                up = _V((0.0, 0.0, 1.0))
+
+            # Position camera
+            if perspective:
+                # Place at a distance that likely frames the scene
+                dist = float(size) * 3.0
+            else:
+                dist = float(size) * 2.0
+                try:
+                    cam.data.ortho_scale = max(size_x, size_y) * 1.2  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            loc = tgt - f.normalized() * dist
+            cam.location = (float(loc.x), float(loc.y), float(loc.z))
+
+            # Aim camera: camera looks along -Z, with Y as up
+            try:
+                quat = (tgt - cam.location).to_track_quat('-Z', 'Y')  # type: ignore[attr-defined]
+                cam.rotation_euler = quat.to_euler()
+            except Exception:
+                pass
+
+            # Set as scene camera and render
+            try:
+                scene.camera = cam  # type: ignore[assignment]
+            except Exception:
+                pass
+            res = bpy.ops.render.render(write_still=True)
+            if res not in {"FINISHED"}:
+                log.info("Camera render returned: %s", res)
 
         # Verify file was created
         if os.path.exists(tmp_path):
