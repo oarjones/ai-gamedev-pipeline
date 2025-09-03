@@ -114,9 +114,9 @@ def run() -> int:
 
     # 3) Setup blueprints using templates
     troot = _templates_root()
-    img_front = os.path.join(troot, "front.png")
-    img_left = os.path.join(troot, "left.png")
-    img_top = os.path.join(troot, "top.png")
+    img_front = os.path.join(troot, "blueprint_house_front.png")
+    img_left = os.path.join(troot, "blueprint_house_left.png")
+    img_top = os.path.join(troot, "blueprint_house_top.png")
     bps = _call(s, "ref.blueprints_setup", {"front": img_front, "left": img_left, "top": img_top, "size": 2.0, "opacity": 0.5, "lock": True})
     assert bps.get("status") == "ok", bps
 
