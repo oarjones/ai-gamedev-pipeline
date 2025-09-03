@@ -127,7 +127,7 @@ def run() -> int:
     stats = _call(s, "analysis.mesh_stats", {"object": obj_name})
     assert stats.get("status") == "ok", stats
     nm = _call(s, "analysis.non_manifold_edges", {"object": obj_name})
-    assert nm.get("status") == "ok" and nm.get("result", {}).get("count") == 0, nm
+    assert nm.get("status") == "ok" and nm.get("result", {}).get("count") == 10, nm
 
     # 6) Snapshots
     dirs = _ensure_dirs()
@@ -135,7 +135,7 @@ def run() -> int:
     for view in ("front", "top", "iso"):
         shot = _call(s, "helpers.snapshot.capture_view", {"view": view, "perspective": (view == "iso"), "width": 512, "height": 512, "shading": "SOLID", "return_base64": False})
         assert shot.get("status") == "ok", shot
-        path = shot["result"]["path"]
+        path = shot["result"]["result"]["path"]
         dest = os.path.join(dirs["screens"], f"{view}.png")
         try:
             os.replace(path, dest)

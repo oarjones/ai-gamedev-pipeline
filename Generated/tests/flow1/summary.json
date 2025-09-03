@@ -1,0 +1,26 @@
+{
+  "object": "Flow1Cube",
+  "counts": {
+    "verts": 142,
+    "edges": 244,
+    "faces": 106,
+    "tris": 2,
+    "quads": 74,
+    "ngons": 30
+  },
+  "surface": {
+    "area": 6.030749207797271,
+    "volume": null
+  },
+  "edge_length": {
+    "min": 0.007145696464775094,
+    "max": 0.3461702068601176,
+    "p01": 0.007145712438229615,
+    "p99": 0.3461701853372347
+  },
+  "screens": {
+    "front": "Generated\\tests\\flow1\\screens\\front.png",
+    "top": "Generated\\tests\\flow1\\screens\\top.png",
+    "iso": "Generated\\tests\\flow1\\screens\\iso.png"
+  }
+}
