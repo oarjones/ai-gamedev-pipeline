@@ -32,6 +32,8 @@ VALID_VIEWS = {
     "iso",
 }
 VALID_SHADING = {"SOLID", "MATERIAL"}
+VALID_COLOR_TYPES = {"MATERIAL", "OBJECT", "SINGLE", "RANDOM"}
+VALID_BG = {"WORLD", "THEME"}
 
 
 @dataclass
@@ -223,6 +225,11 @@ def capture_view(
     return_base64: bool = True,
     *,
     overlay_wireframe: bool = False,
+    enhance: bool = False,
+    solid_wire: bool = False,
+    color_type: str | None = None,
+    bg: str | None = None,
+    light_setup: str | None = None,
 ) -> Dict[str, Any]:
     """Capture a PNG snapshot of the active 3D Viewport.
 
@@ -242,6 +249,10 @@ def capture_view(
         raise RuntimeError("Blender API not available")
 
     _validate_inputs(view, perspective, width, height, shading)
+    if color_type is not None and str(color_type).upper() not in VALID_COLOR_TYPES:
+        raise ValueError(f"invalid color_type: {color_type}; must be one of {sorted(VALID_COLOR_TYPES)}")
+    if bg is not None and str(bg).upper() not in VALID_BG:
+        raise ValueError(f"invalid bg: {bg}; must be one of {sorted(VALID_BG)}")
 
     handle = _find_view3d()
     win = area = region = space = r3d = None  # type: ignore
@@ -289,9 +300,41 @@ def capture_view(
         except Exception:
             pass
         try:
-            space.overlay.show_wireframes = bool(overlay_wireframe)
+            space.overlay.show_wireframes = bool(overlay_wireframe or solid_wire)
         except Exception:
             pass
+        if enhance:
+            # Apply richer viewport shading where available
+            try:
+                space.shading.light = 'STUDIO'  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                space.shading.show_cavity = True  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                space.shading.cavity_type = 'BOTH'  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                space.shading.show_shadows = True  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                space.shading.show_object_outline = True  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            if color_type is not None:
+                try:
+                    space.shading.color_type = str(color_type).upper()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            if bg is not None:
+                try:
+                    space.shading.background_type = str(bg).upper()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
 
         # Scene render settings for exact output size
         scene = bpy.context.scene
@@ -384,6 +427,35 @@ def capture_view(
             except Exception:
                 pass
 
+            # Optional: create a SUN light for better results
+            created_sun = None
+            try:
+                if enhance and (not light_setup or light_setup.lower() != 'none'):
+                    sun = bpy.data.objects.get("MCP_SNAPSHOT_SUN")
+                    if sun is None:
+                        sun_data = bpy.data.lights.new("MCP_SNAPSHOT_SUN", type='SUN')  # type: ignore[attr-defined]
+                        sun = bpy.data.objects.new("MCP_SNAPSHOT_SUN", sun_data)
+                        (bpy.context.collection or bpy.context.scene.collection).objects.link(sun)
+                        created_sun = sun
+                    # Orient sun similar to camera but offset to create nicer shading
+                    try:
+                        off = (tgt - cam.location).cross(up).normalized() * (0.25 * float(size))
+                    except Exception:
+                        off = _V((0.0, 0.0, 0.0))
+                    sun.location = (float(tgt.x + off.x), float(tgt.y + off.y), float(tgt.z + off.z))
+                    try:
+                        quat_sun = (tgt - sun.location).to_track_quat('-Z', 'Y')  # type: ignore[attr-defined]
+                        sun.rotation_euler = quat_sun.to_euler()
+                    except Exception:
+                        pass
+                    try:
+                        sun.data.energy = 3.0  # type: ignore[attr-defined]
+                        sun.data.angle = 0.2  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+            except Exception:
+                created_sun = None
+
             # Set as scene camera and render
             try:
                 scene.camera = cam  # type: ignore[assignment]
@@ -392,6 +464,14 @@ def capture_view(
             res = bpy.ops.render.render(write_still=True)
             if res not in {"FINISHED"}:
                 log.info("Camera render returned: %s", res)
+            # Cleanup temporary sun
+            if created_sun is not None:
+                try:
+                    for coll in list(created_sun.users_collection):
+                        coll.objects.unlink(created_sun)
+                    bpy.data.objects.remove(created_sun, do_unlink=True)
+                except Exception:
+                    pass
 
         # Verify file was created
         if os.path.exists(tmp_path):
@@ -471,6 +551,11 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
       - shading: "SOLID" | "MATERIAL" (default SOLID)
       - return_base64: bool (default True)
       - overlay_wireframe: bool (default False)
+      - enhance: bool (default False) – richer viewport shading and optional light when falling back to camera
+      - solid_wire: bool (default False) – SOLID with wire overlay + outlines
+      - color_type: MATERIAL|OBJECT|SINGLE|RANDOM (optional)
+      - bg: WORLD|THEME (optional, viewport only)
+      - light_setup: 'none'|'sun' (optional; with enhance uses 'sun' by default)
 
     Returns: { path, width, height, view, perspective, shading, overlay_wireframe, size_bytes, base64? }
     """
@@ -486,6 +571,11 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
         shading = str(params.get("shading", "SOLID")).upper()
         return_base64 = bool(params.get("return_base64", True))
         overlay_wireframe = bool(params.get("overlay_wireframe", False))
+        enhance = bool(params.get("enhance", False))
+        solid_wire = bool(params.get("solid_wire", False))
+        color_type = params.get("color_type")
+        bg = params.get("bg")
+        light_setup = params.get("light_setup")
     except Exception as e:  # noqa: BLE001
         raise ValueError(f"invalid parameters: {e}")
 
@@ -500,6 +590,20 @@ def capture_view_cmd(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, A
         height,
         shading,
         overlay_wireframe,
+    )
+    return capture_view(
+        view=view,
+        perspective=perspective,
+        width=width,
+        height=height,
+        shading=shading,
+        return_base64=return_base64,
+        overlay_wireframe=overlay_wireframe,
+        enhance=enhance,
+        solid_wire=solid_wire,
+        color_type=color_type,
+        bg=bg,
+        light_setup=light_setup,
     )
 
     return capture_view(

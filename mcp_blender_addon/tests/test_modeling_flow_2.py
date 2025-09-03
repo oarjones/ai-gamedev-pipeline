@@ -141,7 +141,22 @@ def run() -> int:
     dirs = _ensure_dirs()
     shots: Dict[str, str] = {}
     for view, persp in (("front", False), ("left", False), ("top", False), ("iso", True)):
-        shot = _call(s, "helpers.snapshot.capture_view", {"view": view, "perspective": persp, "width": 512, "height": 512, "shading": "SOLID", "return_base64": False})
+        shot = _call(
+            s,
+            "helpers.snapshot.capture_view",
+            {
+                "view": view,
+                "perspective": persp,
+                "width": 768 if view == "iso" else 640,
+                "height": 768 if view == "iso" else 640,
+                "shading": "SOLID",
+                "solid_wire": True,
+                "enhance": True,
+                "color_type": "MATERIAL",
+                "bg": "WORLD",
+                "return_base64": False,
+            },
+        )
         assert shot.get("status") == "ok", shot
         path = shot["result"]["path"]
         dest = os.path.join(dirs["screens"], f"{view}.png")
