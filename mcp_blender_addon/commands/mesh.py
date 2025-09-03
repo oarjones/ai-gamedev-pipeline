@@ -317,9 +317,9 @@ def from_points(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
         try:
             if created_mesh and me is not None and me.users == 0:
                 bpy.data.meshes.remove(me)
-    except Exception:
-        pass
-        raise
+        except Exception:
+            pass
+            raise
 
 
 @command("mesh.validate_and_heal")
