@@ -55,12 +55,32 @@ def _get_blueprint_empty(view: str) -> Optional[Any]:
     return bpy.data.objects.get(name)
 
 
+# reference.py
 def _load_image(path: str):
     p = os.path.abspath(os.path.expanduser(path))
     if not os.path.exists(p):
         raise ValueError(f"image not found: {p}")
+
+    # Extraer el nombre base del archivo para buscar en bpy.data.images
+    image_name = os.path.basename(p)
+
+    # Buscar si una imagen con este nombre ya existe en Blender
+    existing_image = bpy.data.images.get(image_name)
+
+    # Si existe y su ruta original coincide, forzar su recarga desde el disco
+    if existing_image and existing_image.filepath == p:
+        try:
+            existing_image.reload()
+            log.info("Reloaded existing image from disk: %s", image_name)
+            return existing_image
+        except Exception as e:
+            # Si la recarga falla, se intentará cargar como una nueva imagen
+            log.warning("Failed to reload image '%s', will try loading it fresh. Error: %s", image_name, e)
+    
+    # Si no existe, o la recarga falló, cargarla de forma normal
     try:
-        return bpy.data.images.load(p, check_existing=True)
+        log.info("Loading new image from disk: %s", image_name)
+        return bpy.data.images.load(p, check_existing=False)
     except Exception as e:
         raise ValueError(f"failed to load image: {e}")
 
@@ -985,7 +1005,7 @@ def reconstruct_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[
 
     # --- Fallback tunables (opcionales) ---
     fallback_mode = str(params.get("fallback_mode", "auto")).lower()   # auto|alpha|bg|luma|none
-    fallback_threshold = params.get("fallback_threshold", None)        # None => auto (Otsu) en outline_from_image
+    fallback_threshold = params.get("fallback_threshold", threshold)   # None => auto (Otsu) en outline_from_image
     bg_color = params.get("bg_color", None)                            # [r,g,b] 0..1 o None
     invert_luma = bool(params.get("invert_luma", False))               # invierte luminancia si te interesa
 
