@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 
 try:
     import bpy  # type: ignore
@@ -612,6 +612,110 @@ def _poly_area(points: list[tuple[float, float]]) -> float:
     return 0.5 * a
 
 
+def _auto_otsu_threshold(values: "np.ndarray") -> float:
+    """
+    Umbral automático (Otsu) sobre array normalizado [0..1].
+    Evita “threshold too high/low” cuando la imagen no trae alpha usable.
+    """
+    import numpy as np
+    hist, bins = np.histogram(values.ravel(), bins=256, range=(0.0, 1.0))
+    hist = hist.astype(np.float64)
+    total = values.size
+    cumulative = np.cumsum(hist)
+    cumulative_mean = np.cumsum(hist * np.linspace(0, 1, 256))
+    global_mean = cumulative_mean[-1]
+    # Varianza entre clases
+    numerator = (global_mean * cumulative - cumulative_mean) ** 2
+    denominator = cumulative * (total - cumulative)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        sigma_b2 = numerator / np.maximum(denominator, 1e-12)
+    k = int(np.nanargmax(sigma_b2))
+    return k / 255.0
+
+def _extract_binary_mask_any(image_path: str,
+                             mode: str = "auto",
+                             threshold: Optional[float] = None,
+                             bg_color: Optional[Tuple[float, float, float]] = None,
+                             invert_luma: bool = False) -> "np.ndarray":
+    """
+    Devuelve una máscara binaria uint8 (0/1) a partir de:
+      - alpha real (si existe y varía)
+      - distancia al color de fondo (bg key)
+      - luma (grayscale) con umbral automático si no se indica threshold
+    """
+    from PIL import Image
+    import numpy as np
+
+    im = Image.open(image_path)
+    # Aseguramos RGBA para poder leer alpha aunque sea sintético (255)
+    im_rgba = im.convert("RGBA")
+    arr = np.array(im_rgba).astype(np.float32) / 255.0  # HxWx4
+    rgb = arr[..., :3]
+    alpha = arr[..., 3]
+
+    def has_useful_alpha(a: "np.ndarray") -> bool:
+        # alpha “útil” si no es todo 0/1 y presenta variación apreciable
+        return (a.min() < 0.99) and (a.max() > 0.01) and ((a.max() - a.min()) > 0.02)
+
+    # 1) ALPHA
+    if mode in ("auto", "alpha"):
+        if has_useful_alpha(alpha):
+            thr = (threshold if threshold is not None else _auto_otsu_threshold(alpha))
+            return (alpha > thr).astype(np.uint8)
+        if mode == "alpha":
+            # El usuario pidió explícitamente alpha; fallamos con mensaje claro
+            raise ValueError("no outline detected (no useful alpha)")
+
+    # 2) BG KEY por color de fondo
+    if mode in ("auto", "bg"):
+        if bg_color is None:
+            # Estimación robusta: media de las 4 esquinas
+            corners = np.vstack([
+                rgb[0, 0], rgb[0, -1],
+                rgb[-1, 0], rgb[-1, -1]
+            ])
+            bg = corners.mean(axis=0)
+        else:
+            bg = np.array(bg_color, dtype=np.float32)
+        dist = np.linalg.norm(rgb - bg[None, None, :], axis=-1)  # HxW
+        thr = (threshold if threshold is not None else 0.5 * np.quantile(dist, 0.90))
+        mask = (dist > max(thr, 1e-3)).astype(np.uint8)
+        if mask.sum() > 0:
+            return mask
+        # si no funciona, caemos a luma
+
+    # 3) LUMA (grayscale)
+    if mode in ("auto", "luma"):
+        luma = (0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2])
+        if invert_luma:
+            luma = 1.0 - luma
+        thr = (threshold if threshold is not None else _auto_otsu_threshold(luma))
+        mask = (luma > thr).astype(np.uint8)
+        if mask.sum() > 0:
+            return mask
+
+    raise ValueError("no outline detected (empty or threshold too high)")
+
+def _outline_from_binary_mask(mask: "np.ndarray"):
+    """
+    Reutiliza el pipeline existente: convertimos la máscara binaria en borde.
+    Si ya tienes una función equivalente, usa esa. Aquí hacemos borde por gradiente.
+    """
+    import numpy as np
+    # Borde: píxeles que tocan fondo
+    pad = np.pad(mask, 1, mode="constant")
+    neigh_sum = (
+        pad[ :-2, 1:-1] + pad[2:  , 1:-1] +
+        pad[1:-1,  :-2] + pad[1:-1, 2:  ] +
+        pad[ :-2,  :-2] + pad[2:  , 2:  ] +
+        pad[ :-2, 2:  ] + pad[2:  ,  :-2]
+    )
+    edge = (mask == 1) & (neigh_sum < 8)
+    # Devuelve índices de borde; adapta aquí si tu API espera otro formato
+    ys, xs = np.nonzero(edge)
+    return {"edge_coords": list(zip(xs.tolist(), ys.tolist()))}
+
+
 @command("reference.outline_from_alpha")
 @tool
 def outline_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -803,14 +907,54 @@ def outline_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
     return {"points2d": points2d, "width": int(w), "height": int(h), "scale_hint": float(scale_hint)}
 
 
+@command("reference.outline_from_image")
+@tool()
+def outline_from_image(image_path: str,
+                       mode: str = "auto",
+                       threshold: Optional[float] = None,
+                       bg_color: Optional[List[float]] = None,
+                       invert_luma: bool = False):
+    """
+    NUEVO: genera outline desde cualquier imagen, incluso sin alpha.
+    mode: "auto" | "alpha" | "bg" | "luma"
+    threshold: None => auto (Otsu)
+    """
+    mask = _extract_binary_mask_any(image_path, mode=mode, threshold=threshold,
+                                    bg_color=tuple(bg_color) if bg_color else None,
+                                    invert_luma=invert_luma)
+    outline = _outline_from_binary_mask(mask)
+    return {"status": "ok", "tool": "outline_from_image", **outline}
+
+@command("reference.reconstruct_from_image")
+@tool()
+def reconstruct_from_image(image_path: str,
+                           mode: str = "auto",
+                           threshold: Optional[float] = None,
+                           bg_color: Optional[List[float]] = None,
+                           invert_luma: bool = False,
+                           **kwargs):
+    """
+    NUEVO: igual que reconstruct_from_alpha pero tolerante a imágenes sin alpha.
+    Internamente llama a outline_from_image y sigue el pipeline existente.
+    """
+    o = outline_from_image(image_path=image_path, mode=mode,
+                           threshold=threshold, bg_color=bg_color,
+                           invert_luma=invert_luma)
+    if o.get("status") != "ok":
+        raise RuntimeError(f"outline_from_image failed: {o}")
+    # ↓ aquí mantén tu reconstrucción original (lo que ya hacías con el outline)
+    return {"status": "ok", "tool": "reconstruct_from_image", "outline": o}
+
+
 @command("reference.reconstruct_from_alpha")
 @tool
 def reconstruct_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Reconstruct an extruded mesh from an image's alpha silhouette.
+    """Reconstruct an extruded mesh from an image's silhouette.
 
     Steps:
-      1) Extract outline via reference.outline_from_alpha (marching squares + simplify).
-      2) Build mesh via mesh.poly_extrude_from_outline using view/thickness.
+      1) Try outline via reference.outline_from_alpha (marching squares + simplify).
+      2) If alpha is not useful or fails, fallback to reference.outline_from_image (auto).
+      3) Build mesh via mesh.poly_extrude_from_outline using view/thickness.
     """
     if bpy is None:
         raise RuntimeError("Blender API not available")
@@ -819,8 +963,14 @@ def reconstruct_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[
     image = str(params.get("image", ""))
     view = str(params.get("view", "front")).lower()
     thickness = float(params.get("thickness", 0.2))
-    threshold = float(params.get("threshold", 0.5))
+    threshold = float(params.get("threshold", 0.5))  # alpha threshold
     simplify_tol = float(params.get("simplify_tol", 2.0))
+
+    # --- Fallback tunables (opcionales) ---
+    fallback_mode = str(params.get("fallback_mode", "auto")).lower()   # auto|alpha|bg|luma|none
+    fallback_threshold = params.get("fallback_threshold", None)        # None => auto (Otsu) en outline_from_image
+    bg_color = params.get("bg_color", None)                            # [r,g,b] 0..1 o None
+    invert_luma = bool(params.get("invert_luma", False))               # invierte luminancia si te interesa
 
     if not image:
         raise ValueError("image path is required")
@@ -830,17 +980,57 @@ def reconstruct_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[
     simplify_tol = max(0.0, min(1e6, simplify_tol))
     thickness = float(max(1e-5, min(1e4, abs(thickness))))
 
-    # 1) Outline extraction
-    o = outline_from_alpha(ctx, {"image": image, "threshold": threshold, "simplify_tol": simplify_tol})
-    if o.get("status") != "ok":  # type: ignore[union-attr]
-        # Bubble up error
-        raise RuntimeError(f"outline_from_alpha failed: {o}")
-    out = o["result"]  # type: ignore[index]
-    points2d = out.get("points2d", [])
-    if not isinstance(points2d, list) or len(points2d) < 3:
+    def _extract_points2d(resp: Dict[str, Any]) -> List[List[float]]:
+        """Toma una respuesta de outline_* y devuelve una lista válida de points2d o []."""
+        if not isinstance(resp, dict) or resp.get("status") != "ok":
+            return []
+        # En nuestra API los datos vienen debajo de "result"
+        res = resp.get("result") if "result" in resp else resp
+        pts = res.get("points2d")
+        return pts if isinstance(pts, list) and len(pts) >= 3 else []
+
+    # --- 1) Outline vía ALPHA ---
+    points2d: List[List[float]] = []
+    alpha_resp: Dict[str, Any]
+    try:
+        alpha_resp = outline_from_alpha(
+            ctx,
+            {"image": image, "threshold": threshold, "simplify_tol": simplify_tol},
+        )
+        points2d = _extract_points2d(alpha_resp)
+        if not points2d:
+            log.warning("outline_from_alpha returned no usable outline; attempting fallback '%s'", fallback_mode)
+    except Exception as e:
+        log.warning("outline_from_alpha raised %s; attempting fallback '%s'", repr(e), fallback_mode)
+        alpha_resp = {"status": "error", "message": str(e)}
+
+    # --- 1b) Fallback tolerante si hace falta ---
+    if (not points2d) and fallback_mode and fallback_mode != "none":
+        try:
+            fb_resp = outline_from_image(
+                ctx,
+                {
+                    "image": image,
+                    "mode": fallback_mode,            # "auto" | "alpha" | "bg" | "luma"
+                    "threshold": fallback_threshold,  # None => Otsu
+                    "bg_color": bg_color,             # opcional
+                    "invert_luma": invert_luma,       # opcional
+                    "simplify_tol": simplify_tol,
+                },
+            )
+        except Exception as e:
+            fb_resp = {"status": "error", "message": str(e)}
+            log.error("outline_from_image fallback failed: %s", repr(e))
+
+        points2d = _extract_points2d(fb_resp)
+        if not points2d:
+            # Reporta claramente ambos caminos para depurar rápido
+            raise RuntimeError(f"outline extraction failed; alpha={alpha_resp} fallback={fb_resp}")
+
+    if not points2d:
         raise ValueError("outline extraction yielded insufficient points")
 
-    # 2) Mesh extrusion
+    # --- 2) Extrusión del mesh ---
     from .mesh import poly_extrude_from_outline  # local import to avoid cycles
 
     res = poly_extrude_from_outline(
@@ -859,13 +1049,14 @@ def reconstruct_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[
     obj_name = res["result"]["object_name"]  # type: ignore[index]
 
     log.info(
-        "reconstruct_from_alpha img=%s view=%s thr=%.2f simp=%.2f pts=%d -> obj=%s",
+        "reconstruct_from_alpha img=%s view=%s thr=%.2f simp=%.2f pts=%d -> obj=%s (fallback=%s)",
         os.path.basename(image),
         view,
         threshold,
         simplify_tol,
         len(points2d),
         obj_name,
+        fallback_mode,
     )
 
     return {"object_name": obj_name, "points_used": int(len(points2d))}
