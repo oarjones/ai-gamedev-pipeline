@@ -129,7 +129,7 @@ def run() -> int:
     assert snap.get("status") == "ok", snap
 
     # 6) Reconstruct from alpha (left) and boolean union
-    rec = _call(s, "reference.reconstruct_from_alpha", {"name": "Flow2FromAlpha", "image": img_left, "view": "left", "thickness": 0.15, "threshold": 0.5, "simplify_tol": 2.0})
+    rec = _call(s, "reference.reconstruct_from_alpha", {"name": "Flow2FromAlpha", "image": img_left, "view": "left", "thickness": 0.15, "threshold": 0.5, "simplify_tol": 2.0, "invert_luma": True})
     assert rec.get("status") == "ok", rec
     new_obj = rec.get("result", {}).get("object_name")
     m = _call(s, "mod.add_boolean", {"object": obj_name, "operation": "UNION", "operand_object": new_obj})
