@@ -24,8 +24,9 @@ def command(name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         raise ValueError("command name must be 'namespace.action'")
 
     def _decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        # Idempotent registration: warn and replace existing handler
         if name in COMMANDS:
-            raise ValueError(f"duplicate command registration: {name}")
+            log.warning("duplicate command registration: %s (replacing)", name)
         COMMANDS[name] = fn  # type: ignore[assignment]
         log.info("Registered command: %s", name)
         return fn
@@ -63,3 +64,16 @@ def tool(fn: Callable[..., Any]) -> Callable[..., Dict[str, Any]]:
 def get(name: str) -> Optional[Callable[[Any, Dict[str, Any]], Dict[str, Any]]]:
     """Fetch a registered command by name, or None if not found."""
     return COMMANDS.get(name)
+
+
+def reset_commands() -> None:
+    """Clear the global command registry.
+
+    Useful when Blender reloads the add-on to avoid duplicate registrations.
+    """
+    try:
+        COMMANDS.clear()
+    except Exception:
+        # Be defensive; registry must end up empty on best effort
+        for k in list(COMMANDS.keys()):
+            COMMANDS.pop(k, None)

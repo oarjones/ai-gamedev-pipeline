@@ -908,38 +908,55 @@ def outline_from_alpha(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
 
 
 @command("reference.outline_from_image")
-@tool()
-def outline_from_image(image_path: str,
-                       mode: str = "auto",
-                       threshold: Optional[float] = None,
-                       bg_color: Optional[List[float]] = None,
-                       invert_luma: bool = False):
+@tool
+def outline_from_image(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate outline from image, tolerant of missing alpha.
+
+    Params:
+      - image: path to image
+      - mode: "auto" | "alpha" | "bg" | "luma"
+      - threshold: None => auto (Otsu)
+      - bg_color: optional [r,g,b]
+      - invert_luma: bool
+      - simplify_tol: optional tolerance for simplification
     """
-    NUEVO: genera outline desde cualquier imagen, incluso sin alpha.
-    mode: "auto" | "alpha" | "bg" | "luma"
-    threshold: None => auto (Otsu)
-    """
-    mask = _extract_binary_mask_any(image_path, mode=mode, threshold=threshold,
-                                    bg_color=tuple(bg_color) if bg_color else None,
-                                    invert_luma=invert_luma)
+    image_path = str(params.get("image", params.get("image_path", "")))
+    mode = str(params.get("mode", "auto"))
+    threshold = params.get("threshold", None)
+    bg_color = params.get("bg_color", None)
+    invert_luma = bool(params.get("invert_luma", False))
+    simplify_tol = float(params.get("simplify_tol", 0.0))
+
+    if not image_path:
+        raise ValueError("image path is required")
+
+    mask = _extract_binary_mask_any(
+        image_path,
+        mode=mode,
+        threshold=threshold,
+        bg_color=tuple(bg_color) if isinstance(bg_color, (list, tuple)) else None,
+        invert_luma=invert_luma,
+    )
     outline = _outline_from_binary_mask(mask)
+
+    # Optional simplification if provided
+    pts = outline.get("points2d") or []
+    if isinstance(pts, list) and simplify_tol > 0.0 and len(pts) >= 3:
+        try:
+            outline["points2d"] = _dp_simplify([(p[0], p[1]) for p in pts], simplify_tol)
+        except Exception:
+            pass
+
     return {"status": "ok", "tool": "outline_from_image", **outline}
 
 @command("reference.reconstruct_from_image")
-@tool()
-def reconstruct_from_image(image_path: str,
-                           mode: str = "auto",
-                           threshold: Optional[float] = None,
-                           bg_color: Optional[List[float]] = None,
-                           invert_luma: bool = False,
-                           **kwargs):
+@tool
+def reconstruct_from_image(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     NUEVO: igual que reconstruct_from_alpha pero tolerante a imágenes sin alpha.
     Internamente llama a outline_from_image y sigue el pipeline existente.
     """
-    o = outline_from_image(image_path=image_path, mode=mode,
-                           threshold=threshold, bg_color=bg_color,
-                           invert_luma=invert_luma)
+    o = outline_from_image(ctx, params)
     if o.get("status") != "ok":
         raise RuntimeError(f"outline_from_image failed: {o}")
     # ↓ aquí mantén tu reconstrucción original (lo que ya hacías con el outline)

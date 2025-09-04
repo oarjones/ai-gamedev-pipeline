@@ -28,6 +28,7 @@ except Exception:  # pragma: no cover - outside Blender
 
 from .server.logging import get_logger
 from .server.executor import Executor
+from .server.registry import reset_commands
 from . import websocket_server
 
 _log = get_logger(__name__)
@@ -45,6 +46,8 @@ def _ensure_singletons():
 
 def register():
     """Blender entry point when enabling the add-on."""
+    # Ensure a clean command registry on each (re)register to avoid duplicates
+    reset_commands()
     _ensure_singletons()
     assert _executor
 
@@ -70,6 +73,8 @@ def unregister():
             _unregister_ui()
         if _executor is not None:
             _executor.stop_pump()
+        # Clear command registry to leave a clean state
+        reset_commands()
 
 
 # --- Server control helpers ---
