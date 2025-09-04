@@ -69,10 +69,17 @@ echo Blender exe: "%BLENDER_EXE%"
 echo Reqs file  : "%REQ_FILE%"
 echo.
 
-REM --- 3) Obtener el Python embebido de Blender ---
+REM --- 3) Obtener el Python embebido de Blender (robusto con comillas) ---
 set "BPY="
-for /f "usebackq delims=" %%P in (`"%BLENDER_EXE%" -b --python-expr "import sys;print(sys.executable)"`) do (
+for /f "usebackq delims=" %%P in (`""%BLENDER_EXE%" -b --python-expr ^"import sys;print(sys.executable)^""`) do (
   set "BPY=%%P"
+)
+
+if not defined BPY (
+  echo [WARN] No se pudo leer por FOR/F. Probando fallback por redirección...
+  "%BLENDER_EXE%" -b --python-expr "import sys;print(sys.executable)" > "%TEMP%\bpy_path.txt"
+  set /p BPY=<"%TEMP%\bpy_path.txt"
+  del "%TEMP%\bpy_path.txt" 2>nul
 )
 
 if not defined BPY (
