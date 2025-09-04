@@ -1,67 +1,38 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal
 chcp 65001 >nul
 
 REM ============================================================
-REM  Install Blender Python deps from requirements-blender.txt
-REM  Usage:
-REM    install_blender_deps.bat [ruta\blender.exe] [ruta\requirements.txt]
-REM
-REM  Si no pasas argumentos, intenta autodetectar blender.exe y
-REM  busca requirements-blender.txt cerca del script.
+REM Install Blender Python deps from requirements-blender.txt
+REM Usage:
+REM   install_blender_deps.bat [ruta\blender.exe] [ruta\requirements.txt]
 REM ============================================================
 
 REM --- 1) Resolver blender.exe ---
-set "BLENDER_EXE="
-if not "%~1"=="" (
+if "%~1"=="" (
+  if exist "C:\Program Files\Blender Foundation\Blender 4.5\blender.exe" (
+    set "BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
+  ) else (
+    echo [ERROR] No se encontro blender.exe. Pasa la ruta como primer argumento.
+    exit /b 1
+  )
+) else (
   set "BLENDER_EXE=%~1"
 )
 
-if not defined BLENDER_EXE (
-  REM Ruta típica (Blender 4.5)
-  if exist "C:\Program Files\Blender Foundation\Blender 4.5\blender.exe" set "BLENDER_EXE=C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
-)
-
-if not defined BLENDER_EXE (
-  REM Ruta genérica (última instalada en esa carpeta)
-  if exist "C:\Program Files\Blender Foundation\Blender\blender.exe" set "BLENDER_EXE=C:\Program Files\Blender Foundation\Blender\blender.exe"
-)
-
-if not defined BLENDER_EXE (
-  REM Si blender está en PATH
-  for /f "delims=" %%B in ('where blender 2^>nul') do (
-    set "BLENDER_EXE=%%B"
-    goto :found_blender
+REM --- 2) Resolver requirements ---
+if "%~2"=="" (
+  set "SCRIPT_DIR=%~dp0"
+  if exist "%SCRIPT_DIR%requirements-blender.txt" (
+    set "REQ_FILE=%SCRIPT_DIR%requirements-blender.txt"
+  ) else if exist "%SCRIPT_DIR%..\mcp_blender_addon\requirements-blender.txt" (
+    set "REQ_FILE=%SCRIPT_DIR%..\mcp_blender_addon\requirements-blender.txt"
+  ) else (
+    echo [ERROR] No se encontro requirements-blender.txt. Pasa la ruta como segundo argumento.
+    exit /b 1
   )
-)
-
-:found_blender
-if not defined BLENDER_EXE (
-  echo [ERROR] No se ha podido localizar blender.exe
-  echo         Pasa la ruta como primer argumento, p. ej.:
-  echo         scripts\install_blender_deps.bat "C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
-  exit /b 1
-)
-
-REM --- 2) Resolver requirements.txt ---
-set "SCRIPT_DIR=%~dp0"
-set "REQ_FILE="
-
-if not "%~2"=="" (
-  set "REQ_FILE=%~2"
 ) else (
-  REM Busca primero junto al script
-  if exist "%SCRIPT_DIR%requirements-blender.txt" set "REQ_FILE=%SCRIPT_DIR%requirements-blender.txt"
-  REM Luego en mcp_blender_addon\
-  if not defined REQ_FILE if exist "%SCRIPT_DIR%..\mcp_blender_addon\requirements-blender.txt" set "REQ_FILE=%SCRIPT_DIR%..\mcp_blender_addon\requirements-blender.txt"
-  REM Por último en la raíz del repo
-  if not defined REQ_FILE if exist "%SCRIPT_DIR%..\requirements-blender.txt" set "REQ_FILE=%SCRIPT_DIR%..\requirements-blender.txt"
-)
-
-if not defined REQ_FILE (
-  echo [ERROR] No se encuentra requirements-blender.txt
-  echo         Pasa la ruta como segundo argumento o copia el archivo junto al .bat
-  exit /b 1
+  set "REQ_FILE=%~2"
 )
 
 echo.
@@ -69,33 +40,33 @@ echo Blender exe: "%BLENDER_EXE%"
 echo Reqs file  : "%REQ_FILE%"
 echo.
 
-REM --- 3) Obtener el Python embebido de Blender (robusto con comillas) ---
-set "BPY="
-for /f "usebackq delims=" %%P in (`""%BLENDER_EXE%" -b --python-expr ^"import sys;print(sys.executable)^""`) do (
-  set "BPY=%%P"
+if not exist "%BLENDER_EXE%" (
+  echo [ERROR] blender.exe no existe en "%BLENDER_EXE%"
+  exit /b 1
+)
+if not exist "%REQ_FILE%" (
+  echo [ERROR] requirements-blender.txt no existe en "%REQ_FILE%"
+  exit /b 1
 )
 
-if not defined BPY (
-  echo [WARN] No se pudo leer por FOR/F. Probando fallback por redirección...
-  "%BLENDER_EXE%" -b --python-expr "import sys;print(sys.executable)" > "%TEMP%\bpy_path.txt"
-  set /p BPY=<"%TEMP%\bpy_path.txt"
-  del "%TEMP%\bpy_path.txt" 2>nul
-)
+REM --- 3) Obtener Python embebido (sin FOR, usando fichero temporal) ---
+set "TMP_BPY=%TEMP%\bpy_path_%RANDOM%.txt"
+"%BLENDER_EXE%" -b --python-expr "import sys;print(sys.executable)" > "%TMP_BPY%" 2>nul
+set /p BPY=<"%TMP_BPY%"
+del "%TMP_BPY%" >nul 2>&1
 
 if not defined BPY (
-  echo [ERROR] No se pudo obtener el ejecutable de Python de Blender.
+  echo [ERROR] No se pudo determinar el ejecutable de Python de Blender.
   exit /b 1
 )
 
 echo Blender Python: "%BPY%"
 
-REM --- 4) ensurepip / upgrade pip toolchain ---
-"%BPY%" -m ensurepip --upgrade || (
-  echo [WARN ] ensurepip fallo; continuando...
-)
+REM --- 4) Herramientas de pip ---
+"%BPY%" -m ensurepip --upgrade
 "%BPY%" -m pip install --upgrade pip setuptools wheel || (
   echo [ERROR] No se pudo actualizar pip/setuptools/wheel.
-  echo         Prueba ejecutando esta ventana como Administrador.
+  echo        Prueba ejecutar este .bat como Administrador.
   exit /b 1
 )
 
@@ -106,24 +77,17 @@ echo Instalando dependencias desde requirements...
 if errorlevel 1 (
   echo.
   echo [ERROR] Fallo instalando dependencias en el Python de Blender.
-  echo         Si ves errores de permisos, vuelve a ejecutar este .bat como Administrador.
-  echo         Alternativa: instala en la carpeta de usuario:
-  echo         "%BPY%" -m pip install --target "%%APPDATA%%\Blender Foundation\Blender\4.5\scripts\modules" -r "%REQ_FILE%"
+  echo        Alternativa por-usuario (sin admin), ejemplo:
+  echo        "%BPY%" -m pip install --target "%%APPDATA%%\Blender Foundation\Blender\4.5\scripts\modules" -r "%REQ_FILE%"
   exit /b 1
 )
 
-REM --- 6) Mostrar version de Python y paquetes clave (opcional) ---
+REM --- 6) Verificacion rapida ---
 echo.
-"%BPY%" - <<PYCODE
-import sys, pkgutil
-print("Python:", sys.version)
-for mod in ("Pillow","numpy","websockets"):
-    try:
-        __import__(mod)
-        print(f"{mod}: OK")
-    except Exception as e:
-        print(f"{mod}: NO ({e})")
-PYCODE
+"%BPY%" -c "import sys; print('Python:', sys.version)"
+"%BPY%" -c "import PIL; import importlib; print('Pillow:', getattr(PIL,'__version__','OK'))" 2>nul || echo Pillow: NO
+"%BPY%" -c "import numpy, importlib; print('numpy:', numpy.__version__)" 2>nul || echo numpy: NO
+"%BPY%" -c "import websockets, importlib; print('websockets:', websockets.__version__)" 2>nul || echo websockets: NO
 
 echo.
 echo [OK] Dependencias instaladas correctamente en el entorno de Python de Blender.
