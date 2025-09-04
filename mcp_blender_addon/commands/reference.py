@@ -713,7 +713,7 @@ def _outline_from_binary_mask(mask: "np.ndarray"):
     edge = (mask == 1) & (neigh_sum < 8)
     # Devuelve índices de borde; adapta aquí si tu API espera otro formato
     ys, xs = np.nonzero(edge)
-    return {"edge_coords": list(zip(xs.tolist(), ys.tolist()))}
+    return {"points2d": list(zip(xs.tolist(), ys.tolist()))}
 
 
 @command("reference.outline_from_alpha")
