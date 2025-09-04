@@ -733,7 +733,44 @@ def _outline_from_binary_mask(mask: "np.ndarray"):
     edge = (mask == 1) & (neigh_sum < 8)
     # Devuelve índices de borde; adapta aquí si tu API espera otro formato
     ys, xs = np.nonzero(edge)
-    return {"points2d": list(zip(xs.tolist(), ys.tolist()))}
+
+    
+    if len(xs) > 0:
+        # Los puntos de np.nonzero no están ordenados. Hay que ordenarlos.
+        points_unordered = [[float(x), float(y)] for x, y in zip(xs.tolist(), ys.tolist())]
+        points_ordered = _sort_points_into_path(points_unordered)
+    else:
+        points_ordered = []
+        
+    return {"points2d": points_ordered}
+
+
+def _sort_points_into_path(points: List[List[float]]) -> List[List[float]]:
+    """Ordena una nube de puntos 2D en un camino continuo usando el vecino más cercano."""
+    if len(points) < 3:
+        return points
+
+    # Usar tuplas para búsquedas más rápidas y un conjunto para eliminaciones eficientes
+    points_set = {tuple(p) for p in points}
+    
+    # 1. Encontrar un punto de partida fiable (el más alto y a la izquierda)
+    start_point = min(points_set, key=lambda p: (p[1], p[0]))
+
+    sorted_path = [list(start_point)]
+    points_set.remove(start_point)
+    current_point = start_point
+
+    # 2. Iterativamente encontrar el vecino más cercano
+    while points_set:
+        next_point = min(
+            points_set,
+            key=lambda p: (p[0] - current_point[0])**2 + (p[1] - current_point[1])**2
+        )
+        sorted_path.append(list(next_point))
+        points_set.remove(next_point)
+        current_point = next_point
+            
+    return sorted_path
 
 
 @command("reference.outline_from_alpha")
