@@ -8,6 +8,10 @@ using UnityEngine;
 
 namespace MCP.Logging
 {
+    /// <summary>
+    /// Cliente WebSocket minimal para remitir registros estructurados.
+    /// Incluye backoff simple por enfriamiento tras fallos consecutivos.
+    /// </summary>
     public class LogWebSocketClient
     {
         private readonly Uri _uri;
@@ -17,12 +21,18 @@ namespace MCP.Logging
         private readonly int _threshold = 3;
         private readonly TimeSpan _cooldown = TimeSpan.FromSeconds(15);
 
+        /// <summary>
+        /// Construye el cliente apuntando a la URL del servidor de logs.
+        /// </summary>
         public LogWebSocketClient(string url)
         {
             _uri = new Uri(url);
             _ws = new ClientWebSocket();
         }
 
+        /// <summary>
+        /// Indica si se puede intentar enviar en este momento (no en cooldown).
+        /// </summary>
         public bool CanSend()
         {
             return DateTime.UtcNow >= _openUntil;
@@ -44,6 +54,9 @@ namespace MCP.Logging
             _openUntil = DateTime.MinValue;
         }
 
+        /// <summary>
+        /// Envía un mensaje JSON por WebSocket, gestionando reconexión y fallos.
+        /// </summary>
         public async Task<bool> SendAsync(string json, CancellationToken ct)
         {
             if (!CanSend()) return false;
@@ -70,4 +83,3 @@ namespace MCP.Logging
         }
     }
 }
-

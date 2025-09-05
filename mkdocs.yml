@@ -1,0 +1,75 @@
+site_name: AI GameDev Pipeline
+site_description: Documentación unificada del proyecto AI GameDev Pipeline
+site_url: https://example.com
+repo_url: https://example.com/repo
+theme:
+  name: material
+  language: es
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a modo oscuro
+    - scheme: slate
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a modo claro
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+plugins:
+  - search
+  - mermaid2
+  - with-pdf
+nav:
+  - Inicio: index.md
+  - Instalación:
+      - Requisitos: installation/requirements.md
+      - Unity: installation/unity_setup.md
+      - Blender: installation/blender_setup.md
+      - MCP Bridge: installation/mcp_bridge_setup.md
+  - Arquitectura:
+      - Visión general: architecture/overview.md
+      - Flujo de comunicación: architecture/communication_flow.md
+      - Componentes: architecture/components.md
+      - Seguridad: architecture/security.md
+  - Guía de usuario:
+      - Uso básico: user_guide/basic_usage.md
+      - Crear objetos: user_guide/creating_objects.md
+      - Trabajar con Blender: user_guide/working_with_blender.md
+      - Ejemplos de automatización: user_guide/automation_examples.md
+  - API:
+      - Herramientas MCP: api/mcp_tools.md
+      - Comandos Unity: api/unity_commands.md
+      - Comandos Blender: api/blender_commands.md
+      - Protocolo WebSocket: api/websocket_protocol.md
+  - Desarrollo:
+      - Contribuir: developer/contributing.md
+      - Añadir herramientas: developer/adding_tools.md
+      - Testing: developer/testing.md
+      - Depuración: developer/debugging.md
+  - Solución de problemas:
+      - Problemas comunes: troubleshooting/common_issues.md
+      - Preguntas frecuentes: troubleshooting/faq.md
+      - Códigos de error: troubleshooting/error_codes.md
+

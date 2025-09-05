@@ -1,3 +1,9 @@
+"""MCP Bridge server (FastAPI + WebSocket).
+
+Rutea comandos/consultas entre agentes y Unity. Expone un endpoint HTTP
+de ejemplo para ImportFBX y un socket para mensajes bidireccionales.
+"""
+
 # En: mcp_unity_bridge/src/mcp_unity_server/main.py
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -18,6 +24,7 @@ except Exception:
     _srv_logger.setLevel(_logging.INFO)
 
 class ConnectionManager:
+    """Gestiona conexiones WebSocket por client_id y el enrutado hacia Unity."""
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
         self.unity_client_id: str = "unity_editor"
@@ -57,6 +64,7 @@ class ImportFBXRequest(BaseModel):
 
 @app.post("/import_fbx")
 async def import_fbx(req: ImportFBXRequest):
+    """Solicita a Unity importar un FBX y asegurar cámara/luz. Devuelve request_id."""
     if manager.unity_client_id not in manager.active_connections:
         return {"status": "error", "message": "Unity Editor no está conectado."}
 
@@ -82,6 +90,7 @@ async def import_fbx(req: ImportFBXRequest):
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    """Canal WS bidireccional. Enruta mensajes y respuestas por request_id."""
     await manager.connect(websocket, client_id)
     try:
         while True:

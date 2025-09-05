@@ -8,6 +8,11 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
 
+/// <summary>
+/// Despachador de comandos y consultas para el Editor de Unity.
+/// Gestiona una cola de acciones seguras para el hilo del Editor y
+/// procesa mensajes JSON recibidos desde el Bridge.
+/// </summary>
 [InitializeOnLoad]
 public static class CommandDispatcher
 {
@@ -18,6 +23,9 @@ public static class CommandDispatcher
         EditorApplication.update += OnEditorUpdate;
     }
 
+    /// <summary>
+    /// Encola una acción para ejecutarse en el ciclo de actualización del Editor.
+    /// </summary>
     public static void EnqueueAction(Action action)
     {
         if (action != null)
@@ -27,6 +35,9 @@ public static class CommandDispatcher
         }
     }
 
+    /// <summary>
+    /// Drena la cola y ejecuta la siguiente acción, si existe.
+    /// </summary>
     private static void OnEditorUpdate()
     {
         if (actionQueue.TryDequeue(out Action action))
@@ -35,6 +46,10 @@ public static class CommandDispatcher
         }
     }
 
+    /// <summary>
+    /// Procesa un mensaje JSON entrante y emite la respuesta correspondiente.
+    /// </summary>
+    /// <param name="jsonData">Mensaje en formato JSON.</param>
     public static void ProcessIncomingMessage(string jsonData)
     {
         var response = new UnityResponse();
@@ -93,6 +108,9 @@ public static class CommandDispatcher
     }
 
 
+    /// <summary>
+    /// Ejecuta un comando de mutación (ImportFBX, EnsureCameraAndLight o código C# dinámico).
+    /// </summary>
     private static object ProcessCommand(string action, JToken payload)
     {
         try
@@ -127,6 +145,9 @@ public static class CommandDispatcher
         }
     }
 
+    /// <summary>
+    /// Garantiza la existencia de una cámara principal y una luz direccional.
+    /// </summary>
     private static void EnsureCameraAndLight()
     {
         if (Camera.main == null)
@@ -144,6 +165,9 @@ public static class CommandDispatcher
 
 
     // --- NUEVO MÉTODO PARA PROCESAR ACCIONES DE LA TOOLBOX ---
+    /// <summary>
+    /// Invoca un método público estático de <see cref="MCPToolbox"/> mapeándolo desde 'action'.
+    /// </summary>
     private static object ProcessToolAction(string action, JToken payload)
     {
         try
@@ -183,6 +207,9 @@ public static class CommandDispatcher
         }
     }
 
+    /// <summary>
+    /// Resuelve consultas de solo lectura del entorno (jerarquía, screenshot, detalles, archivos).
+    /// </summary>
     private static object ProcessQuery(string action, JToken payload)
     {
         switch (action)

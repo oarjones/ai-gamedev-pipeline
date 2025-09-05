@@ -9,6 +9,10 @@ using MCP.Logging;
 
 namespace MCP.Logging
 {
+    /// <summary>
+    /// Logger estructurado para el lado del Editor de Unity.
+    /// Envía a la consola local y opcionalmente remite por WebSocket.
+    /// </summary>
     public static class MCPLogger
     {
         public enum Level { DEBUG, INFO, WARNING, ERROR, CRITICAL }
@@ -20,6 +24,9 @@ namespace MCP.Logging
         private static LogWebSocketClient _client = new LogWebSocketClient("ws://127.0.0.1:8765/ws/logs");
         private static CancellationTokenSource _cts = new CancellationTokenSource();
 
+        /// <summary>
+        /// Configura nivel mínimo, componente y URL de WebSocket opcional para envío.
+        /// </summary>
         public static void Configure(Level minLevel, string component = null, string wsUrl = null)
         {
             _minLevel = minLevel;
@@ -27,11 +34,17 @@ namespace MCP.Logging
             if (!string.IsNullOrEmpty(wsUrl)) _client = new LogWebSocketClient(wsUrl);
         }
 
+        /// <summary>
+        /// Establece una categoría opcional para agrupar eventos.
+        /// </summary>
         public static void SetCategory(string category)
         {
             _category = category;
         }
 
+        /// <summary>
+        /// Registra un evento con nivel, mensaje y metadatos opcionales.
+        /// </summary>
         public static void Log(Level level, string message, string module = "Unity", string correlationId = null, string stack = null, Dictionary<string, object> extra = null)
         {
             if (level < _minLevel) return;
@@ -67,6 +80,9 @@ namespace MCP.Logging
             EditorApplication.delayCall += TryFlush;
         }
 
+        /// <summary>
+        /// Registra una métrica de rendimiento con etiqueta y duración en ms.
+        /// </summary>
         public static void LogPerformance(string label, double ms, string module = "Unity", string correlationId = null)
         {
             var extra = new Dictionary<string, object> { { "metric", label } };
@@ -102,4 +118,3 @@ namespace MCP.Logging
         }
     }
 }
-

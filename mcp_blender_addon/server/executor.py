@@ -1,3 +1,9 @@
+"""Ejecutor y cola de tareas para comandos del add-on.
+
+Mantiene una cola con límite MCP_MAX_TASKS y bombea en el hilo principal
+de Blender mediante `bpy.app.timers`. Fuera de Blender, ejecuta al vuelo.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -22,6 +28,7 @@ MCP_MAX_TASKS = 256
 
 @dataclass
 class Task:
+    """Representa una tarea encolada con comando, parámetros y resultado."""
     command: str
     params: Dict[str, Any]
     enqueued_at: float
@@ -48,11 +55,11 @@ class Task:
 
 
 class Executor:
-    """Task queue pumped on Blender's main thread via timers.
+    """Cola de tareas bombeada en el hilo principal de Blender mediante temporizadores.
 
-    - enqueue(command, params) from any thread
-    - start_pump() registers a repeating timer (first_interval=0.02)
-    - pump drains the queue on main thread and executes commands
+    - enqueue(command, params) desde cualquier hilo
+    - start_pump() registra un timer recurrente (first_interval=0.02)
+    - el pump drena la cola y ejecuta comandos
     """
 
     def __init__(self) -> None:
@@ -64,6 +71,7 @@ class Executor:
 
     # -- API --
     def start_pump(self) -> None:
+        """Arranca el temporizador de consumo en Blender o habilita modo directo fuera de Blender."""
         if bpy is None:
             # Outside Blender: nothing to register; tasks will run synchronously on enqueue
             self._running = True
@@ -80,12 +88,18 @@ class Executor:
         self._log.info("Executor pump started (timer registered)")
 
     def stop_pump(self) -> None:
+        """Detiene el bombeo de tareas."""
         self._running = False
 
     def in_pump_thread(self) -> bool:
+        """Indica si se ejecuta en el hilo del pump (principal de Blender)."""
         return self._pump_thread_id is not None and threading.get_ident() == self._pump_thread_id
 
     def enqueue(self, command: str, params: Dict[str, Any]) -> Task:
+        """Encola una tarea; si la cola está llena, devuelve error inmediato.
+
+        Fuera de Blender, ejecuta la tarea de forma síncrona.
+        """
         # If queue is full, return an immediate error task
         if self._q.full():
             t = Task(command=command, params=params, enqueued_at=time.time())
@@ -108,12 +122,14 @@ class Executor:
 
     # -- Capacity helpers for external backpressure --
     def qsize(self) -> int:
+        """Tamaño actual de la cola."""
         try:
             return self._q.qsize()
         except Exception:
             return 0
 
     def capacity(self) -> int:
+        """Capacidad máxima de la cola."""
         try:
             return self._q.maxsize or MCP_MAX_TASKS
         except Exception:

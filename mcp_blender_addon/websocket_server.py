@@ -1,3 +1,10 @@
+"""WebSocket server para el add-on de Blender.
+
+Expone un protocolo JSON simple para identificar la instancia y encolar
+comandos `namespace.action` con parámetros. Ejecuta tareas en el hilo
+principal de Blender a través del `Executor` y aplica backpressure.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -22,11 +29,17 @@ _stopping = threading.Event()
 
 
 def set_enqueue(fn: Callable[[str, Dict[str, Any]], Any]) -> None:
+    """Registra la función de encolado proporcionada por el add-on.
+
+    La función debe devolver un objeto con método `wait(timeout)` que
+    entregue el payload normalizado.
+    """
     global _enqueue
     _enqueue = fn
 
 
 def start_server(host: str, port: int) -> None:
+    """Inicia el servidor en un hilo dedicado si no está ya activo."""
     global _thread
     if _thread and _thread.is_alive():
         _log.info("WS server already running on ws://%s:%d", host, port)
@@ -37,6 +50,7 @@ def start_server(host: str, port: int) -> None:
 
 
 def stop_server() -> None:
+    """Detiene el servidor y cierra el bucle de eventos de forma ordenada."""
     global _loop, _server, _thread
     _stopping.set()
     if _loop and _server:
@@ -88,11 +102,13 @@ def _run_loop(host: str, port: int) -> None:
 
 
 async def _wait_for_stop():
+    """Espera activa hasta que se solicite la parada desde otro hilo."""
     while not _stopping.is_set():
         await asyncio.sleep(0.1)
 
 
 async def _shutdown():
+    """Cierra el servidor WS si está activo."""
     global _server
     try:
         if _server:
@@ -103,6 +119,11 @@ async def _shutdown():
 
 
 async def _handle_message(raw: str) -> Dict[str, Any]:
+    """Procesa un mensaje entrante y devuelve un payload normalizado.
+
+    - {"identify": true} → información de versión
+    - {"command": str, "params": dict, "timeout"?: float}
+    """
     # Validate JSON
     try:
         data = json.loads(raw)

@@ -1,0 +1,92 @@
+Crear una documentación completa y unificada para el proyecto AI GameDev Pipeline usando MkDocs.
+
+CONTEXTO:
+- Documentación actual está fragmentada en múltiples archivos
+- No hay guía de instalación paso a paso
+- Falta documentación de API y arquitectura
+
+REQUISITOS:
+
+1. ESTRUCTURA DE DOCUMENTACIÓN:
+   Crear estructura en docs/ con MkDocs:
+   docs/
+   ├── index.md (Overview y Quick Start)
+   ├── installation/
+   │   ├── requirements.md
+   │   ├── unity_setup.md
+   │   ├── blender_setup.md
+   │   └── mcp_bridge_setup.md
+   ├── architecture/
+   │   ├── overview.md
+   │   ├── communication_flow.md
+   │   ├── components.md
+   │   └── security.md
+   ├── user_guide/
+   │   ├── basic_usage.md
+   │   ├── creating_objects.md
+   │   ├── working_with_blender.md
+   │   └── automation_examples.md
+   ├── api/
+   │   ├── mcp_tools.md
+   │   ├── unity_commands.md
+   │   ├── blender_commands.md
+   │   └── websocket_protocol.md
+   ├── developer/
+   │   ├── contributing.md
+   │   ├── adding_tools.md
+   │   ├── testing.md
+   │   └── debugging.md
+   └── troubleshooting/
+       ├── common_issues.md
+       ├── faq.md
+       └── error_codes.md
+
+2. GENERACIÓN AUTOMÁTICA DE DOCUMENTACIÓN:
+   Crear scripts/generate_docs.py:
+   - Extraer docstrings de Python (usando ast)
+   - Parsear comentarios XML de C# 
+   - Generar referencias de API automáticamente
+   - Actualizar tabla de herramientas disponibles
+   - Generar diagramas de arquitectura con mermaid
+
+3. CONTENIDO ESENCIAL:
+   - README.md principal: Overview, features, quick start
+   - INSTALLATION.md: Guía paso a paso con screenshots
+   - API_REFERENCE.md: Todas las herramientas y comandos
+   - ARCHITECTURE.md: Diagramas y explicación técnica
+   - CONTRIBUTING.md: Guía para contributors
+   - CHANGELOG.md: Historial de cambios
+
+4. EJEMPLOS Y TUTORIALES:
+   Crear examples/ con scripts funcionales:
+   - 01_hello_world.py: Crear un cubo en Unity
+   - 02_blender_integration.py: Pipeline Blender->Unity
+   - 03_complex_scene.py: Escena completa con assets
+   - 04_animation_pipeline.py: Animaciones Blender->Unity
+   - 05_batch_processing.py: Procesamiento en lote
+
+5. CONFIGURACIÓN MKDOCS:
+   mkdocs.yml con:
+   - Theme: material
+   - Plugins: search, mermaid, code highlighting
+   - Navigation tabs
+   - Dark mode support
+   - PDF export capability
+
+6. DOCUMENTACIÓN INLINE:
+   - Actualizar todos los docstrings en Python
+   - Añadir XML comments en todo el código C#
+   - Incluir ejemplos en docstrings
+   - Documentar parámetros y return values
+
+
+HERRAMIENTAS:
+- MkDocs con Material theme
+- mkdocstrings para auto-documentación
+- mermaid para diagramas
+- pytest-cov para coverage badges
+
+CRITERIOS DE ACEPTACIÓN:
+- Documentación accesible en http://localhost:8000
+- Todos los métodos públicos documentados
+- Guía de instalación probada en OS limpio

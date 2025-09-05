@@ -1,3 +1,9 @@
+"""Infraestructura de logging para el add-on de Blender.
+
+Configura salida a consola y archivo rotativo (1MB x3). Usa un logger
+de raíz `mcp_blender_addon` y expone `get_logger` para submódulos.
+"""
+
 from __future__ import annotations
 
 import logging
