@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from .logging import get_logger
 from .registry import get as reg_get
 from .context import SessionContext
+from ..helpers.state import record_operation
 
 
 try:
@@ -181,4 +182,10 @@ class Executor:
         finally:
             dur = time.perf_counter() - t0
             self._log.info("cmd=%s dur=%.3f q=%d", t.command, dur, qsize)
+            # State tracking hook (best-effort)
+            try:
+                if has_bpy and isinstance(result, dict):
+                    record_operation(t.command, t.params, result)
+            except Exception:
+                pass
         return result

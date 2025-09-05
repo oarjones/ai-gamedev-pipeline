@@ -1,0 +1,7 @@
+body { font-family: system-ui, Arial, sans-serif; background: #111; color: #eaeaea; }
+.wrap { max-width: 900px; margin: 2rem auto; padding: 1rem; background: #1b1b1b; border-radius: 8px; }
+#timeline { margin-top: 1rem; display: grid; grid-template-columns: 1fr 120px 80px; gap: 8px; align-items: center; }
+.item { padding: 6px 10px; background: #222; border-radius: 4px; }
+button { background: #2d6cdf; color: white; border: 0; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+pre { background: #0d0d0d; padding: 1rem; border-radius: 6px; overflow: auto; margin-top: 1rem; }
+

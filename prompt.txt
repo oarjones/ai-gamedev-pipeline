@@ -1,153 +1,110 @@
-Crear un sistema de auto-instalación que configure automáticamente el MCP Bridge en proyectos Unity.
+Implementar un sistema completo de estado persistente con checkpoint y rollback para el proyecto AI GameDev Pipeline.
 
 CONTEXTO:
-- El MCP Bridge debe instalarse automáticamente al abrir el proyecto
-- Configuración debe ser transparente para el usuario
-- Mantener compatibilidad con diferentes versiones de Unity
+- Necesitamos trackear todos los cambios en Unity y Blender
+- Poder hacer undo/redo de operaciones complejas
+- Mantener historial entre sesiones
 
 REQUISITOS:
 
-1. UNITY PACKAGE CREATOR:
-   Crear herramienta para empaquetar MCP Bridge:
+1. CORE STATE MANAGER:
+   Crear mcp_unity_bridge/src/state/state_manager.py:
    python
-   class UnityPackageBuilder:
-       def create_package(source_dir: str, output_path: str)
-       def add_dependencies(package_path: str, deps: List[str])
-       def sign_package(package_path: str, certificate: str)
-       def create_installer_script()
-       def validate_package(package_path: str)
+   class StateManager:
+       - __init__(project_path, max_checkpoints=50)
+       - create_checkpoint(action_type, data, metadata)
+       - rollback(steps=1) 
+       - rollforward(steps=1)
+       - get_history(limit=10, filter=None)
+       - prune_old_checkpoints(keep_last=20)
+       - export_state(format='json'|'binary')
+       - import_state(file_path)
+       - get_diff(checkpoint_a, checkpoint_b)
 
-2. AUTO-INSTALLER SCRIPT:
-   Assets/Editor/MCPBridge/Installer/AutoInstaller.cs:
+2. CHECKPOINT SYSTEM:
+   Implementar en mcp_unity_bridge/src/state/checkpoint.py:
+   - Clase Checkpoint con: id, timestamp, action, data, parent_id, hash
+   - Compresión con zlib para datos grandes
+   - Hashing SHA256 para integridad
+   - Serialización eficiente con MessagePack
+   - Soporte para datos binarios (screenshots, meshes)
+
+3. STORAGE BACKEND:
+   Crear mcp_unity_bridge/src/state/storage.py:
+   - Interfaz IStateStorage
+   - SQLiteStorage: Implementación local con SQLite
+   - Índices en: timestamp, action_type, parent_id
+   - VACUUM automático cuando DB > 100MB
+   - Backup automático cada 10 checkpoints
+
+4. UNITY INTEGRATION:
+   Crear Assets/Editor/MCP/State/StateRecorder.cs:
    csharp
-   [InitializeOnLoad]
-   public class MCPAutoInstaller
-   {
-       private const string VERSION = "1.0.0";
-       private static readonly string MARKER_FILE = ".mcp_installed";
-       
-       static MCPAutoInstaller() 
-       {
-           EditorApplication.delayCall += CheckAndInstall;
-       }
-       
-       private static void CheckAndInstall()
-       {
-           if (!IsInstalled()) {
-               ShowWelcomeWindow();
-               InstallCore();
-               ConfigureSettings();
-               RunPostInstall();
-               CreateMarkerFile();
-           } else {
-               CheckForUpdates();
-           }
-       }
-       
-       private static void InstallCore() {
-           // 1. Copy MCP scripts
-           // 2. Import required packages
-           // 3. Configure project settings
-           // 4. Setup WebSocket server
-           // 5. Create menu items
-       }
+   public class StateRecorder {
+       - RecordSceneState(): Captura completa de la escena
+       - RecordObjectChange(GameObject obj)
+       - RecordComponentChange(Component comp)
+       - RestoreFromCheckpoint(string checkpointId)
+       - GetStateDiff(string checkpointA, string checkpointB)
    }
 
-3. WELCOME WINDOW:
-   EditorWindow con wizard de configuración:
-   csharp
-   public class MCPWelcomeWindow : EditorWindow
-   {
-       private InstallationOptions options;
-       
-       void OnGUI() {
-           // Logo y descripción
-           // Opciones de instalación
-           // Selección de puerto
-           // Configuración de Blender
-           // Botón Install/Skip
-       }
-   }
+5. BLENDER INTEGRATION:
+   Actualizar Blender addon con state tracking:
+   - Hook en todas las operaciones que modifican la escena
+   - Serialización de mesh data, materiales, animaciones
+   - Restauración completa de estado
 
-4. DEPENDENCY RESOLVER:
-   Sistema para manejar dependencias:
-   csharp
-   public class DependencyResolver
-   {
-       public static void CheckDependencies() {
-           // Check Newtonsoft.Json
-           // Check Unity version
-           // Check required packages
-           // Install missing deps
-       }
-       
-       private static void InstallPackage(string packageId) {
-           UnityEditor.PackageManager.Client.Add(packageId);
-       }
-   }
+6. DELTA COMPRESSION:
+   Implementar almacenamiento diferencial:
+   - Solo guardar cambios entre checkpoints
+   - Reconstrucción rápida usando deltas
+   - Compresión adaptativa según tipo de dato
 
-5. CONFIGURATION MIGRATOR:
-   Migrar configuración entre versiones:
-   csharp
-   public class ConfigurationMigrator
-   {
-       public static void Migrate(Version from, Version to) {
-           // Load old config
-           // Transform to new format
-           // Backup old config
-           // Save new config
-       }
-   }
+7. UI COMPONENTS:
+   - Unity: Timeline visual en Editor Window
+   - Web UI: Visualización de historial
+   - Comparación lado a lado de estados
 
-6. HEALTH CHECK SYSTEM:
-   Verificación post-instalación:
-   csharp
-   public class MCPHealthCheck
-   {
-       public static HealthReport RunDiagnostics() {
-           var report = new HealthReport();
-           report.Add(CheckWebSocketServer());
-           report.Add(CheckFilePermissions());
-           report.Add(CheckPortAvailability());
-           report.Add(CheckBlenderConnection());
-           return report;
-       }
-   }
+8. CONFLICTO RESOLUTION:
+   Sistema para manejar conflictos:
+   - Detección de operaciones conflictivas
+   - Estrategias: last-write-wins, merge, manual
+   - Branching de estados para exploración
 
-7. UNINSTALLER:
-   Limpieza completa si necesario:
-   csharp
-   public class MCPUninstaller
-   {
-       [MenuItem("MCP Bridge/Uninstall")]
-       public static void Uninstall() {
-           if (EditorUtility.DisplayDialog("Uninstall MCP Bridge?", 
-               "This will remove all MCP components", "Yes", "No")) {
-               RemoveScripts();
-               RemoveSettings();
-               CleanupCache();
-               AssetDatabase.Refresh();
-           }
-       }
-   }
+DATABASE SCHEMA:
+sql
+CREATE TABLE checkpoints (
+    id TEXT PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    action_type TEXT NOT NULL,
+    data BLOB,
+    metadata TEXT,
+    parent_id TEXT,
+    hash TEXT NOT NULL,
+    size_bytes INTEGER,
+    compressed BOOLEAN
+);
 
-PACKAGE STRUCTURE:
-MCPBridge.unitypackage
-├── Editor/
-│   ├── MCPBridge/
-│   │   ├── Core/
-│   │   ├── Installer/
-│   │   ├── Tools/
-│   │   └── WebSocket/
-│   └── Dependencies/
-│       └── Newtonsoft.Json.dll
-├── Documentation/
-├── Examples/
-└── package.json
+CREATE TABLE state_branches (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER,
+    head_checkpoint TEXT,
+    description TEXT
+);
+
+BUENAS PRÁCTICAS:
+- Usar transacciones para operaciones atómicas
+- Implementar lazy loading para checkpoints grandes
+- Cache LRU para checkpoints frecuentes
+- Thread-safe operations con threading.Lock
+- Validación de integridad en cada load
+- Cleanup automático de estados corruptos
 
 CRITERIOS DE ACEPTACIÓN:
-- No requiere intervención manual
-- Compatible Unity 2021.3+
-- Rollback si falla instalación
-- Update sin perder configuración
-- Health check 100% pass rate
+- Rollback funciona para últimas 50 operaciones
+- Estado persiste entre reinicios de aplicación
+- Restauración completa < 2 segundos
+- No pérdida de datos en crashes
+- UI muestra historial visual
+- Tests con 90% coverage
