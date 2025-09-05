@@ -13,9 +13,18 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------
 # Logging SIEMPRE a stderr (stdout queda limpio para el protocolo MCP)
 # ---------------------------------------------------------------------
-handler = logging.StreamHandler(sys.stderr)
-logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
-log = logging.getLogger("unity_mcp_adapter")
+try:
+    from src.logging_system import LogManager  # type: ignore
+except Exception:
+    LogManager = None  # type: ignore
+
+if LogManager is not None:
+    _lm = LogManager(component="unity_mcp_adapter")
+    log = _lm.get_logger()
+else:
+    handler = logging.StreamHandler(sys.stderr)
+    logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
+    log = logging.getLogger("unity_mcp_adapter")
 
 # ---------------------------------------------------------------------
 # Instancia MCP: el nombre debe coincidir con settings.json (unity_editor)
