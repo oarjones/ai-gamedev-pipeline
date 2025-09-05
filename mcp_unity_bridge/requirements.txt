@@ -3,6 +3,7 @@ fastapi
 uvicorn
 websockets
 pydantic
+PyYAML
 
 # Dependencias para ejecutar los tests
 pytest

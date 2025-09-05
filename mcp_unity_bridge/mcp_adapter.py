@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import Any, Dict, Optional, Tuple, List
 
@@ -24,14 +25,38 @@ mcp = FastMCP("unity_editor")
 # ---------------------------------------------------------------------
 # URL del puente Unity (puedes sobreescribir con la variable de entorno)
 # ---------------------------------------------------------------------
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "ws://127.0.0.1:8001/ws/gemini_cli_adapter")
+"""Capa de configuración centralizada"""
+# Ensure src is on path for local runs
+_here = os.path.dirname(__file__)
+_src_path = os.path.join(_here, "src")
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+try:
+    from src.config_manager import ConfigManager  # type: ignore
+except Exception:
+    ConfigManager = None  # type: ignore
+
+if ConfigManager is not None:
+    _cfg = ConfigManager().get()
+    _mcp_default_url = f"ws://{_cfg.servers.mcp_bridge.host}:{_cfg.servers.mcp_bridge.port}/ws/gemini_cli_adapter"
+else:
+    _mcp_default_url = "ws://127.0.0.1:8001/ws/gemini_cli_adapter"
+
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", _mcp_default_url)
 
 # ---------------------------------------------------------------------
 # Configuración del puente Blender y rutas compartidas
 # ---------------------------------------------------------------------
-BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", "ws://127.0.0.1:8002")
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
+if ConfigManager is not None:
+    _cfg = ConfigManager().get()
+    _blender_default_url = f"ws://{_cfg.servers.blender_addon.host}:{_cfg.servers.blender_addon.port}"
+    BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", _blender_default_url)
+    BASE_DIR = str(ConfigManager().get_repo_root())
+    UNITY_PROJECT_DIR = str(_cfg.paths.unity_project)
+else:
+    BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", "ws://127.0.0.1:8002")
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
 
 
 async def send_to_unity_and_get_response(message: Dict[str, Any]) -> Dict[str, Any]:
