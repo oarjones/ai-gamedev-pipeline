@@ -31,3 +31,13 @@ Documentación (MkDocs)
 Contribución
 ------------
 Por favor, lee `CONTRIBUTING.md`. Mantén docstrings actualizados y ejecuta el generador de docs antes de subir cambios.
+
+Bootstrapper de Juegos (nuevo)
+------------------------------
+- Ubicación: `mcp_unity_bridge/src/bootstrapper/`
+- Clases clave: `GameBootstrapper`, `SpecificationParser`, `UnityHubCLI`, `ProjectStructureGenerator`.
+- Uso básico (Python):
+  - `from mcp_unity_bridge.src.bootstrapper.game_bootstrapper import GameBootstrapper`
+  - `bootstrapper = GameBootstrapper()`
+  - `await bootstrapper.create_game("Crea un juego 3D tipo plataforma para PC")`
+- El wrapper de Unity Hub intenta usar `UNITY_HUB_CLI` si está disponible; si no, simula la creación del proyecto para flujos offline.
