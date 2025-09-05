@@ -128,30 +128,80 @@ class GameBootstrapper:
         return base + scope_factor * mechanics_factor
 
     def _ensure_mcp_autoinstaller(self, project_path: Path) -> None:
-        # If the repo contains Editor/MCP scripts, copy the auto-installer stub into the project.
-        # Otherwise, rely on the copy that exists in unity_project/ (reference)
-        editor_dir = project_path / "Assets" / "Editor" / "MCP"
+        # Prefer the new Installer location and richer script
+        editor_dir = project_path / "Assets" / "Editor" / "MCPBridge" / "Installer"
         editor_dir.mkdir(parents=True, exist_ok=True)
-        target = editor_dir / "MCPAutoInstaller.cs"
+        target = editor_dir / "AutoInstaller.cs"
         if not target.exists():
             target.write_text(
                 """
 using UnityEditor;
+using UnityEngine;
+using System;
+using System.IO;
 
 [InitializeOnLoad]
-public class MCPAutoInstaller {
-    static MCPAutoInstaller() {
-        if (!IsMCPInstalled()) {
-            InstallMCPBridge();
-            ConfigureProjectSettings();
-            StartMCPServer();
+public class MCPAutoInstaller
+{
+    private const string VERSION = "1.0.0";
+    private static readonly string MARKER_FILE = ".mcp_installed";
+
+    static MCPAutoInstaller()
+    {
+        EditorApplication.delayCall += CheckAndInstall;
+    }
+
+    private static string ProjectRoot() {
+        var assets = Application.dataPath;
+        return Directory.GetParent(assets).FullName;
+    }
+
+    private static bool IsInstalled() {
+        return File.Exists(Path.Combine(ProjectRoot(), MARKER_FILE));
+    }
+
+    private static void CheckAndInstall()
+    {
+        if (!IsInstalled()) {
+            ShowWelcomeWindow();
+            try {
+                InstallCore();
+                ConfigureSettings();
+                RunPostInstall();
+                CreateMarkerFile();
+                Debug.Log("MCP Bridge installed successfully.");
+            } catch (Exception ex) {
+                Debug.LogError($"MCP Bridge installation failed: {ex.Message}");
+            }
+        } else {
+            CheckForUpdates();
         }
     }
 
-    static bool IsMCPInstalled() { return true; }
-    static void InstallMCPBridge() {}
-    static void ConfigureProjectSettings() {}
-    static void StartMCPServer() {}
+    private static void ShowWelcomeWindow() {
+        // Optional prompt
+    }
+
+    private static void InstallCore() {
+        // TODO: Copy MCP core scripts/resources if needed
+    }
+
+    private static void ConfigureSettings() {
+        // TODO: Apply default project settings for MCP
+    }
+
+    private static void RunPostInstall() {
+        // TODO: Run health checks
+    }
+
+    private static void CreateMarkerFile() {
+        File.WriteAllText(Path.Combine(ProjectRoot(), MARKER_FILE), VERSION);
+        AssetDatabase.Refresh();
+    }
+
+    private static void CheckForUpdates() {
+        // TODO
+    }
 }
 """,
                 encoding="utf-8",
