@@ -31,12 +31,22 @@ from ..server.context import SessionContext
 @command("server.ping")
 @tool
 def _server_ping(ctx: SessionContext, params: dict) -> dict:
+    """Ping del servidor: útil para comprobación de salud.
+
+    Parámetros: {}
+    Devuelve: { pong: true }
+    """
     return {"pong": True}
 
 
 @command("server.list_commands")
 @tool
 def _server_list_commands(ctx: SessionContext, params: dict) -> dict:
+    """Lista los nombres de todos los comandos registrados.
+
+    Parámetros: {}
+    Devuelve: { commands: list[str] }
+    """
     # Return a sorted list of available command names
     try:
         names = sorted(COMMANDS.keys())

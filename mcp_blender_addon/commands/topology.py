@@ -15,6 +15,11 @@ from ..server.validation import get_str, get_list_int, get_float, get_int, Param
 @command("topology.count_mesh_objects")
 @tool
 def count_mesh_objects(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Cuenta cuántos objetos de tipo MESH hay en la escena.
+
+    Parámetros: {}
+    Devuelve: { count: int }
+    """
     if bpy is None:
         return {"count": 0}
 
@@ -28,6 +33,11 @@ def count_mesh_objects(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
 @command("topology.ensure_object_mode")
 @tool
 def ensure_object_mode(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Garantiza que el modo activo sea OBJECT y lo devuelve.
+
+    Parámetros: {}
+    Devuelve: { mode: str }
+    """
     if bpy is None:
         return {"mode": "NONE"}
 
@@ -41,6 +51,13 @@ def ensure_object_mode(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str,
 @command("topology.touch_active")
 @tool
 def touch_active(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Toca (escribe sin cambios efectivos) la malla activa para forzar actualización segura.
+
+    Útil para probar acceso a BMesh y flujos de lectura/escritura sin modificar geometría.
+
+    Parámetros: {}
+    Devuelve: { touched: bool }
+    """
     if bpy is None:
         return {"touched": False}
 

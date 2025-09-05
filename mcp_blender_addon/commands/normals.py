@@ -16,6 +16,11 @@ from ..server.validation import get_str, ParamError
 @command("normals.recalculate_selected")
 @tool
 def recalc_selected(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Recalcula normales para todos los objetos MESH seleccionados.
+
+    Parámetros: {}
+    Devuelve: { updated: int }  # número de objetos actualizados
+    """
     if bpy is None:
         return {"updated": 0}
 

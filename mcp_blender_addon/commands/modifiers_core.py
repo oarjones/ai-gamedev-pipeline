@@ -66,6 +66,11 @@ def _apply_mesh_from_evaluated(obj) -> bpy.types.Mesh:  # type: ignore[name-defi
 @command("mod.add_mirror")
 @tool
 def add_mirror(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Añade un modificador Mirror al objeto de malla indicado.
+
+    Parámetros: { object: str, axis?: 'X'|'Y'|'Z'='X', use_clip?: bool=true, merge_threshold?: float=1e-4 }
+    Devuelve: { object, modifier, type, index }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -110,6 +115,11 @@ def add_mirror(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
 @command("mod.add_subsurf")
 @tool
 def add_subsurf(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Añade un modificador Subsurf al objeto con el nivel indicado.
+
+    Parámetros: { object: str, levels?: int=2 }
+    Devuelve: { object, modifier, type, index }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -160,6 +170,11 @@ def add_solidify(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
 @command("mod.add_boolean")
 @tool
 def add_boolean(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Añade un modificador Boolean y configura su operand (objeto o colección).
+
+    Parámetros: { object: str, operation?: 'DIFFERENCE'|'UNION'|'INTERSECT'='DIFFERENCE', operand_object?: str, operand_collection?: str }
+    Devuelve: { object, modifier, type, index }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -265,6 +280,11 @@ def apply_modifier(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any
 @command("mod.apply_all")
 @tool
 def apply_all(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Aplica todos los modificadores del objeto evaluando la malla resultante.
+
+    Parámetros: { object: str }
+    Devuelve: { object, applied: list[str], remaining: list[str] }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -284,4 +304,3 @@ def apply_all(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
                     pass
     log.info("apply_all obj=%s applied=%s", obj.name, applied)
     return {"object": obj.name, "applied": applied, "remaining": [m.name for m in obj.modifiers]}
-
