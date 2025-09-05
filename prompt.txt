@@ -1,126 +1,153 @@
-Desarrollar un sistema completo de templates para diferentes tipos de juegos.
+Crear un sistema de auto-instalación que configure automáticamente el MCP Bridge en proyectos Unity.
 
 CONTEXTO:
-- Necesitamos templates pre-configurados para géneros comunes
-- Templates deben ser extensibles y customizables
-- Incluir código base, assets, y configuración
+- El MCP Bridge debe instalarse automáticamente al abrir el proyecto
+- Configuración debe ser transparente para el usuario
+- Mantener compatibilidad con diferentes versiones de Unity
 
 REQUISITOS:
 
-1. TEMPLATE ENGINE:
-   Crear mcp_unity_bridge/src/templates/template_engine.py:
+1. UNITY PACKAGE CREATOR:
+   Crear herramienta para empaquetar MCP Bridge:
    python
-   class TemplateEngine:
-       def load_template(name: str) -> GameTemplate
-       def list_available_templates() -> List[TemplateInfo]
-       def create_custom_template(base_template: str, modifications: dict)
-       def validate_template(template: GameTemplate) -> List[ValidationError]
-       def apply_template(template: GameTemplate, project_path: str)
-       def merge_templates(template_a: GameTemplate, template_b: GameTemplate)
+   class UnityPackageBuilder:
+       def create_package(source_dir: str, output_path: str)
+       def add_dependencies(package_path: str, deps: List[str])
+       def sign_package(package_path: str, certificate: str)
+       def create_installer_script()
+       def validate_package(package_path: str)
 
-2. TEMPLATE STRUCTURE:
-   Definir estructura en templates/:
-   templates/
-   ├── 2d_platformer/
-   │   ├── manifest.yaml
-   │   ├── scripts/
-   │   │   ├── PlayerController.cs
-   │   │   ├── EnemyAI.cs
-   │   │   └── GameManager.cs
-   │   ├── prefabs/
-   │   ├── materials/
-   │   ├── settings/
-   │   │   ├── InputSystem.asset
-   │   │   └── Physics2D.asset
-   │   └── scenes/
-   │       ├── MainMenu.unity
-   │       └── GameLevel.unity
-   ├── 3d_fps/
-   ├── puzzle_game/
-   ├── racing_game/
-   └── rpg_template/
-
-3. TEMPLATE MANIFEST:
-   Formato YAML para manifest.yaml:
-   yaml
-   name: "2D Platformer"
-   version: "1.0.0"
-   unity_version: "2023.3+"
-   description: "Classic 2D platformer with physics"
-   
-   dependencies:
-     packages:
-       - com.unity.inputsystem: "1.7.0"
-       - com.unity.cinemachine: "2.9.7"
-       - com.unity.2d.sprite: "1.0.0"
-   
-   parameters:
-     - name: "player_speed"
-       type: "float"
-       default: 5.0
-       description: "Player movement speed"
-     
-     - name: "jump_height"
-       type: "float"  
-       default: 2.0
-     
-     - name: "enemy_count"
-       type: "int"
-       default: 3
-   
-   scripts:
-     - src: "PlayerController.cs"
-       target: "Assets/Scripts/Player/"
-       parameters: ["player_speed", "jump_height"]
-   
-   scenes:
-     - name: "MainMenu"
-       is_default: true
-     - name: "Level1"
+2. AUTO-INSTALLER SCRIPT:
+   Assets/Editor/MCPBridge/Installer/AutoInstaller.cs:
+   csharp
+   [InitializeOnLoad]
+   public class MCPAutoInstaller
+   {
+       private const string VERSION = "1.0.0";
+       private static readonly string MARKER_FILE = ".mcp_installed";
        
-   post_install:
-     - script: "ConfigureInput.cs"
-     - script: "GenerateLevel.cs"
+       static MCPAutoInstaller() 
+       {
+           EditorApplication.delayCall += CheckAndInstall;
+       }
+       
+       private static void CheckAndInstall()
+       {
+           if (!IsInstalled()) {
+               ShowWelcomeWindow();
+               InstallCore();
+               ConfigureSettings();
+               RunPostInstall();
+               CreateMarkerFile();
+           } else {
+               CheckForUpdates();
+           }
+       }
+       
+       private static void InstallCore() {
+           // 1. Copy MCP scripts
+           // 2. Import required packages
+           // 3. Configure project settings
+           // 4. Setup WebSocket server
+           // 5. Create menu items
+       }
+   }
 
-4. CODE GENERATORS:
-   Generadores específicos por template:
-   python
-   class CodeGenerator:
-       def generate_player_controller(params: dict) -> str
-       def generate_enemy_ai(ai_type: str, difficulty: str) -> str
-       def generate_game_manager(game_mode: str) -> str
-       def generate_save_system(storage_type: str) -> str
-       def generate_inventory_system(slots: int, stackable: bool) -> str
+3. WELCOME WINDOW:
+   EditorWindow con wizard de configuración:
+   csharp
+   public class MCPWelcomeWindow : EditorWindow
+   {
+       private InstallationOptions options;
+       
+       void OnGUI() {
+           // Logo y descripción
+           // Opciones de instalación
+           // Selección de puerto
+           // Configuración de Blender
+           // Botón Install/Skip
+       }
+   }
 
-5. ASSET GENERATORS:
-   Generación procedural de assets básicos:
-   python
-   class AssetGenerator:
-       def create_placeholder_sprites(count: int, style: str)
-       def generate_terrain(size: tuple, type: str)
-       def create_ui_elements(theme: str)
-       def generate_sound_effects(type: str)
+4. DEPENDENCY RESOLVER:
+   Sistema para manejar dependencias:
+   csharp
+   public class DependencyResolver
+   {
+       public static void CheckDependencies() {
+           // Check Newtonsoft.Json
+           // Check Unity version
+           // Check required packages
+           // Install missing deps
+       }
+       
+       private static void InstallPackage(string packageId) {
+           UnityEditor.PackageManager.Client.Add(packageId);
+       }
+   }
 
-6. TEMPLATE CUSTOMIZER UI:
-   Web UI para customizar templates:
-   - Formulario dinámico según parameters
-   - Preview de cambios
-   - Validación en tiempo real
-   - Export de configuración
+5. CONFIGURATION MIGRATOR:
+   Migrar configuración entre versiones:
+   csharp
+   public class ConfigurationMigrator
+   {
+       public static void Migrate(Version from, Version to) {
+           // Load old config
+           // Transform to new format
+           // Backup old config
+           // Save new config
+       }
+   }
 
-7. TEMPLATE MARKETPLACE:
-   Sistema para compartir templates:
-   python
-   class TemplateMarketplace:
-       def upload_template(template: GameTemplate, author: str)
-       def download_template(template_id: str)
-       def rate_template(template_id: str, rating: int)
-       def search_templates(query: str, filters: dict)
+6. HEALTH CHECK SYSTEM:
+   Verificación post-instalación:
+   csharp
+   public class MCPHealthCheck
+   {
+       public static HealthReport RunDiagnostics() {
+           var report = new HealthReport();
+           report.Add(CheckWebSocketServer());
+           report.Add(CheckFilePermissions());
+           report.Add(CheckPortAvailability());
+           report.Add(CheckBlenderConnection());
+           return report;
+       }
+   }
 
-TEMPLATES INCLUIDOS:
-1. **2D Platformer**: Mario-style con física
-2. **3D FPS**: Shooter básico con armas
-3. **Top-Down RPG**: Sistema de stats y combate
-4. **Puzzle Game**: Match-3 o sliding puzzle
+7. UNINSTALLER:
+   Limpieza completa si necesario:
+   csharp
+   public class MCPUninstaller
+   {
+       [MenuItem("MCP Bridge/Uninstall")]
+       public static void Uninstall() {
+           if (EditorUtility.DisplayDialog("Uninstall MCP Bridge?", 
+               "This will remove all MCP components", "Yes", "No")) {
+               RemoveScripts();
+               RemoveSettings();
+               CleanupCache();
+               AssetDatabase.Refresh();
+           }
+       }
+   }
 
+PACKAGE STRUCTURE:
+MCPBridge.unitypackage
+├── Editor/
+│   ├── MCPBridge/
+│   │   ├── Core/
+│   │   ├── Installer/
+│   │   ├── Tools/
+│   │   └── WebSocket/
+│   └── Dependencies/
+│       └── Newtonsoft.Json.dll
+├── Documentation/
+├── Examples/
+└── package.json
 
+CRITERIOS DE ACEPTACIÓN:
+- No requiere intervención manual
+- Compatible Unity 2021.3+
+- Rollback si falla instalación
+- Update sin perder configuración
+- Health check 100% pass rate

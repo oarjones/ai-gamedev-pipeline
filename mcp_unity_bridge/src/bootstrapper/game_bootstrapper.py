@@ -11,6 +11,7 @@ from .models import GameSpecification, ProgressTracker
 from .spec_parser import SpecificationParser
 from .unity_cli import UnityHubCLI
 from .project_structure import ProjectStructureGenerator
+from ..templates.template_engine import TemplateEngine
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GameBootstrapper:
     def __init__(self, unity_hub_path: Optional[str] = None, progress: Optional[ProgressTracker] = None):
         self.unity_cli = UnityHubCLI(unity_hub_path)
-        self.template_engine = None  # Reserved for future template integrations
+        self.template_engine = TemplateEngine()
         self.code_generator = None  # Reserved for codegen integrations
         self.structure_gen = ProjectStructureGenerator()
         self.parser = SpecificationParser()
@@ -74,6 +75,16 @@ class GameBootstrapper:
             self.unity_cli.add_packages(project_path, spec.packages)
             self.structure_gen.generate_assembly_definitions(project_path)
             bump("generate-code")
+
+            # Apply template if available based on spec
+            tname = spec.template or self._infer_template_name(spec)
+            try:
+                tmpl = self.template_engine.load_template(tname)
+                errs = self.template_engine.validate_template(tmpl)
+                if not errs:
+                    self.template_engine.apply_template(tmpl, str(project_path))
+            except Exception:
+                logger.info("No matching template '%s' applied (optional)", tname)
 
             # Configure MCP integration (drop an Editor script stub if not present)
             self._ensure_mcp_autoinstaller(project_path)
@@ -146,3 +157,14 @@ public class MCPAutoInstaller {
                 encoding="utf-8",
             )
 
+    def _infer_template_name(self, spec: GameSpecification) -> str:
+        g = (spec.genre or "").lower()
+        if "platform" in g:
+            return "2d_platformer" if spec.type == "2D" else "3d_platformer"
+        if "fps" in g or "shooter" in g:
+            return "3d_fps"
+        if "rpg" in g:
+            return "rpg_template"
+        if "puzzle" in g:
+            return "puzzle_game"
+        return "2d_platformer" if spec.type == "2D" else "3d_fps"
