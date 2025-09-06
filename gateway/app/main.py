@@ -64,17 +64,17 @@ async def websocket_events(websocket: WebSocket) -> None:
     await websocket_endpoint(websocket)
 
 
-# Dummy endpoints to include models in OpenAPI schema
-@app.post("/api/v1/projects", response_model=Project, tags=["contracts"])
-async def create_project_schema(project: CreateProject) -> Project:
-    """Create a new project.
-    
-    This endpoint is included for API contract documentation.
-    Implementation is pending.
-    """
-    raise NotImplementedError("Project creation not implemented yet")
+# Include routers
+from app.routers import projects_router
+
+app.include_router(
+    projects_router,
+    prefix="/api/v1/projects",
+    tags=["projects"]
+)
 
 
+# Dummy endpoint to include Envelope model in OpenAPI schema
 @app.post("/api/v1/events", tags=["contracts"])
 async def send_event_schema(envelope: Envelope) -> dict:
     """Send an event through the API.
@@ -83,11 +83,6 @@ async def send_event_schema(envelope: Envelope) -> dict:
     Events are typically sent via WebSocket at /ws/events.
     """
     raise NotImplementedError("Event sending via HTTP not implemented yet")
-
-
-# TODO: Add project routers here
-# from app.routers import projects
-# app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
 
 
 if __name__ == "__main__":
