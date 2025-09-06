@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.services.agent_runner import agent_runner
-from pathlib import Path
+from app.services.projects import project_service
 
 
 router = APIRouter()
@@ -35,8 +35,14 @@ class SendRequest(BaseModel):
 @router.post("/start")
 async def start_agent(projectId: str) -> JSONResponse:  # query param required
     """Start the agent process using the specified project as cwd."""
-    # Validate project folder exists (DB-less check for this minimal branch)
-    cwd = Path("projects") / projectId
+    # Validate project exists via registry and derive the folder
+    project = project_service.get_project(projectId)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{projectId}' not found"
+        )
+    cwd = Path("projects") / project.id
     try:
         status_obj = await agent_runner.start(cwd)
     except FileNotFoundError as e:
