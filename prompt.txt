@@ -1,13 +1,13 @@
-MCPClient operativo (Unity/Blender) + run_tool 
+Contexto/Estado: endpoints para Scene & Screenshots 
 
-Contexto: Hay un MCPClient esbozado. 
- Objetivo: Hacerlo funcional contra mcp_unity_bridge/mcp_blender_addon: handshake, health, run_tool(name,args), reintentos, timeouts. 
+Contexto: Panel de Contexto necesita última jerarquía de escena y último screenshot. 
+ Objetivo: Añadir /api/v1/context/state y /api/v1/context/screenshot (GET) más /api/v1/context/screenshot (POST “solicitar screenshot”). 
  Alcance y tareas: 
 
-Añadir cliente con pool por host/puerto o protocolo (WS/stdio). 
+Persistir last_scene.json y last_screenshot.png por proyecto (projects/{id}/context/). 
 
-run_tool debe ser awaitable; en errores publiquen type=log + timeline status=error. 
+POST dispara MCPClient.run_tool('requestScreenshot', …) y actualiza fichero; emite WS type=context. 
 
-Configurable por proyecto (endpoints y caps). 
- Aceptación: Ejecutar getSceneHierarchy desde tool produce payload JSON en timeline y WS. 
- Notas: Implementa circuit breaker simple (backoff exponencial).
+GET devuelve hashes/etag + rutas/URLs. 
+ Aceptación: La UI lista y actualiza estado tras una petición de screenshot. 
+ Notas: Evita payloads binarios por WS; devuelve URLs HTTP (static mount) o firma temporal. 

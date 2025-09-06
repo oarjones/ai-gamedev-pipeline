@@ -65,7 +65,7 @@ async def websocket_events(websocket: WebSocket) -> None:
 
 
 # Include routers
-from app.routers import projects_router, agent_router, chat_router, timeline_router, tools_router
+from app.routers import projects_router, agent_router, chat_router, timeline_router, tools_router, context_router
 
 app.include_router(
     projects_router,
@@ -99,6 +99,13 @@ app.include_router(
     tools_router,
     prefix="/api/v1",
     tags=["tools", "actions"],
+)
+
+# Context (scene, screenshots)
+app.include_router(
+    context_router,
+    prefix="/api/v1",
+    tags=["context"],
 )
 
 
