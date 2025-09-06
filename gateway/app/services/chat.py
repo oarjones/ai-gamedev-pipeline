@@ -23,7 +23,6 @@ from pathlib import Path
 from app.config import settings
 from app.db import ChatMessageDB, db
 from app.models import Envelope, EventType
-from app.services.agent_runner import agent_runner
 from app.ws.events import manager
 
 
@@ -87,10 +86,17 @@ class ChatService:
             job = await self._queue.get()
             try:
                 # Send to agent CLI and stream response lines (single-line for now)
+                from app.services.agent_runner import agent_runner
                 out = await agent_runner.send(job.text, correlation_id=job.correlation_id)
                 agent_msg_id = str(uuid4())
                 self._persist_message(job.project_id, "agent", out, agent_msg_id)
                 await self._broadcast_chat(job.project_id, "agent", out, agent_msg_id, job.correlation_id)
+
+                # Try to detect plan JSON in the agent output and orchestrate
+                plan = self._maybe_parse_plan(out)
+                if plan is not None:
+                    # Fire-and-forget orchestration; errors are broadcast inside orchestrator
+                    asyncio.create_task(self._run_plan(job.project_id, plan, job.correlation_id))
             except Exception as e:
                 logger.error("Chat worker error: %s", e)
             finally:
@@ -125,7 +131,26 @@ class ChatService:
         except Exception as e:
             logger.error("Failed to persist chat message: %s", e)
 
+    def _maybe_parse_plan(self, text: str) -> Optional[list[dict]]:
+        s = (text or "").strip()
+        try:
+            if s.startswith("["):
+                data = json.loads(s)
+                if isinstance(data, list) and all(isinstance(x, dict) for x in data):
+                    # Validate each step has 'tool'
+                    if all("tool" in x for x in data):
+                        return data  # type: ignore
+        except Exception:
+            return None
+        return None
+
+    async def _run_plan(self, project_id: str, plan: list[dict], correlation_id: Optional[str]) -> None:
+        try:
+            from app.services.actions import action_orchestrator
+            await action_orchestrator.run_plan(project_id, plan, correlation_id=correlation_id)
+        except Exception as e:
+            logger.error("Orchestrator error: %s", e)
+
 
 # Singleton instance
 chat_service = ChatService()
-

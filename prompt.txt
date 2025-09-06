@@ -1,24 +1,24 @@
-Tarea 5 — Servicio de Chat (historial + streaming por WS)
+Tarea 6 — Orquestador de Acciones (parseo de plan del agente)
 Contexto
-El panel conversacional envía mensajes de usuario y recibe respuestas del agente/CLI. Necesitamos historial y eventos WS.
+El agente devolverá “planes de acción” (JSON). Debemos parsearlos, validarlos y ejecutar herramientas MCP en orden.
 
 Objetivo
-Implementar ChatService que persista chat_messages (SQLite) y publique eventos type=chat por WS al ir llegando salida del CLI (stream line‑by‑line si aplica).
+Crear ActionOrchestrator que acepte un plan (lista de pasos {tool, args}), valide contra whitelist y ejecute secuencialmente. Publicar a timeline y updates (scene, screenshot) tras cada paso.
 
 Entregables
 
-app/services/chat.py con API para send_user_message(project_id, text).
-app/routers/chat.py: POST /api/v1/chat/send?projectId=....
-Publicación a /ws/events con Envelope (role, content, msgId).
+app/services/actions.py con run_plan(project_id, plan).
+Hook desde ChatService (cuando detecte bloque JSON válido).
+Tabla timeline_events (SQLite): almacenar cada paso.
 Restricciones y consideraciones
 
-Tamaño máximo de mensaje (config). Sanitización básica.
-Asociar user/agent/system como roles.
+Timeouts y abort en error; error legible con ErrorEnvelope.
+Sanitizar parámetros; idempotencia cuando sea posible.
 Criterios de aceptación (DoD)
 
-Enviar texto produce evento chat visible por WS.
-Historial recuperable por proyecto (endpoint extra opcional).
+Plan simple (crear primitiva en Blender → export FBX → instanciar en Unity) se ejecuta y genera timeline.
+Errores quedan reflejados y no tumban el proceso.
 Buenas prácticas y notas para el agente
 
-Usar colas asyncio para no bloquear loop.
-Manejo robusto de errores (respuesta 4xx con detalle).
+Telemetría de duración por paso; correlation‑id.
+Preparar interfaz para añadir “undos” futuros.
