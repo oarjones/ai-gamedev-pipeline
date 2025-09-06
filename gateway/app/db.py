@@ -1,10 +1,11 @@
 """Database configuration and models for AI Gateway."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel import Field
+from datetime import datetime
 
 
 class ProjectDB(SQLModel, table=True):
@@ -16,6 +17,19 @@ class ProjectDB(SQLModel, table=True):
     name: str = Field(description="Human-readable project name") 
     path: str = Field(description="Relative path to project directory")
     active: bool = Field(default=False, description="Whether this project is currently active")
+
+
+class ChatMessageDB(SQLModel, table=True):
+    """Database model for chat messages."""
+
+    __tablename__ = "chat_messages"
+
+    id: int | None = Field(default=None, primary_key=True)
+    msg_id: str = Field(index=True, description="Unique message identifier (UUID4)")
+    project_id: str = Field(index=True, description="Project ID")
+    role: str = Field(description="Message role: user|agent|system")
+    content: str = Field(description="Message content")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="UTC timestamp")
 
 
 class DatabaseManager:
@@ -109,6 +123,24 @@ class DatabaseManager:
         """
         with self.get_session() as session:
             statement = select(ProjectDB)
+            return list(session.exec(statement).all())
+
+    # Chat messages operations
+    def add_chat_message(self, message: ChatMessageDB) -> ChatMessageDB:
+        with self.get_session() as session:
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+            return message
+
+    def list_chat_messages(self, project_id: str, limit: int = 50) -> List[ChatMessageDB]:
+        with self.get_session() as session:
+            statement = (
+                select(ChatMessageDB)
+                .where(ChatMessageDB.project_id == project_id)
+                .order_by(ChatMessageDB.created_at.desc())
+                .limit(limit)
+            )
             return list(session.exec(statement).all())
     
     def delete_project(self, project_id: str) -> bool:

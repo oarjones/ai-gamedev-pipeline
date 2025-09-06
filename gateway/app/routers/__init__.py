@@ -2,5 +2,6 @@
 
 from .projects import router as projects_router
 from .agent import router as agent_router
+from .chat import router as chat_router
 
-__all__ = ["projects_router", "agent_router"]
+__all__ = ["projects_router", "agent_router", "chat_router"]

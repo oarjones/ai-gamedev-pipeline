@@ -11,6 +11,9 @@ gateway:
     allow_credentials: true
     allow_methods: ["*"]
     allow_headers: ["*"]
+  chat:
+    max_message_length: 4000
+    history_limit_default: 50
 
 servers:
   mcp_bridge:

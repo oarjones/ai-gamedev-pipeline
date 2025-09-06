@@ -1,110 +1,24 @@
-Implementar un sistema completo de estado persistente con checkpoint y rollback para el proyecto AI GameDev Pipeline.
+Tarea 5 — Servicio de Chat (historial + streaming por WS)
+Contexto
+El panel conversacional envía mensajes de usuario y recibe respuestas del agente/CLI. Necesitamos historial y eventos WS.
 
-CONTEXTO:
-- Necesitamos trackear todos los cambios en Unity y Blender
-- Poder hacer undo/redo de operaciones complejas
-- Mantener historial entre sesiones
+Objetivo
+Implementar ChatService que persista chat_messages (SQLite) y publique eventos type=chat por WS al ir llegando salida del CLI (stream line‑by‑line si aplica).
 
-REQUISITOS:
+Entregables
 
-1. CORE STATE MANAGER:
-   Crear mcp_unity_bridge/src/state/state_manager.py:
-   python
-   class StateManager:
-       - __init__(project_path, max_checkpoints=50)
-       - create_checkpoint(action_type, data, metadata)
-       - rollback(steps=1) 
-       - rollforward(steps=1)
-       - get_history(limit=10, filter=None)
-       - prune_old_checkpoints(keep_last=20)
-       - export_state(format='json'|'binary')
-       - import_state(file_path)
-       - get_diff(checkpoint_a, checkpoint_b)
+app/services/chat.py con API para send_user_message(project_id, text).
+app/routers/chat.py: POST /api/v1/chat/send?projectId=....
+Publicación a /ws/events con Envelope (role, content, msgId).
+Restricciones y consideraciones
 
-2. CHECKPOINT SYSTEM:
-   Implementar en mcp_unity_bridge/src/state/checkpoint.py:
-   - Clase Checkpoint con: id, timestamp, action, data, parent_id, hash
-   - Compresión con zlib para datos grandes
-   - Hashing SHA256 para integridad
-   - Serialización eficiente con MessagePack
-   - Soporte para datos binarios (screenshots, meshes)
+Tamaño máximo de mensaje (config). Sanitización básica.
+Asociar user/agent/system como roles.
+Criterios de aceptación (DoD)
 
-3. STORAGE BACKEND:
-   Crear mcp_unity_bridge/src/state/storage.py:
-   - Interfaz IStateStorage
-   - SQLiteStorage: Implementación local con SQLite
-   - Índices en: timestamp, action_type, parent_id
-   - VACUUM automático cuando DB > 100MB
-   - Backup automático cada 10 checkpoints
+Enviar texto produce evento chat visible por WS.
+Historial recuperable por proyecto (endpoint extra opcional).
+Buenas prácticas y notas para el agente
 
-4. UNITY INTEGRATION:
-   Crear Assets/Editor/MCP/State/StateRecorder.cs:
-   csharp
-   public class StateRecorder {
-       - RecordSceneState(): Captura completa de la escena
-       - RecordObjectChange(GameObject obj)
-       - RecordComponentChange(Component comp)
-       - RestoreFromCheckpoint(string checkpointId)
-       - GetStateDiff(string checkpointA, string checkpointB)
-   }
-
-5. BLENDER INTEGRATION:
-   Actualizar Blender addon con state tracking:
-   - Hook en todas las operaciones que modifican la escena
-   - Serialización de mesh data, materiales, animaciones
-   - Restauración completa de estado
-
-6. DELTA COMPRESSION:
-   Implementar almacenamiento diferencial:
-   - Solo guardar cambios entre checkpoints
-   - Reconstrucción rápida usando deltas
-   - Compresión adaptativa según tipo de dato
-
-7. UI COMPONENTS:
-   - Unity: Timeline visual en Editor Window
-   - Web UI: Visualización de historial
-   - Comparación lado a lado de estados
-
-8. CONFLICTO RESOLUTION:
-   Sistema para manejar conflictos:
-   - Detección de operaciones conflictivas
-   - Estrategias: last-write-wins, merge, manual
-   - Branching de estados para exploración
-
-DATABASE SCHEMA:
-sql
-CREATE TABLE checkpoints (
-    id TEXT PRIMARY KEY,
-    timestamp INTEGER NOT NULL,
-    action_type TEXT NOT NULL,
-    data BLOB,
-    metadata TEXT,
-    parent_id TEXT,
-    hash TEXT NOT NULL,
-    size_bytes INTEGER,
-    compressed BOOLEAN
-);
-
-CREATE TABLE state_branches (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at INTEGER,
-    head_checkpoint TEXT,
-    description TEXT
-);
-
-BUENAS PRÁCTICAS:
-- Usar transacciones para operaciones atómicas
-- Implementar lazy loading para checkpoints grandes
-- Cache LRU para checkpoints frecuentes
-- Thread-safe operations con threading.Lock
-- Validación de integridad en cada load
-- Cleanup automático de estados corruptos
-
-CRITERIOS DE ACEPTACIÓN:
-- Rollback funciona para últimas 50 operaciones
-- Estado persiste entre reinicios de aplicación
-- Restauración completa < 2 segundos
-- No pérdida de datos en crashes
-- UI muestra historial visual
-- Tests con 90% coverage
+Usar colas asyncio para no bloquear loop.
+Manejo robusto de errores (respuesta 4xx con detalle).

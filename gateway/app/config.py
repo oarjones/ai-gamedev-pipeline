@@ -29,6 +29,15 @@ class CorsConfig(BaseModel):
     allow_headers: List[str] = ["*"]
 
 
+class ChatConfig(BaseModel):
+    """Chat configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_message_length: int = 4000
+    history_limit_default: int = 50
+
+
 class Settings(BaseSettings):
     """Main settings class with YAML and environment variable support."""
     
@@ -42,6 +51,7 @@ class Settings(BaseSettings):
     
     server: ServerConfig = Field(default_factory=ServerConfig)
     cors: CorsConfig = Field(default_factory=CorsConfig)
+    chat: ChatConfig = Field(default_factory=ChatConfig)
 
 
 def load_settings() -> Settings:
