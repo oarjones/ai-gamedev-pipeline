@@ -30,6 +30,10 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+# Adapter interfaces
+from app.services.adapters.registry import get_adapter
+from app.services.adapters.base import AgentAdapter, StreamEvent
+
 
 @dataclass
 class RunnerStatus:
@@ -61,6 +65,14 @@ class AgentRunner:
         self._project_id: Optional[str] = None
         self._last_correlation_id: Optional[str] = None
         self._adapter: Optional[AgentAdapter] = None
+
+    @staticmethod
+    def _mask(s: str) -> str:
+        import re
+        if not s:
+            return s
+        redacted = re.sub(r"(?i)(api[-_ ]?key|token|secret)\s*[:=]\s*([^\s]+)", r"\1=[REDACTED]", s)
+        return (redacted[:120] + "…") if len(redacted) > 120 else redacted
 
     @staticmethod
     def _load_project_agent_config(cwd: Path) -> AgentConfig:
@@ -232,7 +244,11 @@ class AgentRunner:
                     # Fallback to raw
                     line = (text or "") + "\n"
             self._last_correlation_id = correlation_id
-            logger.debug("[%s] >> %s", correlation_id or "-", text)
+            try:
+                masked = self._mask(text)
+            except Exception:
+                masked = text
+            logger.debug("[%s] >> %s", correlation_id or "-", masked)
             self._proc.stdin.write(line.encode("utf-8"))
             await self._proc.stdin.drain()
             return {"queued": True, "msgId": None}
@@ -354,8 +370,6 @@ class AgentRunner:
 
     async def _log_stderr_nonblocking(self) -> None:
         """Attempt to read a single stderr line quickly for logging."""
-from app.services.adapters.registry import get_adapter
-from app.services.adapters.base import AgentAdapter, StreamEvent
         if self._proc and self._proc.stderr:
             try:
                 raw = await asyncio.wait_for(self._proc.stderr.readline(), timeout=0.01)

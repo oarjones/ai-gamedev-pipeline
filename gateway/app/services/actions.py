@@ -97,6 +97,13 @@ class ToolsRegistry:
         abs_path = Path(outfile)
         if not abs_path.is_absolute():
             abs_path = (Path.cwd() / outfile).resolve()
+        # Enforce export within allowed root to avoid path traversal
+        try:
+            allowed_root = (Path("unity_project") / "Assets" / "Generated").resolve()
+            abs_path.relative_to(allowed_root)
+        except Exception:
+            abs_path = (Path("unity_project") / "Assets" / "Generated" / abs_path.name).resolve()
+            outfile = str(abs_path)
         pre = {"path": str(abs_path), "existed": abs_path.exists(), "backup_path": None}
         try:
             if abs_path.exists():

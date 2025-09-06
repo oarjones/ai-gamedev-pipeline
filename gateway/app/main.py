@@ -4,13 +4,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.models import CreateProject, Envelope, EventType, Project
 from app.ws.events import websocket_endpoint
+from app.security import require_api_key
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,11 +29,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # Create FastAPI app
+_deps = [Depends(require_api_key)] if settings.auth.require_api_key else []
 app = FastAPI(
     title="AI Gateway",
     description="AI Gateway service for ai-gamedev-pipeline",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=_deps,
 )
 
 # Add CORS middleware
@@ -43,6 +46,8 @@ app.add_middleware(
     allow_methods=settings.cors.allow_methods,
     allow_headers=settings.cors.allow_headers,
 )
+
+# No further overrides; WebSocket auth handled in websocket_endpoint
 
 
 @app.get("/health")

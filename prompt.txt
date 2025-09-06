@@ -1,13 +1,5 @@
-Contratos y documentación (MkDocs) 
+Seguridad básica y saneamiento 
 
-Contexto: Falta doc específica del dashboard/gateway. 
- Objetivo: Añadir docs/dashboard/ con: 
-
-architecture.md (diagrama mermaid de flujos) 
-
-events.md (envelope/WS, rooms) 
-
-api.md (projects, agent, chat, timeline, tools) 
-
-config.md (project.json/env) 
- Aceptación: mkdocs serve compila y enlaza secciones desde README.
+Contexto: MVP sin auth. 
+ Objetivo: Añadir capa mínima: API key local (header), límites de tamaño, listas blancas de comandos, saneo de rutas y máscaras de secretos en logs. 
+ Aceptación: Llamadas sin API key devuelven 401; logs no exponen secretos. 

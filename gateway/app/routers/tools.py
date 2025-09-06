@@ -42,6 +42,15 @@ async def execute_action(request: Request, projectId: str, payload: ExecuteReque
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     corr_id = request.headers.get("X-Correlation-Id")
+    # Size limit (64KB) for input payload
+    try:
+        import json as _json
+        if len(_json.dumps(payload.input, ensure_ascii=False)) > 64 * 1024:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Input too large")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     # Delegate to orchestrator as a single-step plan
     try:
         res = await action_orchestrator.run_plan(projectId, [{"tool": payload.toolId, "args": payload.input}], correlation_id=corr_id)
@@ -49,4 +58,3 @@ async def execute_action(request: Request, projectId: str, payload: ExecuteReque
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     return JSONResponse(status_code=status.HTTP_200_OK, content=res)
-

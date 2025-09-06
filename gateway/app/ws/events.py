@@ -66,6 +66,17 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     Requires query param ?projectId=...; otherwise rejects the connection.
     """
     project_id = websocket.query_params.get("projectId")
+    api_key = websocket.headers.get("X-API-Key") or websocket.query_params.get("apiKey")
+    try:
+        from app.config import settings as _settings
+        if _settings.auth.require_api_key:
+            if not api_key or api_key != _settings.auth.api_key:
+                await websocket.accept()
+                await websocket.send_text(json.dumps({"type": "error", "message": "unauthorized"}))
+                await websocket.close()
+                return
+    except Exception:
+        pass
     if not project_id:
         # Reject clients without projectId for now
         await websocket.accept()

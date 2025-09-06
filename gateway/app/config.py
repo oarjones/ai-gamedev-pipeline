@@ -29,6 +29,15 @@ class CorsConfig(BaseModel):
     allow_headers: List[str] = ["*"]
 
 
+class AuthConfig(BaseModel):
+    """Auth configuration (minimal API key)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    require_api_key: bool = True
+    api_key: str = "dev-local-key"
+
+
 class ChatConfig(BaseModel):
     """Chat configuration."""
 
@@ -51,6 +60,7 @@ class Settings(BaseSettings):
     
     server: ServerConfig = Field(default_factory=ServerConfig)
     cors: CorsConfig = Field(default_factory=CorsConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
     chat: ChatConfig = Field(default_factory=ChatConfig)
 
 
