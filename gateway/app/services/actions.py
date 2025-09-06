@@ -37,6 +37,7 @@ ALLOWED_TOOLS: set[str] = {
     "blender.export_fbx",
     "unity.instantiate_fbx",
     "project.create_from_template",
+    "unity.get_scene_hierarchy",
 }
 
 
@@ -78,22 +79,24 @@ class ToolsRegistry:
             "blender.export_fbx": self._blender_export_fbx,
             "unity.instantiate_fbx": self._unity_instantiate_fbx,
             "project.create_from_template": self._project_create_from_template,
+            "unity.get_scene_hierarchy": self._unity_get_scene_hierarchy,
         }
 
     async def _blender_create_primitive(self, project_id: str, args: dict) -> dict:
-        # TODO: Integrate via MCP Blender server
-        await asyncio.sleep(0)
-        return {"created": args.get("type", "cube"), "size": args.get("size", 1.0)}
+        from app.services.mcp_client import mcp_client
+        kind = str(args.get("type", "cube"))
+        size = float(args.get("size", 1.0))
+        return await mcp_client.create_primitive(kind=kind, size=size, project_id=project_id)
 
     async def _blender_export_fbx(self, project_id: str, args: dict) -> dict:
-        await asyncio.sleep(0)
-        outfile = args.get("outfile", "unity_project/Assets/Generated/agent_export.fbx")
-        return {"exported": outfile}
+        from app.services.mcp_client import mcp_client
+        outfile = str(args.get("outfile", "unity_project/Assets/Generated/agent_export.fbx"))
+        return await mcp_client.export_fbx(outfile=outfile, project_id=project_id)
 
     async def _unity_instantiate_fbx(self, project_id: str, args: dict) -> dict:
-        await asyncio.sleep(0)
-        asset = args.get("asset", "Assets/Generated/agent_export.fbx")
-        return {"instantiated": asset}
+        from app.services.mcp_client import mcp_client
+        asset = str(args.get("asset", "Assets/Generated/agent_export.fbx"))
+        return await mcp_client.instantiate_prefab(asset_path=asset, project_id=project_id)
 
     async def _project_create_from_template(self, project_id: str, args: dict) -> dict:
         # Create a new project using name/templateId; returns created project id
@@ -104,6 +107,10 @@ class ToolsRegistry:
         _ = args.get("templateId")
         proj = project_service.create_project(CreateProject(name=name))
         return {"projectId": proj.id, "name": proj.name}
+
+    async def _unity_get_scene_hierarchy(self, project_id: str, args: dict) -> dict:
+        from app.services.mcp_client import mcp_client
+        return await mcp_client.get_scene_hierarchy(project_id)
 
     async def execute(self, tool: str, project_id: str, args: dict) -> dict:
         handler = self._map.get(tool)

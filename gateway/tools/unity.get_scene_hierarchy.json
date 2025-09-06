@@ -1,0 +1,13 @@
+{
+  "id": "unity.get_scene_hierarchy",
+  "name": "Get Scene Hierarchy",
+  "category": "Unity",
+  "description": "Retrieve the current Unity scene hierarchy as JSON",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}
+

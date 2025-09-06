@@ -1,13 +1,13 @@
-Registry de herramientas (Tools/Plantillas) y contratos de acciones 
+MCPClient operativo (Unity/Blender) + run_tool 
 
-Contexto: Lateral de herramientas requiere acciones estructuradas. 
- Objetivo: Exponer /api/v1/tools y /api/v1/actions/execute con validación y trazabilidad (timeline). 
+Contexto: Hay un MCPClient esbozado. 
+ Objetivo: Hacerlo funcional contra mcp_unity_bridge/mcp_blender_addon: handshake, health, run_tool(name,args), reintentos, timeouts. 
  Alcance y tareas: 
 
-Estructura tools/ con metadatos (id, name, schema JSON de inputs, categoría). 
+Añadir cliente con pool por host/puerto o protocolo (WS/stdio). 
 
-Endpoint GET /tools lista herramientas; POST /actions/execute valida toolId + input contra schema y delega al orchestrator. 
+run_tool debe ser awaitable; en errores publiquen type=log + timeline status=error. 
 
-Orchestrator instrumenta timeline (start/finish, status, result) y WS (type=timeline|tool). 
- Aceptación: Ejecutar “Crear Proyecto desde Plantilla” registra paso en timeline y publica eventos. 
- Notas: Usa pydantic + jsonschema; errores con codes claros. 
+Configurable por proyecto (endpoints y caps). 
+ Aceptación: Ejecutar getSceneHierarchy desde tool produce payload JSON en timeline y WS. 
+ Notas: Implementa circuit breaker simple (backoff exponencial).
