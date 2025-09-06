@@ -1,24 +1,24 @@
-Tarea 6 — Orquestador de Acciones (parseo de plan del agente)
+area 7 — Cliente MCP (Unity/Blender) integrado en Gateway
 Contexto
-El agente devolverá “planes de acción” (JSON). Debemos parsearlos, validarlos y ejecutar herramientas MCP en orden.
+El Gateway no debe duplicar lógica MCP: debe invocar al adaptador MCP existente para Unity/Blender.
 
 Objetivo
-Crear ActionOrchestrator que acepte un plan (lista de pasos {tool, args}), valide contra whitelist y ejecute secuencialmente. Publicar a timeline y updates (scene, screenshot) tras cada paso.
+Crear MCPClient que importe y use las funciones del adaptador MCP (misma venv), con helpers comunes: getSceneHierarchy, captureScreenshot, exportFBX, instantiatePrefab, etc.
 
 Entregables
 
-app/services/actions.py con run_plan(project_id, plan).
-Hook desde ChatService (cuando detecte bloque JSON válido).
-Tabla timeline_events (SQLite): almacenar cada paso.
+app/services/mcp_client.py: implementar llamadas reales.
+Cargar endpoints/credenciales desde config/settings.yaml.
+Reconexión simple para sockets.
 Restricciones y consideraciones
 
-Timeouts y abort en error; error legible con ErrorEnvelope.
-Sanitizar parámetros; idempotencia cuando sea posible.
+No bloquear el event loop: utilizar anyio.to_thread.run_sync si las llamadas son síncronas.
+Mapear errores a ErrorEnvelope coherente.
 Criterios de aceptación (DoD)
 
-Plan simple (crear primitiva en Blender → export FBX → instanciar en Unity) se ejecuta y genera timeline.
-Errores quedan reflejados y no tumban el proceso.
+Gateway logra invocar MCP real y devolver datos.
+getSceneHierarchy y captureScreenshot operativos.
 Buenas prácticas y notas para el agente
 
-Telemetría de duración por paso; correlation‑id.
-Preparar interfaz para añadir “undos” futuros.
+Reutilizar constantes/código del MCP si existen.
+Backoff en reconexiones; logs claros de fallo.
