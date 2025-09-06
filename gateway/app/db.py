@@ -177,6 +177,10 @@ class DatabaseManager:
                 .limit(limit)
             )
             return list(session.exec(statement).all())
+
+    def get_timeline_event(self, event_id: int) -> Optional[TimelineEventDB]:
+        with self.get_session() as session:
+            return session.get(TimelineEventDB, event_id)
     
     def delete_project(self, project_id: str) -> bool:
         """Delete a project from the database.

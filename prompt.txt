@@ -1,24 +1,24 @@
-area 7 — Cliente MCP (Unity/Blender) integrado en Gateway
+Tarea 8 — Línea de Tiempo (timeline) + Undo (stub)
 Contexto
-El Gateway no debe duplicar lógica MCP: debe invocar al adaptador MCP existente para Unity/Blender.
+Necesitamos un historial visible de acciones. El undo completo vendrá después; por ahora, un stub razonable.
 
 Objetivo
-Crear MCPClient que importe y use las funciones del adaptador MCP (misma venv), con helpers comunes: getSceneHierarchy, captureScreenshot, exportFBX, instantiatePrefab, etc.
+Persistir timeline_events (id, projectId, type, payload, ts, relatedIds). Exponer GET /api/v1/timeline?projectId=... y POST /api/v1/timeline/{id}/revert (stub: marcar/ejecutar una reversión básica si aplica).
 
 Entregables
 
-app/services/mcp_client.py: implementar llamadas reales.
-Cargar endpoints/credenciales desde config/settings.yaml.
-Reconexión simple para sockets.
+app/services/timeline.py y app/routers/timeline.py.
+Emitir evento WS type=timeline al registrar.
+Integración con Orchestrator.
 Restricciones y consideraciones
 
-No bloquear el event loop: utilizar anyio.to_thread.run_sync si las llamadas son síncronas.
-Mapear errores a ErrorEnvelope coherente.
+No prometer rollback total aún.
+Registrar correlaciones (create/delete) para futuros undos.
 Criterios de aceptación (DoD)
 
-Gateway logra invocar MCP real y devolver datos.
-getSceneHierarchy y captureScreenshot operativos.
+Timeline visible en tiempo real vía WS.
+revert devuelve 202 si pendiente, 200 si revirtió algo simple.
 Buenas prácticas y notas para el agente
 
-Reutilizar constantes/código del MCP si existen.
-Backoff en reconexiones; logs claros de fallo.
+Diseñar payload pensando en checkpoints futuros.
+Documentar límites del undo actual.
