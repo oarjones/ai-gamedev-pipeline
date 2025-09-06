@@ -1,10 +1,13 @@
-API Projects v2 (activa única, start/stop automático) 
+Contratos y documentación (MkDocs) 
 
-Contexto: Selección de proyecto existe; arrancar agente requiere otra llamada. 
- Objetivo: Al seleccionar proyecto activo, auto-arrancar el runner con su config; al cambiar de proyecto, stop del anterior. 
- Alcance y tareas: 
+Contexto: Falta doc específica del dashboard/gateway. 
+ Objetivo: Añadir docs/dashboard/ con: 
 
-PATCH /projects/{id}/select → persiste, detiene runner si hay uno, inicia nuevo con config. 
+architecture.md (diagrama mermaid de flujos) 
 
-Publicar type=project con status=active-changed. 
- Aceptación: Cambiar de proyecto conmuta el runner sin llamadas manuales a /agent/start. 
+events.md (envelope/WS, rooms) 
+
+api.md (projects, agent, chat, timeline, tools) 
+
+config.md (project.json/env) 
+ Aceptación: mkdocs serve compila y enlaza secciones desde README.

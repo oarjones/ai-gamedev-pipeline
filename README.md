@@ -28,6 +28,13 @@ Documentación (MkDocs)
 - Desarrollo: `docs/developer/`.
 - Problemas comunes: `docs/troubleshooting/`.
 
+Dashboard (Gateway)
+-------------------
+- Arquitectura: `docs/dashboard/architecture.md`
+- Eventos (Envelope/Rooms): `docs/dashboard/events.md`
+- API (projects, agent, chat, timeline, tools, context): `docs/dashboard/api.md`
+- Configuración (project.json/env): `docs/dashboard/config.md`
+
 Contribución
 ------------
 Por favor, lee `CONTRIBUTING.md`. Mantén docstrings actualizados y ejecuta el generador de docs antes de subir cambios.
