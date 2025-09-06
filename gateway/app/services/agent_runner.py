@@ -13,10 +13,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shlex
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
+
+import json
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover
+    yaml = None  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +38,15 @@ class RunnerStatus:
     cwd: Optional[str]
 
 
+@dataclass
+class AgentConfig:
+    executable: str
+    args: List[str]
+    env: Dict[str, str]
+    default_timeout: float
+    terminate_grace: float
+
+
 class AgentRunner:
     """Manage a single long-lived CLI subprocess for the active project."""
 
@@ -39,20 +57,84 @@ class AgentRunner:
         self._terminate_grace = float(terminate_grace)
         self._io_lock = asyncio.Lock()
 
-    def _build_command(self) -> list[str]:
-        """Build the command to run for the agent CLI.
+    @staticmethod
+    def _load_project_agent_config(cwd: Path) -> AgentConfig:
+        """Load per-project agent configuration.
 
-        Temporary mock: Python echo loop. Replace this with the real
-        agent CLI binary/script when available.
+        Precedence:
+        1) projects/<id>/.agp/project.json -> key 'agent'
+        2) gateway/config/projects/<id>.yaml (if exists)
         """
-        code = (
-            "import sys; "
-            "\nimport sys\n"
-            "for line in sys.stdin:\n"
-            "    s=line.rstrip('\\n')\n"
-            "    print(s, flush=True)\n"
+        project_id = cwd.name
+        # 1) JSON in .agp/project.json
+        pj = cwd / ".agp" / "project.json"
+        agent: Dict[str, object] = {}
+        if pj.exists():
+            try:
+                with open(pj, "r", encoding="utf-8") as f:
+                    data = json.load(f) or {}
+                    agent = data.get("agent", {}) if isinstance(data, dict) else {}
+            except Exception:
+                agent = {}
+        # 2) Fallback YAML per-project config
+        if (not agent) and yaml is not None:
+            ypath = Path("gateway") / "config" / "projects" / f"{project_id}.yaml"
+            if ypath.exists():
+                try:
+                    with open(ypath, "r", encoding="utf-8") as f:
+                        y = yaml.safe_load(f) or {}
+                        agent = y.get("agent", {}) if isinstance(y, dict) else {}
+                except Exception:
+                    agent = {}
+
+        if not isinstance(agent, dict):
+            agent = {}
+
+        executable = str(agent.get("executable", "")).strip()
+        args = agent.get("args", [])
+        env = agent.get("env", {})
+        default_timeout = float(agent.get("default_timeout", 5.0) or 5.0)
+        terminate_grace = float(agent.get("terminate_grace", 3.0) or 3.0)
+
+        if not isinstance(args, list):
+            args = []
+        if not isinstance(env, dict):
+            env = {}
+
+        return AgentConfig(
+            executable=executable,
+            args=[str(a) for a in args],
+            env={str(k): str(v) for k, v in env.items()},
+            default_timeout=default_timeout,
+            terminate_grace=terminate_grace,
         )
-        return [sys.executable, "-u", "-c", code]
+
+    @staticmethod
+    def _resolve_executable(executable: str, cwd: Path) -> Optional[str]:
+        """Resolve executable path, supporting absolute, relative, or PATH lookup."""
+        if not executable:
+            return None
+        p = Path(executable)
+        if not p.is_absolute():
+            p = (cwd / executable).resolve()
+        if p.exists():
+            return str(p)
+        # Try PATH
+        which = shutil.which(executable)
+        return which
+
+    @staticmethod
+    def _build_from_config(cwd: Path, cfg: AgentConfig) -> Tuple[List[str], Dict[str, str]]:
+        resolved_exec = AgentRunner._resolve_executable(cfg.executable, cwd)
+        if not resolved_exec:
+            raise RuntimeError(f"Agent executable not found: '{cfg.executable}' (cwd={cwd})")
+
+        cmd = [resolved_exec, *cfg.args]
+        env = os.environ.copy()
+        # Merge project env (override)
+        for k, v in cfg.env.items():
+            env[str(k)] = str(v)
+        return cmd, env
 
     async def start(self, cwd: Path) -> RunnerStatus:
         """Start the agent process in the provided working directory.
@@ -66,8 +148,18 @@ class AgentRunner:
         if not self._cwd.exists() or not self._cwd.is_dir():
             raise FileNotFoundError(f"Project directory not found: {self._cwd}")
 
-        cmd = self._build_command()
-        logger.info("Starting agent CLI: %s (cwd=%s)", cmd, str(self._cwd))
+        # Load per-project agent configuration
+        cfg = self._load_project_agent_config(self._cwd)
+        if not cfg.executable:
+            raise RuntimeError("Agent executable not configured. Add 'agent.executable' in .agp/project.json or gateway/config/projects/{id}.yaml")
+        # Update timeouts from config
+        self._default_timeout = float(cfg.default_timeout)
+        self._terminate_grace = float(cfg.terminate_grace)
+
+        cmd, env = self._build_from_config(self._cwd, cfg)
+        # Log safe command line (no env values)
+        safe_cmd = " ".join(shlex.quote(p) for p in cmd)
+        logger.info("Starting agent CLI: %s (cwd=%s)", safe_cmd, str(self._cwd))
         # DEBUG level logs of stdout/stderr will be written upon send() or when stopping
         self._proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -75,6 +167,7 @@ class AgentRunner:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         return self.status()
 

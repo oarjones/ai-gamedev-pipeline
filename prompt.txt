@@ -1,24 +1,20 @@
-Tarea 8 — Línea de Tiempo (timeline) + Undo (stub)
-Contexto
-Necesitamos un historial visible de acciones. El undo completo vendrá después; por ahora, un stub razonable.
+Sustituir CLI “eco” por Agente CLI real + configuración por proyecto 
 
-Objetivo
-Persistir timeline_events (id, projectId, type, payload, ts, relatedIds). Exponer GET /api/v1/timeline?projectId=... y POST /api/v1/timeline/{id}/revert (stub: marcar/ejecutar una reversión básica si aplica).
+Contexto: El AgentRunner arranca un “echo”. Necesitamos lanzar el CLI del agente real (p. ej. unified_adapter o script Python) en la carpeta del proyecto con env/config correctos. 
+ Objetivo: Reemplazar _build_command() y start() para leer la configuración del proyecto y arrancar el binario real. 
+ Alcance y tareas: 
 
-Entregables
+Añadir project.json enriquecido (o gateway/config/projects/{id}.yaml) con: ruta del CLI, args, variables de entorno (API keys, URL MCP, modelo IA), timeouts. 
 
-app/services/timeline.py y app/routers/timeline.py.
-Emitir evento WS type=timeline al registrar.
-Integración con Orchestrator.
-Restricciones y consideraciones
+AgentRunner._build_command() debe construir [executable, ...args] desde esa config; soportar Windows/Linux/macOS. 
 
-No prometer rollback total aún.
-Registrar correlaciones (create/delete) para futuros undos.
-Criterios de aceptación (DoD)
+start(cwd) valida binario y permisos; crea env combinando os.environ + env del proyecto. 
 
-Timeline visible en tiempo real vía WS.
-revert devuelve 202 si pendiente, 200 si revirtió algo simple.
-Buenas prácticas y notas para el agente
+Registrar en logs la línea de comando efectiva (sin secretos). 
+ Entradas/Salidas: Entrada: projectId; Salida: status() con running, pid, cwd. 
+ Aceptación: 
 
-Diseñar payload pensando en checkpoints futuros.
-Documentar límites del undo actual.
+POST /api/v1/agent/start?projectId=... levanta el CLI real; status muestra running=true. 
+
+Error claro si falta binario/config. 
+ Notas & Buenas prácticas: No loguees secretos; usa shlex.quote en logs; maneja rutas con Path.resolve(); añade tests unitarios de construcción de comando
