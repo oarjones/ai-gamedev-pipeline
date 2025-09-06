@@ -1,13 +1,13 @@
-Adaptadores de Agente + selección de LLM/proveedor 
+Registry de herramientas (Tools/Plantillas) y contratos de acciones 
 
-Contexto: El Gateway debe saber hablar con diferentes agentes/modelos. 
- Objetivo: Diseñar interfaz AgentAdapter y al menos un adapter real (p. ej. “CLI-generic” que wrappea a Gemini CLI). 
+Contexto: Lateral de herramientas requiere acciones estructuradas. 
+ Objetivo: Exponer /api/v1/tools y /api/v1/actions/execute con validación y trazabilidad (timeline). 
  Alcance y tareas: 
 
-Crear services/adapters/base.py con send(prompt, context), on_stream(line). 
+Estructura tools/ con metadatos (id, name, schema JSON de inputs, categoría). 
 
-AI Gateway mapea proyecto→adapter según config (project.json). 
+Endpoint GET /tools lista herramientas; POST /actions/execute valida toolId + input contra schema y delega al orchestrator. 
 
-Implementar “CLI-generic”: formateo/escape de prompts, parseo de líneas (JSON:), tool-call detection. 
- Aceptación: Cambiar el adapter en config y ver comportamiento distinto sin tocar el resto del sistema. 
- Notas: Abierto a añadir “Gemini/Claude/OpenAI” después, pero esta tarea cubre el contrato. 
+Orchestrator instrumenta timeline (start/finish, status, result) y WS (type=timeline|tool). 
+ Aceptación: Ejecutar “Crear Proyecto desde Plantilla” registra paso en timeline y publica eventos. 
+ Notas: Usa pydantic + jsonschema; errores con codes claros. 

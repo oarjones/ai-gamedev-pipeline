@@ -1,0 +1,17 @@
+{
+  "id": "project.create_from_template",
+  "name": "Create Project from Template",
+  "category": "Project",
+  "description": "Create a new project using a predefined template",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "name": {"type": "string", "minLength": 1},
+      "templateId": {"type": "string", "minLength": 1}
+    },
+    "required": ["name", "templateId"],
+    "additionalProperties": true
+  }
+}
+

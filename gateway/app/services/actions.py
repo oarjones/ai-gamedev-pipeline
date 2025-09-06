@@ -36,6 +36,7 @@ ALLOWED_TOOLS: set[str] = {
     "blender.create_primitive",
     "blender.export_fbx",
     "unity.instantiate_fbx",
+    "project.create_from_template",
 }
 
 
@@ -76,6 +77,7 @@ class ToolsRegistry:
             "blender.create_primitive": self._blender_create_primitive,
             "blender.export_fbx": self._blender_export_fbx,
             "unity.instantiate_fbx": self._unity_instantiate_fbx,
+            "project.create_from_template": self._project_create_from_template,
         }
 
     async def _blender_create_primitive(self, project_id: str, args: dict) -> dict:
@@ -92,6 +94,16 @@ class ToolsRegistry:
         await asyncio.sleep(0)
         asset = args.get("asset", "Assets/Generated/agent_export.fbx")
         return {"instantiated": asset}
+
+    async def _project_create_from_template(self, project_id: str, args: dict) -> dict:
+        # Create a new project using name/templateId; returns created project id
+        from app.models.core import CreateProject
+        from app.services.projects import project_service
+        name = str(args.get("name", "Untitled"))
+        # For now templateId is not used to change behavior; reserved for future
+        _ = args.get("templateId")
+        proj = project_service.create_project(CreateProject(name=name))
+        return {"projectId": proj.id, "name": proj.name}
 
     async def execute(self, tool: str, project_id: str, args: dict) -> dict:
         handler = self._map.get(tool)
@@ -139,7 +151,8 @@ class ActionOrchestrator:
                     started_at=started,
                 )
             )
-
+            # Broadcast tool invocation and timeline running
+            await self._broadcast_tool(project_id, idx, tool, san_args, correlation_id)
             await self._broadcast_timeline(project_id, idx, tool, "running", None, correlation_id)
 
             try:
@@ -189,6 +202,17 @@ class ActionOrchestrator:
             "correlationId": correlation_id,
         }
         env = Envelope(type=EventType.TIMELINE, projectId=project_id, payload=payload, correlationId=correlation_id)
+        await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
+
+    async def _broadcast_tool(self, project_id: str, index: int, tool: str, args: dict, correlation_id: Optional[str]) -> None:
+        payload = {
+            "index": index,
+            "tool": tool,
+            "args": args,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "correlationId": correlation_id,
+        }
+        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=correlation_id)
         await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_update(self, project_id: str, tool: str, result: dict, correlation_id: Optional[str]) -> None:

@@ -4,5 +4,6 @@ from .projects import router as projects_router
 from .agent import router as agent_router
 from .chat import router as chat_router
 from .timeline import router as timeline_router
+from .tools import router as tools_router
 
-__all__ = ["projects_router", "agent_router", "chat_router", "timeline_router"]
+__all__ = ["projects_router", "agent_router", "chat_router", "timeline_router", "tools_router"]

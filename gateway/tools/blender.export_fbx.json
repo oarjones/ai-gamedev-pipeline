@@ -1,0 +1,16 @@
+{
+  "id": "blender.export_fbx",
+  "name": "Export FBX",
+  "category": "Blender",
+  "description": "Export the current scene to FBX",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "outfile": {"type": "string"}
+    },
+    "required": ["outfile"],
+    "additionalProperties": false
+  }
+}
+
