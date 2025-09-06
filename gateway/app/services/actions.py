@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Callable
 from uuid import uuid4
@@ -90,8 +91,35 @@ class ToolsRegistry:
 
     async def _blender_export_fbx(self, project_id: str, args: dict) -> dict:
         from app.services.mcp_client import mcp_client
+        from pathlib import Path
+        from uuid import uuid4
         outfile = str(args.get("outfile", "unity_project/Assets/Generated/agent_export.fbx"))
-        return await mcp_client.export_fbx(outfile=outfile, project_id=project_id)
+        abs_path = Path(outfile)
+        if not abs_path.is_absolute():
+            abs_path = (Path.cwd() / outfile).resolve()
+        pre = {"path": str(abs_path), "existed": abs_path.exists(), "backup_path": None}
+        try:
+            if abs_path.exists():
+                backup_dir = Path("projects") / project_id / "context" / "backups"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                backup_path = backup_dir / f"{uuid4().hex}_{abs_path.name}"
+                shutil.copy2(abs_path, backup_path)
+                pre["backup_path"] = str(backup_path.resolve())
+        except Exception:
+            # If backup fails, we still proceed; revert may be 'cannot'
+            pass
+        res = await mcp_client.export_fbx(outfile=outfile, project_id=project_id)
+        return {
+            **res,
+            "exported": outfile,
+            "compensate": {
+                "type": "file",
+                "op": "export",
+                "path": str(abs_path),
+                "existed": pre.get("existed", False),
+                "backup_path": pre.get("backup_path"),
+            },
+        }
 
     async def _unity_instantiate_fbx(self, project_id: str, args: dict) -> dict:
         from app.services.mcp_client import mcp_client

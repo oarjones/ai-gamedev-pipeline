@@ -1,13 +1,13 @@
-Contexto/Estado: endpoints para Scene & Screenshots 
+Timeline Revert con “compensating actions” 
 
-Contexto: Panel de Contexto necesita última jerarquía de escena y último screenshot. 
- Objetivo: Añadir /api/v1/context/state y /api/v1/context/screenshot (GET) más /api/v1/context/screenshot (POST “solicitar screenshot”). 
+Contexto: revert es un stub. 
+ Objetivo: Implementar revert para eventos que lo permitan (file ops, scene ops) con “acciones compensatorias”. 
  Alcance y tareas: 
 
-Persistir last_scene.json y last_screenshot.png por proyecto (projects/{id}/context/). 
+Definir por tipo de paso una función undo(step) o compensate(step). 
 
-POST dispara MCPClient.run_tool('requestScreenshot', …) y actualiza fichero; emite WS type=context. 
+Guardar metadatos suficientes en args_json/result_json para revertir (p. ej. ruta fichero, snapshot pre). 
 
-GET devuelve hashes/etag + rutas/URLs. 
- Aceptación: La UI lista y actualiza estado tras una petición de screenshot. 
- Notas: Evita payloads binarios por WS; devuelve URLs HTTP (static mount) o firma temporal. 
+UI recibe type=timeline con status=reverted|cannot. 
+ Aceptación: Revert de un cambio de archivo restaura el contenido previo. 
+ Notas: Registrar inmutables como “no revertible”. 

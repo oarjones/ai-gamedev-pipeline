@@ -112,9 +112,9 @@ class TimelineService:
         return item
 
     async def revert(self, event_id: int) -> dict:
-        """Attempt a very basic revert. If not supported, enqueue/pending.
+        """Attempt to revert an event via compensating actions.
 
-        Returns dict with { status: 'pending'|'reverted', note?: str }
+        Returns dict with { status: 'reverted'|'pending'|'cannot', note?: str }
         """
         ev = db.get_timeline_event(event_id)
         if not ev:
@@ -141,10 +141,41 @@ class TimelineService:
                     # If adapter returns JSON ok, mark reverted; we ignore content parsing here
                     reverted = True
                     note = "Destroyed GameObjects matching asset name"
+            # File export compensation
+            if ev_tool == "blender.export_fbx" and ev.result_json:
+                data = json.loads(ev.result_json)
+                comp = data.get("compensate") if isinstance(data, dict) else None
+                if isinstance(comp, dict) and comp.get("type") == "file" and comp.get("op") == "export":
+                    path = comp.get("path")
+                    existed = bool(comp.get("existed"))
+                    backup = comp.get("backup_path")
+                    from pathlib import Path
+                    target = Path(str(path))
+                    try:
+                        if existed and backup:
+                            # restore backup
+                            bp = Path(str(backup))
+                            if bp.exists():
+                                data_bytes = bp.read_bytes()
+                                target.write_bytes(data_bytes)
+                                reverted = True
+                                note = "Restored previous file content"
+                            else:
+                                reverted = False
+                                note = "Backup missing; cannot restore"
+                        else:
+                            # File did not exist before; remove if exists
+                            if target.exists():
+                                target.unlink(missing_ok=True)
+                            reverted = True
+                            note = "Removed created file"
+                    except Exception as e:
+                        reverted = False
+                        note = f"File revert failed: {e}"
         except Exception as e:
             logger.warning("Revert attempt failed: %s", e)
 
-        status = "reverted" if reverted else "pending"
+        status = "reverted" if reverted else "cannot"
         # Record a revert-requested/reverted event linked to original
         await self.record_event(
             ev.project_id,
@@ -153,6 +184,21 @@ class TimelineService:
             related_ids=[str(ev.id)],
             correlation_id=ev.correlation_id,
         )
+        # Also broadcast timeline status update for the original step index
+        try:
+            from app.models import Envelope, EventType
+            payload = {
+                "index": ev.step_index,
+                "tool": ev.tool,
+                "status": status,
+                "result": {"note": note},
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "correlationId": ev.correlation_id,
+            }
+            env = Envelope(type=EventType.TIMELINE, projectId=ev.project_id, payload=payload, correlationId=ev.correlation_id)
+            await manager.broadcast_project(ev.project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
+        except Exception as e:
+            logger.error("Failed to broadcast timeline revert status: %s", e)
         return {"status": status, "note": note}
 
 
