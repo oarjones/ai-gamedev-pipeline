@@ -1,13 +1,10 @@
-Timeline Revert con “compensating actions” 
+API Projects v2 (activa única, start/stop automático) 
 
-Contexto: revert es un stub. 
- Objetivo: Implementar revert para eventos que lo permitan (file ops, scene ops) con “acciones compensatorias”. 
+Contexto: Selección de proyecto existe; arrancar agente requiere otra llamada. 
+ Objetivo: Al seleccionar proyecto activo, auto-arrancar el runner con su config; al cambiar de proyecto, stop del anterior. 
  Alcance y tareas: 
 
-Definir por tipo de paso una función undo(step) o compensate(step). 
+PATCH /projects/{id}/select → persiste, detiene runner si hay uno, inicia nuevo con config. 
 
-Guardar metadatos suficientes en args_json/result_json para revertir (p. ej. ruta fichero, snapshot pre). 
-
-UI recibe type=timeline con status=reverted|cannot. 
- Aceptación: Revert de un cambio de archivo restaura el contenido previo. 
- Notas: Registrar inmutables como “no revertible”. 
+Publicar type=project con status=active-changed. 
+ Aceptación: Cambiar de proyecto conmuta el runner sin llamadas manuales a /agent/start. 

@@ -27,6 +27,7 @@ class EventType(str, Enum):
     TIMELINE = "timeline"
     LOG = "log"
     ERROR = "error"
+    PROJECT = "project"
 
 
 class Envelope(BaseModel):

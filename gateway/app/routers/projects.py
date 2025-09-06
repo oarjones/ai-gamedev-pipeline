@@ -7,6 +7,10 @@ from fastapi.responses import JSONResponse
 
 from app.models.core import CreateProject, Project
 from app.services.projects import project_service
+from app.services.agent_runner import agent_runner
+from app.ws.events import manager
+from app.models import Envelope, EventType
+from pathlib import Path
 
 
 router = APIRouter()
@@ -102,18 +106,51 @@ async def select_active_project(project_id: str) -> JSONResponse:
     Raises:
         HTTPException: 404 if project not found
     """
+    prev = project_service.get_active_project()
     success = project_service.select_active_project(project_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{project_id}' not found"
         )
-    
+    # Start/stop runner according to new selection
+    start_ok = True
+    start_error: str | None = None
+    try:
+        await agent_runner.stop()
+    except Exception:
+        pass
+    new_proj = project_service.get_project(project_id)
+    if new_proj:
+        try:
+            await agent_runner.start(Path("projects") / new_proj.id)
+            start_ok = True
+        except Exception as e:
+            start_ok = False
+            start_error = str(e)
+
+    # Broadcast project change event
+    try:
+        payload = {
+            "status": "active-changed",
+            "previous": prev.model_dump(by_alias=True) if prev else None,
+            "current": new_proj.model_dump(by_alias=True) if new_proj else None,
+            "runner": {"started": start_ok, "error": start_error},
+        }
+        env = Envelope(type=EventType.PROJECT, projectId=project_id, payload=payload)
+        await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
+        # Also notify previous room if different
+        if prev and prev.id != project_id:
+            await manager.broadcast_project(prev.id, env.model_dump_json(by_alias=True))
+    except Exception:
+        pass
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "message": f"Project '{project_id}' is now active",
-            "project_id": project_id
+            "project_id": project_id,
+            "runner": {"started": start_ok, "error": start_error}
         }
     )
 
