@@ -1,5 +1,65 @@
-Seguridad básica y saneamiento 
+Tarea 9 — WebApp scaffold (React + Vite + TS + Tailwind + shadcn/ui)
 
-Contexto: MVP sin auth. 
- Objetivo: Añadir capa mínima: API key local (header), límites de tamaño, listas blancas de comandos, saneo de rutas y máscaras de secretos en logs. 
- Aceptación: Llamadas sin API key devuelven 401; logs no exponen secretos. 
+Contexto
+Necesitamos el esqueleto del Dashboard para consumir el Gateway ya operativo: rutas base, layout en zonas, estado global y cliente WebSocket.
+
+Objetivo
+Crear la app en webapp/ (Vite + React + TypeScript) con Tailwind + shadcn/ui + lucide-react; rutas: / (Dashboard), /logs, /settings. Definir layout con 5 zonas: Proyectos (izq), Chat (principal), Contexto/Estado (der), Herramientas (der/izq, columna con tarjetas), Timeline (inferior). Preparar store global (Zustand) y cliente WS.
+
+Alcance y tareas
+
+Scaffold Vite React TS y Tailwind configurado; integrar shadcn/ui y lucide-react.
+
+Variables de entorno: VITE_GATEWAY_URL=http://127.0.0.1:8000 y VITE_WS_URL=ws://127.0.0.1:8000/ws/events.
+
+Rutas con react-router: /, /logs, /settings.
+
+Layout “grid” responsivo con las 5 zonas.
+
+Zustand store: { projectId, setProjectId, connection:{state,lastError}, ui:{toasts} }.
+
+Cliente WS (lib/ws.ts) con conexión lazy y método subscribe({projectId, onMessage}). Por ahora, echo a consola.
+
+Entregables
+
+webapp/ con:
+
+package.json, vite.config.ts, tsconfig.json, tailwind.config.ts, postcss.config.js, index.html.
+
+src/main.tsx, src/App.tsx, src/routes/{Dashboard.tsx, Logs.tsx, Settings.tsx}.
+
+src/components/{ChatPane.tsx, ProjectsPanel.tsx, ContextPanel.tsx, ToolsPanel.tsx, Timeline.tsx} (placeholders).
+
+src/lib/{ws.ts, api.ts} (stubs).
+
+src/store/appStore.ts (Zustand).
+
+src/styles.css (base Tailwind + helpers utilitarias).
+
+Restricciones
+
+Sin lógica real todavía (UI estática + WS conectado y haciendo console.log).
+
+Compatibilidad CORS y puertos: 5173 ↔ 8000.
+
+TS estricto (no any). No dependencias innecesarias.
+
+Criterios de aceptación (DoD)
+
+npm run dev muestra el layout completo y navegable.
+
+El WS conecta y se ven “pings/echo” en consola del navegador.
+
+No hay errores de TypeScript ni de ESLint al compilar.
+
+Buenas prácticas
+
+Usar path aliases (@/components, @/lib, @/store) en tsconfig.json.
+
+Componentes pequeños y desacoplados; props tipadas.
+
+Evitar estado global innecesario; derivar estado en componentes.
+
+Preparar dark theme (base) y tokens de espacio/tipografía coherentes.
+
+Commits “Conventional Commits”; linters y Prettier configurados.
