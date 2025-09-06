@@ -188,8 +188,8 @@ class ActionOrchestrator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "correlationId": correlation_id,
         }
-        env = Envelope(type=EventType.TIMELINE, projectId=project_id, payload=payload)
-        await manager.broadcast(json.dumps(env.model_dump(by_alias=True, mode="json")))
+        env = Envelope(type=EventType.TIMELINE, projectId=project_id, payload=payload, correlationId=correlation_id)
+        await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_update(self, project_id: str, tool: str, result: dict, correlation_id: Optional[str]) -> None:
         payload = {
@@ -198,15 +198,14 @@ class ActionOrchestrator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "correlationId": correlation_id,
         }
-        env = Envelope(type=EventType.UPDATE, projectId=project_id, payload=payload)
-        await manager.broadcast(json.dumps(env.model_dump(by_alias=True, mode="json")))
+        env = Envelope(type=EventType.UPDATE, projectId=project_id, payload=payload, correlationId=correlation_id)
+        await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_error(self, project_id: str, message: str, correlation_id: Optional[str]) -> None:
         payload = {"error": message, "timestamp": datetime.utcnow().isoformat() + "Z", "correlationId": correlation_id}
-        env = Envelope(type=EventType.ERROR, projectId=project_id, payload=payload)
-        await manager.broadcast(json.dumps(env.model_dump(by_alias=True, mode="json")))
+        env = Envelope(type=EventType.ERROR, projectId=project_id, payload=payload, correlationId=correlation_id)
+        await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
 
 # Singleton instance
 action_orchestrator = ActionOrchestrator()
-

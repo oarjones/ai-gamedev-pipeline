@@ -103,9 +103,10 @@ class ChatService:
                 "msgId": msg_id,
                 "correlationId": correlation_id,
             },
+            correlationId=correlation_id,
         )
         try:
-            await manager.broadcast(json.dumps(env.model_dump(by_alias=True, mode="json")))
+            await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
         except Exception as e:
             logger.error("Failed to broadcast chat event: %s", e)
 

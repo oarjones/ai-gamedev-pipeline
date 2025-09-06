@@ -1,20 +1,17 @@
-T10 — Streaming real de stdout y envío a UI por WebSocket (CHAT + EVENTS) 
+Envelope unificado y “rooms” WS por proyecto 
 
-Contexto: send() devuelve una sola línea. Necesitamos stream token/line-by-line y publicar Envelope type=chat (role=agent) o type=event. 
- Objetivo: Implementar lectura incremental en AgentRunner.send() y/o un lector continuo (task background) que empuje líneas a ChatService._broadcast_chat. 
+Contexto: Hay Envelope/EventType, pero WS emite globalmente. 
+ Objetivo: Definir contrato JSON estable y segmentar por projectId. 
  Alcance y tareas: 
 
-Añadir un reader task que lea stdout.readline() en bucle y emita eventos con correlationId. 
+Especificar Envelope (type, projectId, payload, correlationId, ts). 
 
-Para send(text), escribir la línea y no bloquear hasta respuesta completa; el reader se encarga. 
+Añadir salas por proyecto en ConnectionManager (dict {projectId: set[WebSocket]}) y funciones broadcast_project(...). 
 
-Diferenciar marcas del CLI: p. ej. líneas con prefijo JSON: para tool-calls → enrutar como type=tool. 
+Todos los servicios (chat, timeline, orchestrator) deben usar broadcast_project. 
 
-Mapear stderr a type=log con level=error|warn. 
- Entradas/Salidas: Entrada: text; Salida inmediata: ack {queued:true,msgId}; stream WS: múltiples envelopes. 
+Documentar contrato en docs/api/events.md y OpenAPI schemas. 
  Aceptación: 
 
-Enviar “hola” produce varios chat agent (simulados) y aparecen en /api/v1/chat/history. 
-
-stderr se ve como log. 
- Notas: Serializa E/S con un lock por write; el reader es único; maneja cierre limpio y reconexión
+Suscribirse al WS con ?projectId=... solo recibe eventos de ese proyecto. 
+ Notas: Maneja clientes sin projectId (rechazar o canal general)

@@ -98,6 +98,11 @@ class Envelope(BaseModel):
     payload: Dict[str, Any] = Field(
         description="Event-specific data payload (validated and serializable)"
     )
+    correlation_id: Optional[str] = Field(
+        default=None,
+        alias="correlationId",
+        description="Correlation identifier for tracing related events"
+    )
     timestamp: datetime = Field(
         default_factory=lambda: datetime.utcnow(),
         description="UTC timestamp when the event was created (ISO-8601)"

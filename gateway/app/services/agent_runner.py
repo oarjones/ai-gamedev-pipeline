@@ -291,8 +291,8 @@ class AgentRunner:
                 from app.ws.events import manager
                 from app.models import Envelope, EventType
                 payload = {"level": "error", "message": text}
-                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload)
-                await manager.broadcast(env.model_dump_json(by_alias=True))
+                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload, correlationId=corr)
+                await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                 return
 
             # Try to parse tool-like JSON lines
@@ -304,8 +304,8 @@ class AgentRunner:
                         from app.ws.events import manager
                         from app.models import Envelope, EventType
                         payload = {"subtype": "tool", "data": obj, "correlationId": corr}
-                        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload)
-                        await manager.broadcast(env.model_dump_json(by_alias=True))
+                        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=corr)
+                        await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                         routed = True
                 except Exception:
                     routed = False
