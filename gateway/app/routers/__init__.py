@@ -1,4 +1,5 @@
 """Router modules for AI Gateway."""
 
-# This module will contain project-specific routers and API endpoints
-# Currently serving as a placeholder for future implementation
+from .projects import router as projects_router
+
+__all__ = ["projects_router"]
