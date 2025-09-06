@@ -1,3 +1,17 @@
+# AI Gateway Configuration
+gateway:
+  server:
+    host: "127.0.0.1"
+    port: 8000
+    reload: true
+  cors:
+    allow_origins:
+      - "http://localhost:5173"
+      - "http://127.0.0.1:5173"
+    allow_credentials: true
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+
 servers:
   mcp_bridge:
     host: 127.0.0.1
