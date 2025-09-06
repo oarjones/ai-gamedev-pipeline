@@ -65,12 +65,19 @@ async def websocket_events(websocket: WebSocket) -> None:
 
 
 # Include routers
-from app.routers import projects_router
+from app.routers import projects_router, agent_router
 
 app.include_router(
     projects_router,
     prefix="/api/v1/projects",
     tags=["projects"]
+)
+
+# Agent runner endpoints
+app.include_router(
+    agent_router,
+    prefix="/api/v1/agent",
+    tags=["agent"]
 )
 
 
