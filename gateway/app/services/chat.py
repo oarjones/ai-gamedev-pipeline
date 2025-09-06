@@ -85,18 +85,9 @@ class ChatService:
         while True:
             job = await self._queue.get()
             try:
-                # Send to agent CLI and stream response lines (single-line for now)
+                # Send to agent CLI; background reader will stream output
                 from app.services.agent_runner import agent_runner
-                out = await agent_runner.send(job.text, correlation_id=job.correlation_id)
-                agent_msg_id = str(uuid4())
-                self._persist_message(job.project_id, "agent", out, agent_msg_id)
-                await self._broadcast_chat(job.project_id, "agent", out, agent_msg_id, job.correlation_id)
-
-                # Try to detect plan JSON in the agent output and orchestrate
-                plan = self._maybe_parse_plan(out)
-                if plan is not None:
-                    # Fire-and-forget orchestration; errors are broadcast inside orchestrator
-                    asyncio.create_task(self._run_plan(job.project_id, plan, job.correlation_id))
+                await agent_runner.send(job.text, correlation_id=job.correlation_id)
             except Exception as e:
                 logger.error("Chat worker error: %s", e)
             finally:
@@ -150,6 +141,16 @@ class ChatService:
             await action_orchestrator.run_plan(project_id, plan, correlation_id=correlation_id)
         except Exception as e:
             logger.error("Orchestrator error: %s", e)
+
+    async def on_agent_output_line(self, project_id: str, text: str, correlation_id: Optional[str]) -> None:
+        # Persist agent message and broadcast
+        agent_msg_id = str(uuid4())
+        self._persist_message(project_id, "agent", text, agent_msg_id)
+        await self._broadcast_chat(project_id, "agent", text, agent_msg_id, correlation_id)
+        # Detect plan JSON and orchestrate
+        plan = self._maybe_parse_plan(text)
+        if plan is not None:
+            asyncio.create_task(self._run_plan(project_id, plan, correlation_id))
 
 
 # Singleton instance

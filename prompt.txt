@@ -1,20 +1,20 @@
-Sustituir CLI “eco” por Agente CLI real + configuración por proyecto 
+T10 — Streaming real de stdout y envío a UI por WebSocket (CHAT + EVENTS) 
 
-Contexto: El AgentRunner arranca un “echo”. Necesitamos lanzar el CLI del agente real (p. ej. unified_adapter o script Python) en la carpeta del proyecto con env/config correctos. 
- Objetivo: Reemplazar _build_command() y start() para leer la configuración del proyecto y arrancar el binario real. 
+Contexto: send() devuelve una sola línea. Necesitamos stream token/line-by-line y publicar Envelope type=chat (role=agent) o type=event. 
+ Objetivo: Implementar lectura incremental en AgentRunner.send() y/o un lector continuo (task background) que empuje líneas a ChatService._broadcast_chat. 
  Alcance y tareas: 
 
-Añadir project.json enriquecido (o gateway/config/projects/{id}.yaml) con: ruta del CLI, args, variables de entorno (API keys, URL MCP, modelo IA), timeouts. 
+Añadir un reader task que lea stdout.readline() en bucle y emita eventos con correlationId. 
 
-AgentRunner._build_command() debe construir [executable, ...args] desde esa config; soportar Windows/Linux/macOS. 
+Para send(text), escribir la línea y no bloquear hasta respuesta completa; el reader se encarga. 
 
-start(cwd) valida binario y permisos; crea env combinando os.environ + env del proyecto. 
+Diferenciar marcas del CLI: p. ej. líneas con prefijo JSON: para tool-calls → enrutar como type=tool. 
 
-Registrar en logs la línea de comando efectiva (sin secretos). 
- Entradas/Salidas: Entrada: projectId; Salida: status() con running, pid, cwd. 
+Mapear stderr a type=log con level=error|warn. 
+ Entradas/Salidas: Entrada: text; Salida inmediata: ack {queued:true,msgId}; stream WS: múltiples envelopes. 
  Aceptación: 
 
-POST /api/v1/agent/start?projectId=... levanta el CLI real; status muestra running=true. 
+Enviar “hola” produce varios chat agent (simulados) y aparecen en /api/v1/chat/history. 
 
-Error claro si falta binario/config. 
- Notas & Buenas prácticas: No loguees secretos; usa shlex.quote en logs; maneja rutas con Path.resolve(); añade tests unitarios de construcción de comando
+stderr se ve como log. 
+ Notas: Serializa E/S con un lock por write; el reader es único; maneja cierre limpio y reconexión

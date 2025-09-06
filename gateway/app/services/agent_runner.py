@@ -56,6 +56,10 @@ class AgentRunner:
         self._default_timeout = float(default_timeout)
         self._terminate_grace = float(terminate_grace)
         self._io_lock = asyncio.Lock()
+        self._reader_task: Optional[asyncio.Task] = None
+        self._stderr_task: Optional[asyncio.Task] = None
+        self._project_id: Optional[str] = None
+        self._last_correlation_id: Optional[str] = None
 
     @staticmethod
     def _load_project_agent_config(cwd: Path) -> AgentConfig:
@@ -169,6 +173,9 @@ class AgentRunner:
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
+        # Track project id and start background readers
+        self._project_id = self._cwd.name
+        self._start_readers()
         return self.status()
 
     async def stop(self) -> RunnerStatus:
@@ -197,45 +204,119 @@ class AgentRunner:
             except asyncio.TimeoutError:
                 logger.error("Failed to kill agent CLI pid=%s promptly", pid)
 
+        # Cancel readers
+        await self._cancel_readers()
         # Drain remaining output for logs
         await self._drain_pipes_for_logging()
         self._proc = None
         return RunnerStatus(running=False, pid=None, cwd=str(self._cwd) if self._cwd else None)
 
-    async def send(self, text: str, correlation_id: str | None = None, timeout: Optional[float] = None) -> str:
-        """Send a line of text to the agent and return a single-line response.
+    async def send(self, text: str, correlation_id: str | None = None, timeout: Optional[float] = None) -> dict:
+        """Send a line to the agent non-blocking; background readers stream output.
 
-        Uses an IO lock to serialize writes/reads to avoid interleaving.
+        Returns an ack dict: {queued: True, msgId: <generated or None>}
         """
-        if not self._proc or self._proc.returncode is not None or not self._proc.stdin or not self._proc.stdout:
+        if not self._proc or self._proc.returncode is not None or not self._proc.stdin:
             raise RuntimeError("Agent process is not running")
 
-        tout = float(timeout) if timeout is not None else self._default_timeout
         async with self._io_lock:
-            # Write input line
             line = (text or "") + "\n"
+            self._last_correlation_id = correlation_id
             logger.debug("[%s] >> %s", correlation_id or "-", text)
             self._proc.stdin.write(line.encode("utf-8"))
             await self._proc.stdin.drain()
-
-            # Read one response line
-            try:
-                raw = await asyncio.wait_for(self._proc.stdout.readline(), timeout=tout)
-            except asyncio.TimeoutError as e:
-                logger.warning("[%s] Timeout waiting for agent response", correlation_id or "-")
-                raise e
-
-            out = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-            logger.debug("[%s] << %s", correlation_id or "-", out)
-            # Also capture any stderr produced synchronously
-            await self._log_stderr_nonblocking()
-            return out
+            return {"queued": True, "msgId": None}
 
     def status(self) -> RunnerStatus:
         """Return current runner status (running, pid, cwd)."""
         running = bool(self._proc and self._proc.returncode is None)
         pid = self._proc.pid if running and self._proc else None
         return RunnerStatus(running=running, pid=pid, cwd=str(self._cwd) if self._cwd else None)
+
+    def _start_readers(self) -> None:
+        if self._proc is None:
+            return
+        if self._reader_task is None or self._reader_task.done():
+            self._reader_task = asyncio.create_task(self._stdout_reader(), name="agent-stdout-reader")
+        if self._stderr_task is None or self._stderr_task.done():
+            self._stderr_task = asyncio.create_task(self._stderr_reader(), name="agent-stderr-reader")
+
+    async def _cancel_readers(self) -> None:
+        for t in (self._reader_task, self._stderr_task):
+            if t and not t.done():
+                t.cancel()
+                try:
+                    await t
+                except Exception:
+                    pass
+        self._reader_task = None
+        self._stderr_task = None
+
+    async def _stdout_reader(self) -> None:
+        if not self._proc or not self._proc.stdout:
+            return
+        try:
+            while True:
+                raw = await self._proc.stdout.readline()
+                if not raw:
+                    break
+                text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                if not text:
+                    continue
+                await self._handle_output_line(text, stream="stdout")
+        except asyncio.CancelledError:
+            pass
+
+    async def _stderr_reader(self) -> None:
+        if not self._proc or not self._proc.stderr:
+            return
+        try:
+            while True:
+                raw = await self._proc.stderr.readline()
+                if not raw:
+                    break
+                text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                if not text:
+                    continue
+                await self._handle_output_line(text, stream="stderr")
+        except asyncio.CancelledError:
+            pass
+
+    async def _handle_output_line(self, text: str, stream: str) -> None:
+        project_id = self._project_id or ""
+        corr = self._last_correlation_id
+        try:
+            if stream == "stderr":
+                # Map to LOG event
+                from app.ws.events import manager
+                from app.models import Envelope, EventType
+                payload = {"level": "error", "message": text}
+                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload)
+                await manager.broadcast(env.model_dump_json(by_alias=True))
+                return
+
+            # Try to parse tool-like JSON lines
+            routed = False
+            if text and text[0] in "[{":
+                try:
+                    obj = json.loads(text)
+                    if isinstance(obj, dict) and ("tool" in obj or obj.get("type") == "tool"):
+                        from app.ws.events import manager
+                        from app.models import Envelope, EventType
+                        payload = {"subtype": "tool", "data": obj, "correlationId": corr}
+                        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload)
+                        await manager.broadcast(env.model_dump_json(by_alias=True))
+                        routed = True
+                except Exception:
+                    routed = False
+            if routed:
+                return
+
+            # Default: chat agent line
+            from app.services.chat import chat_service
+            await chat_service.on_agent_output_line(project_id, text, correlation_id=corr)
+        except Exception as e:
+            logger.debug("Output handling error: %s", e)
 
     async def _drain_pipes_for_logging(self) -> None:
         """Drain stdout/stderr and log lines at DEBUG without blocking indefinitely."""
