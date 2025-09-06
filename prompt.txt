@@ -1,65 +1,65 @@
-Tarea 9 — WebApp scaffold (React + Vite + TS + Tailwind + shadcn/ui)
+Tarea 10 — UI del Chat (streaming, adjuntos, tool-calls visibles)
 
 Contexto
-Necesitamos el esqueleto del Dashboard para consumir el Gateway ya operativo: rutas base, layout en zonas, estado global y cliente WebSocket.
+El chat es el centro de interacción. Debe soportar envío de mensajes, streaming (chunks type=chat), markdown básico y adjuntos (imágenes de screenshots). Debe visualizar tool-calls si llegan por WS.
 
 Objetivo
-Crear la app en webapp/ (Vite + React + TypeScript) con Tailwind + shadcn/ui + lucide-react; rutas: / (Dashboard), /logs, /settings. Definir layout con 5 zonas: Proyectos (izq), Chat (principal), Contexto/Estado (der), Herramientas (der/izq, columna con tarjetas), Timeline (inferior). Preparar store global (Zustand) y cliente WS.
+Implementar ChatPane con: lista de mensajes (roles user|agent|system|tool), input con Enter, render de markdown, soporte de adjuntos (imágenes) y escucha WS para eventos type=chat y type=tool. Integrar POST /api/v1/chat/send.
 
 Alcance y tareas
 
-Scaffold Vite React TS y Tailwind configurado; integrar shadcn/ui y lucide-react.
+lib/api.ts: helper sendChat({projectId, text}) usando fetch (manejo de errores).
 
-Variables de entorno: VITE_GATEWAY_URL=http://127.0.0.1:8000 y VITE_WS_URL=ws://127.0.0.1:8000/ws/events.
+ChatPane:
 
-Rutas con react-router: /, /logs, /settings.
+Input controlado con Enter para enviar (sendChat).
 
-Layout “grid” responsivo con las 5 zonas.
+Lista de mensajes con burbujas estilizadas (role-based).
 
-Zustand store: { projectId, setProjectId, connection:{state,lastError}, ui:{toasts} }.
+Render markdown (seguro) + botón “copiar”.
 
-Cliente WS (lib/ws.ts) con conexión lazy y método subscribe({projectId, onMessage}). Por ahora, echo a consola.
+Adjuntos: <img> cuando message.attachments[].type==='image' (data URL o URL segura).
+
+Suscribirse a WS de rooms por projectId y append de:
+
+type=chat (role=agent/user/system) con content por chunks; merge visible.
+
+type=tool (mostrar badge “tool-call” + payload colapsable).
+
+Estado sending y toasts de error.
 
 Entregables
 
-webapp/ con:
+components/chat/ChatPane.tsx con UI completa.
 
-package.json, vite.config.ts, tsconfig.json, tailwind.config.ts, postcss.config.js, index.html.
+lib/api.ts con sendChat.
 
-src/main.tsx, src/App.tsx, src/routes/{Dashboard.tsx, Logs.tsx, Settings.tsx}.
+lib/markdown.ts (sanitización/render).
 
-src/components/{ChatPane.tsx, ProjectsPanel.tsx, ContextPanel.tsx, ToolsPanel.tsx, Timeline.tsx} (placeholders).
-
-src/lib/{ws.ts, api.ts} (stubs).
-
-src/store/appStore.ts (Zustand).
-
-src/styles.css (base Tailwind + helpers utilitarias).
+Añadir hooks mínimos (useChatStream(projectId)).
 
 Restricciones
 
-Sin lógica real todavía (UI estática + WS conectado y haciendo console.log).
+Virtualized list si >200 mensajes (ej. react-virtuoso o propio).
 
-Compatibilidad CORS y puertos: 5173 ↔ 8000.
+Sanitizar HTML en markdown (no ejecutar scripts).
 
-TS estricto (no any). No dependencias innecesarias.
+Manejo de reconexión WS (reintentos con backoff simple).
 
 Criterios de aceptación (DoD)
 
-npm run dev muestra el layout completo y navegable.
+Enviar texto produce evento chat (eco o real) visible en pantalla (stream si aplica).
 
-El WS conecta y se ven “pings/echo” en consola del navegador.
+Si llega screenshot_ready como adjunto, se renderiza la imagen inline.
 
-No hay errores de TypeScript ni de ESLint al compilar.
+Los tool-calls (type=tool) se ven como bloques colapsables con payload.
 
 Buenas prácticas
 
-Usar path aliases (@/components, @/lib, @/store) en tsconfig.json.
+Accesibilidad: ARIA roles en lista y controles, foco gestionado.
 
-Componentes pequeños y desacoplados; props tipadas.
+Auto-scroll al final solo si el usuario está ya al final (no romper lectura histórica).
 
-Evitar estado global innecesario; derivar estado en componentes.
+Separar MessageItem y MessageList; memoizar.
 
-Preparar dark theme (base) y tokens de espacio/tipografía coherentes.
-
-Commits “Conventional Commits”; linters y Prettier configurados.
+Evitar any; usar zod para validar payloads de WS antes de pintar.

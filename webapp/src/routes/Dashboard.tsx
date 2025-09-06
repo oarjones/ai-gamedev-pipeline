@@ -1,5 +1,5 @@
 import ProjectsPanel from '@/components/ProjectsPanel'
-import ChatPane from '@/components/ChatPane'
+import ChatPane from '@/components/chat/ChatPane'
 import ContextPanel from '@/components/ContextPanel'
 import ToolsPanel from '@/components/ToolsPanel'
 import Timeline from '@/components/Timeline'
@@ -27,4 +27,3 @@ export default function Dashboard() {
     </div>
   )
 }
-

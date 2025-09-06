@@ -9,3 +9,19 @@ export async function apiGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function sendChat(projectId: string, text: string): Promise<void> {
+  const url = new URL('/api/v1/chat/send', BASE)
+  url.searchParams.set('projectId', projectId)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY ?? ''
+    },
+    body: JSON.stringify({ text })
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`sendChat ${res.status}: ${msg}`)
+  }
+}
