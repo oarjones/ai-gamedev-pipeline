@@ -111,6 +111,7 @@ class ProjectService:
             "type": "ai-gamedev-project",
             "settings": default_settings,
             "agent": {
+                "adapter": "cli_generic",
                 "executable": "python",
                 "args": ["-u", "-m", "mcp_unity_bridge.mcp_adapter"],
                 "env": {},

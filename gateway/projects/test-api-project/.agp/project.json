@@ -21,6 +21,7 @@
                           },
                   "default_timeout":  5,
                   "terminate_grace":  3,
-                  "executable":  "python"
+                  "executable":  "python",
+                  "adapter":  "cli_generic"
               }
 }

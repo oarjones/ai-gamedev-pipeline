@@ -60,6 +60,7 @@ class AgentRunner:
         self._stderr_task: Optional[asyncio.Task] = None
         self._project_id: Optional[str] = None
         self._last_correlation_id: Optional[str] = None
+        self._adapter: Optional[AgentAdapter] = None
 
     @staticmethod
     def _load_project_agent_config(cwd: Path) -> AgentConfig:
@@ -160,6 +161,8 @@ class AgentRunner:
         self._default_timeout = float(cfg.default_timeout)
         self._terminate_grace = float(cfg.terminate_grace)
 
+        # Adapter per project
+        self._adapter = get_adapter(getattr(cfg, "adapter", None))
         cmd, env = self._build_from_config(self._cwd, cfg)
         # Log safe command line (no env values)
         safe_cmd = " ".join(shlex.quote(p) for p in cmd)
@@ -221,6 +224,13 @@ class AgentRunner:
 
         async with self._io_lock:
             line = (text or "") + "\n"
+            if self._adapter:
+                try:
+                    prepared = self._adapter.prepare_input(text)
+                    line = (prepared or "") + "\n"
+                except Exception:
+                    # Fallback to raw
+                    line = (text or "") + "\n"
             self._last_correlation_id = correlation_id
             logger.debug("[%s] >> %s", correlation_id or "-", text)
             self._proc.stdin.write(line.encode("utf-8"))
@@ -295,26 +305,30 @@ class AgentRunner:
                 await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                 return
 
-            # Try to parse tool-like JSON lines
-            routed = False
-            if text and text[0] in "[{":
+            events: list[StreamEvent] = []
+            if self._adapter:
                 try:
-                    obj = json.loads(text)
-                    if isinstance(obj, dict) and ("tool" in obj or obj.get("type") == "tool"):
-                        from app.ws.events import manager
-                        from app.models import Envelope, EventType
-                        payload = {"subtype": "tool", "data": obj, "correlationId": corr}
-                        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=corr)
-                        await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
-                        routed = True
+                    events = self._adapter.on_stream(text)
                 except Exception:
-                    routed = False
-            if routed:
-                return
+                    events = []
+            if not events:
+                events = [StreamEvent(kind="chat", payload={"content": text})]
 
-            # Default: chat agent line
-            from app.services.chat import chat_service
-            await chat_service.on_agent_output_line(project_id, text, correlation_id=corr)
+            for ev in events:
+                if ev.kind == "tool":
+                    from app.ws.events import manager
+                    from app.models import Envelope, EventType
+                    payload = {"subtype": "tool", "data": ev.payload, "correlationId": corr}
+                    env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=corr)
+                    await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
+                elif ev.kind == "event":
+                    from app.ws.events import manager
+                    from app.models import Envelope, EventType
+                    env = Envelope(type=EventType.UPDATE, projectId=project_id, payload=ev.payload, correlationId=corr)
+                    await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
+                else:
+                    from app.services.chat import chat_service
+                    await chat_service.on_agent_output_line(project_id, ev.payload.get("content", text), correlation_id=corr)
         except Exception as e:
             logger.debug("Output handling error: %s", e)
 
@@ -340,6 +354,8 @@ class AgentRunner:
 
     async def _log_stderr_nonblocking(self) -> None:
         """Attempt to read a single stderr line quickly for logging."""
+from app.services.adapters.registry import get_adapter
+from app.services.adapters.base import AgentAdapter, StreamEvent
         if self._proc and self._proc.stderr:
             try:
                 raw = await asyncio.wait_for(self._proc.stderr.readline(), timeout=0.01)

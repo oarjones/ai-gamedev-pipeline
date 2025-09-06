@@ -1,17 +1,13 @@
-Envelope unificado y “rooms” WS por proyecto 
+Adaptadores de Agente + selección de LLM/proveedor 
 
-Contexto: Hay Envelope/EventType, pero WS emite globalmente. 
- Objetivo: Definir contrato JSON estable y segmentar por projectId. 
+Contexto: El Gateway debe saber hablar con diferentes agentes/modelos. 
+ Objetivo: Diseñar interfaz AgentAdapter y al menos un adapter real (p. ej. “CLI-generic” que wrappea a Gemini CLI). 
  Alcance y tareas: 
 
-Especificar Envelope (type, projectId, payload, correlationId, ts). 
+Crear services/adapters/base.py con send(prompt, context), on_stream(line). 
 
-Añadir salas por proyecto en ConnectionManager (dict {projectId: set[WebSocket]}) y funciones broadcast_project(...). 
+AI Gateway mapea proyecto→adapter según config (project.json). 
 
-Todos los servicios (chat, timeline, orchestrator) deben usar broadcast_project. 
-
-Documentar contrato en docs/api/events.md y OpenAPI schemas. 
- Aceptación: 
-
-Suscribirse al WS con ?projectId=... solo recibe eventos de ese proyecto. 
- Notas: Maneja clientes sin projectId (rechazar o canal general)
+Implementar “CLI-generic”: formateo/escape de prompts, parseo de líneas (JSON:), tool-call detection. 
+ Aceptación: Cambiar el adapter en config y ver comportamiento distinto sin tocar el resto del sistema. 
+ Notas: Abierto a añadir “Gemini/Claude/OpenAI” después, pero esta tarea cubre el contrato. 
