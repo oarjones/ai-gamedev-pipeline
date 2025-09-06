@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.models import CreateProject, Envelope, EventType, Project
 from app.ws.events import websocket_endpoint
 
 # Configure logging
@@ -61,6 +62,27 @@ async def health_check() -> JSONResponse:
 async def websocket_events(websocket: WebSocket) -> None:
     """WebSocket endpoint for event streaming."""
     await websocket_endpoint(websocket)
+
+
+# Dummy endpoints to include models in OpenAPI schema
+@app.post("/api/v1/projects", response_model=Project, tags=["contracts"])
+async def create_project_schema(project: CreateProject) -> Project:
+    """Create a new project.
+    
+    This endpoint is included for API contract documentation.
+    Implementation is pending.
+    """
+    raise NotImplementedError("Project creation not implemented yet")
+
+
+@app.post("/api/v1/events", tags=["contracts"])
+async def send_event_schema(envelope: Envelope) -> dict:
+    """Send an event through the API.
+    
+    This endpoint is included for API contract documentation.
+    Events are typically sent via WebSocket at /ws/events.
+    """
+    raise NotImplementedError("Event sending via HTTP not implemented yet")
 
 
 # TODO: Add project routers here
