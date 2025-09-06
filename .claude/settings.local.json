@@ -6,7 +6,9 @@
       "Bash(touch:*)",
       "Bash(python -m pip install:*)",
       "Bash(python:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
