@@ -28,6 +28,9 @@
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# Herramientas AI / IDE
+.claude/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -42,6 +45,14 @@ env/
 build/
 dist/
 *.egg-info/
+
+# Node.js / Frontend
+node_modules/
+webapp/dist/
+npm-debug.log*
+
+# Datos Locales (No versionar BBDD locales)
+gateway/data/gateway.db
 
 # Sistema Operativo
 .DS_Store
@@ -87,21 +98,3 @@ unity_project/**/*.pdb
 unity_project/**/*.mdb
 unity_project/**/*.opendb
 unity_project/**/*.VC.db
-
-# Paquetes/exportaciones y builds pesadas dentro de Unity
-unity_project/**/*.apk
-unity_project/**/*.aab
-unity_project/**/*.unitypackage
-
-# Basura específica de SO dentro de Unity
-unity_project/**/Thumbs.db
-unity_project/**/.DS_Store
-unity_project/**/.Spotlight-V100
-unity_project/**/.Trashes
-unity_project/**/Desktop.ini
-
-# (Opcional) Addressables/servidor local generado
-unity_project/ServerData/
-
-# Commit message
-msg.txt
