@@ -1,26 +1,23 @@
+# AI GameDev Pipeline - Documentación
+
+## Inicio Rápido
+- [README Principal](../README.md)
+- [Instalación](installation/)
+- [Configuración](dashboard/config.md)
+
+## Guías de Usuario
+- [Dashboard UI](dashboard/)
+- [Uso Básico](user_guide/basic_usage.md)
+- [Herramientas MCP](user_guide/mcp_tools.md)
+
+## Referencia Técnica
+- [Arquitectura](architecture/)
+- [API Gateway](dashboard/api.md)
+- [Eventos WebSocket](dashboard/events.md)
+
+## Desarrollo
+- [Contribuir](../CONTRIBUTING.md)
+- [Troubleshooting](troubleshooting/)
+
 ---
-title: AI GameDev Pipeline
----
-
-# Visión general
-
-AI GameDev Pipeline integra herramientas y flujos entre Unity, Blender y servicios MCP para acelerar la creación de contenido de juegos con agentes y automatización. Este sitio unifica la documentación: instalación, arquitectura, guía de uso y referencias de API.
-
-## Características clave
-
-- Integración Unity ↔ MCP vía WebSocket y herramientas de editor.
-- Addon de Blender con comandos de modelado y automatización.
-- Puente MCP (Python) con servidor, logging y validación.
-- Referencias de API autogeneradas desde docstrings y comentarios XML.
-- Diagramas de arquitectura con Mermaid.
-
-## Quick Start
-
-1. Revisa requisitos en `Instalación > Requisitos`.
-2. Configura Unity, Blender y el MCP Bridge según `Instalación`.
-3. Ejecuta el servidor MCP Unity Bridge.
-4. Abre el proyecto Unity y verifica la conexión (ventana de logs).
-5. Lanza Blender con el addon y prueba un comando simple (por ejemplo, crear un cubo).
-
-Para detalles paso a paso, consulta `Guía de usuario > Uso básico`.
-
+Última actualización: 09/09/2025  7:54:42,15
