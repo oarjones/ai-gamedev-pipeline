@@ -13,10 +13,18 @@ using Newtonsoft.Json;
 /// <summary>
 /// Proporciona métodos para escanear y obtener información sobre el estado del editor de Unity.
 /// </summary>
+/// <summary>
+/// Proporciona métodos de consulta para inspeccionar el estado del Editor de Unity
+/// (jerarquía de escena, detalles de GameObjects, estructura de proyecto y capturas).
+/// </summary>
 public static class EnvironmentScanner
 {
     // --- Scene Hierarchy Serialization --- //
 
+    /// <summary>
+    /// Serializa la jerarquía de la escena activa a un modelo ligero.
+    /// </summary>
+    /// <returns>Wrapper con una lista de GameObjectData raíz.</returns>
     public static object GetSceneHierarchy()
     {
         List<GameObjectData> rootObjectsData = new List<GameObjectData>();
@@ -28,6 +36,9 @@ public static class EnvironmentScanner
         return new Wrapper<List<GameObjectData>> { data = rootObjectsData };
     }
 
+    /// <summary>
+    /// Construye recursivamente un árbol de GameObjectData para un GameObject dado.
+    /// </summary>
     private static GameObjectData BuildGameObjectData(GameObject go)
     {
         var data = new GameObjectData { name = go.name, instanceId = go.GetInstanceID(), children = new List<GameObjectData>() };
@@ -40,6 +51,10 @@ public static class EnvironmentScanner
 
     // --- GameObject Details Serialization --- //
 
+    /// <summary>
+    /// Devuelve detalles serializados de un GameObject por InstanceID.
+    /// </summary>
+    /// <param name="instanceId">Identificador de instancia de Unity.</param>
     public static object GetGameObjectDetails(int instanceId)
     {
         GameObject go = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
@@ -80,6 +95,10 @@ public static class EnvironmentScanner
 
     /// <summary>
     /// (NUEVO MÉTODO) Extrae de forma segura las propiedades serializables de un componente de Unity.
+    /// </summary>
+    /// <summary>
+    /// Extrae de forma segura propiedades serializables de un componente de Unity,
+    /// filtrando tipos complejos y propiedades problemáticas.
     /// </summary>
     private static Dictionary<string, object> GetSerializableProperties(Component comp)
     {
@@ -155,6 +174,10 @@ public static class EnvironmentScanner
 
     // --- Project Files Scanning --- //
 
+    /// <summary>
+    /// Lista directorios y archivos (sin .meta) bajo Assets/ respetando seguridad de ruta.
+    /// </summary>
+    /// <param name="relativePath">Ruta relativa bajo Assets/.</param>
     public static object GetProjectFiles(string relativePath)
     {
         try
@@ -191,6 +214,9 @@ public static class EnvironmentScanner
 
     // --- Screenshot --- //
 
+    /// <summary>
+    /// Captura una imagen de la vista de escena o cámara principal en PNG base64.
+    /// </summary>
     public static object TakeScreenshot()
     {
         try

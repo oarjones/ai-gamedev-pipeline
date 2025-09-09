@@ -124,6 +124,18 @@ def _create_image_empty(name: str, img, size: float, opacity: float, rot_xyz: tu
 @command("ref.blueprints_setup")
 @tool
 def blueprints_setup(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Crea y configura tres imágenes de referencia (front/left/top) como empties.
+
+    Parámetros:
+      - front: ruta a imagen (str)
+      - left: ruta a imagen (str)
+      - top: ruta a imagen (str)
+      - size: float tamaño base del empty (default 1.0)
+      - opacity: float [0..1] opacidad (default 0.4)
+      - lock: bool bloquear transformaciones (default True)
+
+    Devuelve: { ids: {front, left, top} } con los nombres de los empties creados.
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -182,6 +194,16 @@ def _get_blueprint_object(which: str) -> Optional[Any]:
 @command("ref.blueprints_update")
 @tool
 def blueprints_update(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Actualiza una imagen de referencia existente (imagen, opacidad, visibilidad).
+
+    Parámetros:
+      - which: 'front'|'left'|'top'
+      - image: ruta a nueva imagen (opcional)
+      - opacity: float [0..1] (opcional)
+      - visible: bool (opcional)
+
+    Devuelve: { updated: which }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -224,6 +246,11 @@ def blueprints_update(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, 
 @command("ref.blueprints_remove")
 @tool
 def blueprints_remove(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Elimina los empties de referencia configurados y limpia el estado en escena.
+
+    Parámetros: {}
+    Devuelve: { removed: list[str] }
+    """
     if bpy is None:
         raise RuntimeError("Blender API not available")
 
@@ -250,4 +277,3 @@ def blueprints_remove(ctx: SessionContext, params: Dict[str, Any]) -> Dict[str, 
     _scene_store_set({})
     log.info("blueprints_remove removed=%s", removed)
     return {"removed": removed}
-

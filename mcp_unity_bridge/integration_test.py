@@ -6,10 +6,18 @@ import json
 import base64
 import os
 import pytest
+try:
+    from src.config_manager import ConfigManager  # type: ignore
+except Exception:
+    ConfigManager = None  # type: ignore
 
 # --- CONFIGURACIÓN PARA EL TEST REAL ---
 # Usamos el puerto 8001, que es el que tienes en tu config.py
-WEBSOCKET_BASE_URI = "ws://127.0.0.1:8001/ws/"
+if ConfigManager is not None:
+    _cfg = ConfigManager().get()
+    WEBSOCKET_BASE_URI = f"ws://{_cfg.servers.mcp_bridge.host}:{_cfg.servers.mcp_bridge.port}/ws/"
+else:
+    WEBSOCKET_BASE_URI = "ws://127.0.0.1:8001/ws/"
 # Este es el ID de nuestro cliente de test, que simula ser el agente IA
 AI_CLIENT_ID = "ai_agent_tester"
 TIMEOUT = 15  # Aumentamos el timeout a 15s por si Unity tarda en procesar

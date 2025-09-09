@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>AI GameDev Pipeline - Log Viewer</title>
+    <link rel="stylesheet" href="/static/log_viewer.css" />
+  </head>
+  <body>
+    <div id="toolbar">
+      <label>Level:
+        <select id="level">
+          <option value="">All</option>
+          <option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option>
+        </select>
+      </label>
+      <label>Component:
+        <input id="component" placeholder="mcp_bridge|unity|blender" />
+      </label>
+      <label>Keyword:
+        <input id="keyword" placeholder="search" />
+      </label>
+      <button id="pause">Pause</button>
+      <button id="clear">Clear</button>
+    </div>
+    <pre id="log"></pre>
+    <script src="/static/log_viewer.js"></script>
+  </body>
+  </html>
+

@@ -1,0 +1,31 @@
+{
+  "name": "2D Platformer",
+  "version": "1.0.0",
+  "unity_version": "2023.3+",
+  "description": "Classic 2D platformer with physics",
+  "dependencies": {
+    "packages": [
+      {"com.unity.inputsystem": "1.7.0"},
+      {"com.unity.cinemachine": "2.9.7"},
+      {"com.unity.2d.sprite": "1.0.0"}
+    ]
+  },
+  "parameters": [
+    {"name": "player_speed", "type": "float", "default": 5.0, "description": "Player movement speed"},
+    {"name": "jump_height", "type": "float", "default": 2.0},
+    {"name": "enemy_count", "type": "int", "default": 3}
+  ],
+  "scripts": [
+    {"src": "PlayerController.cs", "target": "Assets/Scripts/Player/", "parameters": ["player_speed", "jump_height"]},
+    {"src": "EnemyAI.cs", "target": "Assets/Scripts/Enemies/"},
+    {"src": "GameManager.cs", "target": "Assets/Scripts/"}
+  ],
+  "scenes": [
+    {"name": "MainMenu", "is_default": true},
+    {"name": "Level1"}
+  ],
+  "post_install": [
+    {"script": "ConfigureInput.cs"}
+  ]
+}
+

@@ -1,0 +1,13 @@
+{
+  "name": "Puzzle Game",
+  "version": "0.1.0",
+  "unity_version": "2023.3+",
+  "description": "Match-3 or sliding puzzle basics",
+  "dependencies": {"packages": []},
+  "parameters": [],
+  "scripts": [],
+  "scenes": [
+    {"name": "Main", "is_default": true}
+  ]
+}
+

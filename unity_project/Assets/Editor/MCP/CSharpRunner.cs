@@ -12,9 +12,18 @@ using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json;
 
+/// <summary>
+/// Compilador/Ejecutor dinámico de C# dentro del Editor de Unity.
+/// Permite compilar código fuente recibido y ejecutar un método estático Run().
+/// </summary>
 public static class CSharpRunner
 {
 
+    /// <summary>
+    /// Compila y ejecuta el código C# proporcionado, devolviendo el resultado o errores.
+    /// </summary>
+    /// <param name="code">Código fuente a ejecutar.</param>
+    /// <param name="additionalReferences">Lista de ensamblados adicionales por nombre o ruta.</param>
     public static CommandExecutionResult Execute(string code, List<string> additionalReferences)
     {
         var result = new CommandExecutionResult();
@@ -50,6 +59,9 @@ public static class CSharpRunner
         return result;
     }
 
+    /// <summary>
+    /// Intenta compilar con referencias esenciales y reintenta con todas si falla.
+    /// </summary>
     private static (Assembly, string) CompileWithFallback(string code, CommandExecutionResult result, List<string> additionalReferences)
     {
         var essentialAssemblies = GetEssentialAssemblies();
@@ -84,6 +96,9 @@ public static class CSharpRunner
         return (null, fallbackErrors);
     }
 
+    /// <summary>
+    /// Compila el código con el conjunto de ensamblados proporcionado.
+    /// </summary>
     private static (Assembly, string) Compile(string code, IEnumerable<string> referencedAssemblies)
     {
         var provider = new CSharpCodeProvider();
@@ -113,6 +128,10 @@ public static class CSharpRunner
         return (results.CompiledAssembly, null);
     }
 
+    /// <summary>
+    /// Envuelve el código del agente en una clase contenedora con método Run().
+    /// Devuelve el código final y el desplazamiento de línea para mapear errores.
+    /// </summary>
     private static string BuildSourceTemplate(string code, out int codeLineOffset)
     {
         var lines = code.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
@@ -156,6 +175,9 @@ public static class CSharpRunner
         return finalCode.ToString();
     }
 
+    /// <summary>
+    /// Serializa el valor de retorno intentando usar JSON y con fallback a ToString().
+    /// </summary>
     private static string SerializeReturnValue(object value)
     {
         if (value == null)
@@ -195,6 +217,9 @@ public static class CSharpRunner
 
     #region Assembly Management
 
+    /// <summary>
+    /// Conjunto mínimo de ensamblados comunes para la mayoría de scripts del Editor.
+    /// </summary>
     private static List<string> GetEssentialAssemblies()
     {
         return new List<string>
@@ -204,6 +229,9 @@ public static class CSharpRunner
         }.Distinct().ToList();
     }
 
+    /// <summary>
+    /// Devuelve ubicaciones de todos los ensamblados cargados estáticamente más los esenciales.
+    /// </summary>
     private static List<string> GetAllAssemblies()
     {
         return AppDomain.CurrentDomain.GetAssemblies()
@@ -214,6 +242,9 @@ public static class CSharpRunner
             .ToList();
     }
 
+    /// <summary>
+    /// Resuelve la ubicación de un ensamblado por nombre (sin extensión) o ruta.
+    /// </summary>
     private static string GetAssemblyLocation(string assemblyName)
     {
         string cleanAssemblyName = assemblyName.EndsWith(".dll") ? Path.GetFileNameWithoutExtension(assemblyName) : assemblyName;
