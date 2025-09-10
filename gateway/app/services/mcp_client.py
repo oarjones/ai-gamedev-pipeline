@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Callable, Awaitable
@@ -61,9 +62,28 @@ class MCPClient:
     def __init__(self) -> None:
         _ensure_config_env()
         # Import lazily after env var is set to ensure URLs are resolved once
-        from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
-
-        self._adapter = _adapter
+        try:
+            from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
+            self._adapter = _adapter
+        except ModuleNotFoundError:
+            # Try to inject repo paths for local dev (without relying on PYTHONPATH)
+            repo_root = Path(__file__).resolve().parents[3]
+            extra_paths = [
+                repo_root,
+                repo_root / "mcp_unity_bridge" / "src",
+            ]
+            for p in extra_paths:
+                s = str(p)
+                if s not in sys.path:
+                    sys.path.insert(0, s)
+            try:
+                from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
+                self._adapter = _adapter
+            except ModuleNotFoundError as e:
+                raise ModuleNotFoundError(
+                    "Could not import 'mcp_unity_bridge.mcp_adapter'. Ensure either PYTHONPATH includes the repo root, "
+                    "or install the bridge package (pip install -e mcp_unity_bridge)."
+                ) from e
         self._breaker: Dict[str, Dict[str, float]] = {
             # key -> {"failures": int, "open_until": epoch}
         }
