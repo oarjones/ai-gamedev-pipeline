@@ -4,13 +4,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.models import CreateProject, Envelope, EventType, Project
 from app.ws.events import websocket_endpoint
+from app.security import require_api_key
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,11 +29,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # Create FastAPI app
+_deps = [Depends(require_api_key)] if settings.auth.require_api_key else []
 app = FastAPI(
     title="AI Gateway",
     description="AI Gateway service for ai-gamedev-pipeline",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=_deps,
 )
 
 # Add CORS middleware
@@ -43,6 +46,8 @@ app.add_middleware(
     allow_methods=settings.cors.allow_methods,
     allow_headers=settings.cors.allow_headers,
 )
+
+# No further overrides; WebSocket auth handled in websocket_endpoint
 
 
 @app.get("/health")
@@ -65,12 +70,85 @@ async def websocket_events(websocket: WebSocket) -> None:
 
 
 # Include routers
-from app.routers import projects_router
+from app.routers import projects_router, agent_router, chat_router, timeline_router, tools_router, context_router, config_router, deps_router
+from app.routers.health import router as health_router
+from app.routers.pipeline import router as pipeline_router
+from app.routers.system import router as system_router
 
 app.include_router(
     projects_router,
     prefix="/api/v1/projects",
     tags=["projects"]
+)
+
+# Agent runner endpoints
+app.include_router(
+    agent_router,
+    prefix="/api/v1/agent",
+    tags=["agent"]
+)
+
+# Chat endpoints
+app.include_router(
+    chat_router,
+    prefix="/api/v1/chat",
+    tags=["chat"]
+)
+
+# Timeline endpoints
+app.include_router(
+    timeline_router,
+    prefix="/api/v1/timeline",
+    tags=["timeline"]
+)
+
+# Tools and action execution
+app.include_router(
+    tools_router,
+    prefix="/api/v1",
+    tags=["tools", "actions"],
+)
+
+# Context (scene, screenshots)
+app.include_router(
+    context_router,
+    prefix="/api/v1",
+    tags=["context"],
+)
+
+# System (process orchestration)
+app.include_router(
+    system_router,
+    prefix="/api/v1",
+    tags=["system"],
+)
+
+# Config (centralized)
+app.include_router(
+    config_router,
+    prefix="/api/v1",
+    tags=["config"],
+)
+
+# Dependencies / venvs
+app.include_router(
+    deps_router,
+    prefix="/api/v1",
+    tags=["dependencies"],
+)
+
+# Health
+app.include_router(
+    health_router,
+    prefix="/api/v1",
+    tags=["health"],
+)
+
+# Pipeline
+app.include_router(
+    pipeline_router,
+    prefix="/api/v1",
+    tags=["pipeline"],
 )
 
 

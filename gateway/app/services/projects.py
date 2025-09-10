@@ -109,7 +109,15 @@ class ProjectService:
             "created_at": datetime.utcnow().isoformat() + "Z",
             "updated_at": datetime.utcnow().isoformat() + "Z",
             "type": "ai-gamedev-project",
-            "settings": default_settings
+            "settings": default_settings,
+            "agent": {
+                "adapter": "cli_generic",
+                "executable": "python",
+                "args": ["-u", "-m", "mcp_unity_bridge.mcp_adapter"],
+                "env": {},
+                "default_timeout": 5.0,
+                "terminate_grace": 3.0
+            }
         }
         
         project_json_path = agp_dir / "project.json"

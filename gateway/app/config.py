@@ -1,7 +1,7 @@
 """Configuration management for AI Gateway."""
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field, ConfigDict
@@ -29,6 +29,24 @@ class CorsConfig(BaseModel):
     allow_headers: List[str] = ["*"]
 
 
+class AuthConfig(BaseModel):
+    """Auth configuration (minimal API key)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    require_api_key: bool = True
+    api_key: str = "dev-local-key"
+
+
+class ChatConfig(BaseModel):
+    """Chat configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_message_length: int = 4000
+    history_limit_default: int = 50
+
+
 class Settings(BaseSettings):
     """Main settings class with YAML and environment variable support."""
     
@@ -42,6 +60,10 @@ class Settings(BaseSettings):
     
     server: ServerConfig = Field(default_factory=ServerConfig)
     cors: CorsConfig = Field(default_factory=CorsConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
+    chat: ChatConfig = Field(default_factory=ChatConfig)
+    # Raw processes config loaded from YAML under gateway.processes
+    processes: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 def load_settings() -> Settings:

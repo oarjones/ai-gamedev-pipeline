@@ -1,4 +1,4 @@
-"""WebSocket event handling for AI Gateway."""
+"""WebSocket event handling for AI Gateway with per-project rooms."""
 
 import json
 import logging
@@ -11,46 +11,49 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
-    """Manages WebSocket connections for event broadcasting."""
-    
+    """Manages WebSocket connections segmented by projectId rooms."""
+
     def __init__(self) -> None:
-        self.active_connections: Set[WebSocket] = set()
-    
-    async def connect(self, websocket: WebSocket) -> None:
-        """Accept a WebSocket connection."""
+        # projectId -> set of websockets
+        self.rooms: Dict[str, Set[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, project_id: str) -> None:
         await websocket.accept()
-        self.active_connections.add(websocket)
-        logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
-    
+        self.rooms.setdefault(project_id, set()).add(websocket)
+        logger.info("WS connected to project '%s' (room size=%d)", project_id, len(self.rooms[project_id]))
+
     def disconnect(self, websocket: WebSocket) -> None:
-        """Remove a WebSocket connection."""
-        self.active_connections.discard(websocket)
-        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
-    
+        # Remove from all rooms (client could be in one)
+        empty_rooms = []
+        for pid, conns in self.rooms.items():
+            if websocket in conns:
+                conns.discard(websocket)
+                logger.info("WS disconnected from project '%s' (room size=%d)", pid, len(conns))
+            if not conns:
+                empty_rooms.append(pid)
+        for pid in empty_rooms:
+            self.rooms.pop(pid, None)
+
     async def send_personal_message(self, message: str, websocket: WebSocket) -> None:
-        """Send a personal message to a specific WebSocket."""
         try:
             await websocket.send_text(message)
         except Exception as e:
-            logger.error(f"Error sending personal message: {e}")
+            logger.error("Error sending personal message: %s", e)
             self.disconnect(websocket)
-    
-    async def broadcast(self, message: str) -> None:
-        """Broadcast a message to all connected WebSockets."""
-        if not self.active_connections:
+
+    async def broadcast_project(self, project_id: str, message: str) -> None:
+        conns = self.rooms.get(project_id)
+        if not conns:
             return
-        
-        disconnected = set()
-        for connection in self.active_connections:
+        disconnected: Set[WebSocket] = set()
+        for ws in conns:
             try:
-                await connection.send_text(message)
+                await ws.send_text(message)
             except Exception as e:
-                logger.error(f"Error broadcasting message: {e}")
-                disconnected.add(connection)
-        
-        # Clean up disconnected clients
-        for conn in disconnected:
-            self.disconnect(conn)
+                logger.error("Error broadcasting to project '%s': %s", project_id, e)
+                disconnected.add(ws)
+        for ws in disconnected:
+            self.disconnect(ws)
 
 
 # Global connection manager instance
@@ -58,58 +61,36 @@ manager = ConnectionManager()
 
 
 async def websocket_endpoint(websocket: WebSocket) -> None:
-    """WebSocket endpoint for event streaming."""
-    await manager.connect(websocket)
-    
+    """WebSocket endpoint for per-project event streaming.
+
+    Requires query param ?projectId=...; otherwise rejects the connection.
+    """
+    project_id = websocket.query_params.get("projectId")
+    api_key = websocket.headers.get("X-API-Key") or websocket.query_params.get("apiKey")
+    try:
+        from app.config import settings as _settings
+        if _settings.auth.require_api_key:
+            if not api_key or api_key != _settings.auth.api_key:
+                await websocket.accept()
+                await websocket.send_text(json.dumps({"type": "error", "message": "unauthorized"}))
+                await websocket.close()
+                return
+    except Exception:
+        pass
+    if not project_id:
+        # Reject clients without projectId for now
+        await websocket.accept()
+        await websocket.send_text(json.dumps({"type": "error", "message": "projectId required"}))
+        await websocket.close()
+        return
+
+    await manager.connect(websocket, project_id)
     try:
         while True:
-            # Receive message from client
-            data = await websocket.receive_text()
-            
-            try:
-                # Parse JSON message
-                message_data = json.loads(data)
-                event_type = message_data.get("type", "unknown")
-                payload = message_data.get("payload", {})
-                
-                logger.info(f"Received WebSocket message: type={event_type}")
-                
-                # Echo message back to sender with timestamp
-                response = {
-                    "type": "echo",
-                    "original_type": event_type,
-                    "payload": payload,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "server": "ai-gateway"
-                }
-                
-                await manager.send_personal_message(json.dumps(response), websocket)
-                
-                # Broadcast to all other clients (excluding sender)
-                if event_type == "broadcast":
-                    broadcast_msg = {
-                        "type": "broadcast",
-                        "payload": payload,
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "server": "ai-gateway"
-                    }
-                    
-                    for conn in manager.active_connections:
-                        if conn != websocket:
-                            await manager.send_personal_message(json.dumps(broadcast_msg), conn)
-                
-            except json.JSONDecodeError:
-                # Handle non-JSON messages as simple text echo
-                response = {
-                    "type": "text_echo",
-                    "message": data,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "server": "ai-gateway"
-                }
-                await manager.send_personal_message(json.dumps(response), websocket)
-                
+            # We currently ignore client messages; this is a server-push channel.
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error("WebSocket error: %s", e)
         manager.disconnect(websocket)

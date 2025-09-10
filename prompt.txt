@@ -1,110 +1,129 @@
-Implementar un sistema completo de estado persistente con checkpoint y rollback para el proyecto AI GameDev Pipeline.
+Tarea — Auditoría y Limpieza de Código, Docs y Config
 
-CONTEXTO:
-- Necesitamos trackear todos los cambios en Unity y Blender
-- Poder hacer undo/redo de operaciones complejas
-- Mantener historial entre sesiones
+Objetivo: Identificar y eliminar (o archivar) archivos, carpetas, scripts y configuraciones no usados u obsoletos en la rama feature/hybrid-dashboard, garantizando que el dashboard, los bridges MCP (Unity/Blender) y el AgentRunner sigan funcionando. Entregar un informe reproducible y un PR con los cambios y justificaciones.
 
-REQUISITOS:
+Alcance (incluye pero no limitado a):
 
-1. CORE STATE MANAGER:
-   Crear mcp_unity_bridge/src/state/state_manager.py:
-   python
-   class StateManager:
-       - __init__(project_path, max_checkpoints=50)
-       - create_checkpoint(action_type, data, metadata)
-       - rollback(steps=1) 
-       - rollforward(steps=1)
-       - get_history(limit=10, filter=None)
-       - prune_old_checkpoints(keep_last=20)
-       - export_state(format='json'|'binary')
-       - import_state(file_path)
-       - get_diff(checkpoint_a, checkpoint_b)
+Código y assets en: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, config/, docs/, projects/.
 
-2. CHECKPOINT SYSTEM:
-   Implementar en mcp_unity_bridge/src/state/checkpoint.py:
-   - Clase Checkpoint con: id, timestamp, action, data, parent_id, hash
-   - Compresión con zlib para datos grandes
-   - Hashing SHA256 para integridad
-   - Serialización eficiente con MessagePack
-   - Soporte para datos binarios (screenshots, meshes)
+Archivos de config/env: settings.(yml|json), project.json, .env*, .ini, .vscode/, *.csproj/Unity meta si aplica.
 
-3. STORAGE BACKEND:
-   Crear mcp_unity_bridge/src/state/storage.py:
-   - Interfaz IStateStorage
-   - SQLiteStorage: Implementación local con SQLite
-   - Índices en: timestamp, action_type, parent_id
-   - VACUUM automático cuando DB > 100MB
-   - Backup automático cada 10 checkpoints
+Dependencias declaradas vs. usadas: package.json, requirements*.txt, pyproject.toml
 
-4. UNITY INTEGRATION:
-   Crear Assets/Editor/MCP/State/StateRecorder.cs:
-   csharp
-   public class StateRecorder {
-       - RecordSceneState(): Captura completa de la escena
-       - RecordObjectChange(GameObject obj)
-       - RecordComponentChange(Component comp)
-       - RestoreFromCheckpoint(string checkpointId)
-       - GetStateDiff(string checkpointA, string checkpointB)
-   }
+Scripts de arranque antiguos (BAT/PS1/SH) que hayan sido reemplazados por el Process Manager/Runner.
 
-5. BLENDER INTEGRATION:
-   Actualizar Blender addon con state tracking:
-   - Hook en todas las operaciones que modifican la escena
-   - Serialización de mesh data, materiales, animaciones
-   - Restauración completa de estado
+Documentación duplicada/desfasada en docs/dashboard/* y raíz.
 
-6. DELTA COMPRESSION:
-   Implementar almacenamiento diferencial:
-   - Solo guardar cambios entre checkpoints
-   - Reconstrucción rápida usando deltas
-   - Compresión adaptativa según tipo de dato
+Entregables:
 
-7. UI COMPONENTS:
-   - Unity: Timeline visual en Editor Window
-   - Web UI: Visualización de historial
-   - Comparación lado a lado de estados
+Reporte reports/cleanup_audit.json y reports/cleanup_audit.md con:
 
-8. CONFLICTO RESOLUTION:
-   Sistema para manejar conflictos:
-   - Detección de operaciones conflictivas
-   - Estrategias: last-write-wins, merge, manual
-   - Branching de estados para exploración
+Inventario de archivos y clasificación: KEEP | MOVE_TO_legacy/ | DELETE.
 
-DATABASE SCHEMA:
-sql
-CREATE TABLE checkpoints (
-    id TEXT PRIMARY KEY,
-    timestamp INTEGER NOT NULL,
-    action_type TEXT NOT NULL,
-    data BLOB,
-    metadata TEXT,
-    parent_id TEXT,
-    hash TEXT NOT NULL,
-    size_bytes INTEGER,
-    compressed BOOLEAN
-);
+Razón y evidencia (referencias cruzadas / uso en código / historial git / build).
 
-CREATE TABLE state_branches (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at INTEGER,
-    head_checkpoint TEXT,
-    description TEXT
-);
+Grafo de dependencias (por paquete) y lista de dependencias no usadas.
 
-BUENAS PRÁCTICAS:
-- Usar transacciones para operaciones atómicas
-- Implementar lazy loading para checkpoints grandes
-- Cache LRU para checkpoints frecuentes
-- Thread-safe operations con threading.Lock
-- Validación de integridad en cada load
-- Cleanup automático de estados corruptos
+PR “chore: cleanup unused & obsolete files (safe)” que:
 
-CRITERIOS DE ACEPTACIÓN:
-- Rollback funciona para últimas 50 operaciones
-- Estado persiste entre reinicios de aplicación
-- Restauración completa < 2 segundos
-- No pérdida de datos en crashes
-- UI muestra historial visual
-- Tests con 90% coverage
+Mueva a legacy/ lo dudoso con aviso de deprecación.
+
+Elimine lo inequívocamente obsoleto.
+
+Actualice docs, scripts y configs afectados.
+
+Incluya checklist y resultados de verificación (build, lints, health/self-test).
+
+Script tools/cleanup/verify_cleanup.(ps1|py) que revalide que, tras la limpieza, todo sigue funcionando (build, rutas, health-checks).
+
+Prompt para el agente IA
+Contexto:
+- Rama de trabajo: feature/hybrid-dashboard
+- Repo: oarjones/ai-gamedev-pipeline
+- Objetivo: Auditoría de limpieza (código, docs, configs) + PR seguro
+
+1) Preparación
+- Crea rama: chore/cleanup-audit
+- Crea carpeta: reports/ y tools/cleanup/
+- Detecta monorepo o multi-módulo: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, docs/, config/, projects/
+
+2) Inventario y análisis de uso
+- Genera inventario completo de archivos con tamaño y última modificación → reports/inventory.csv
+- Cruce de referencias:
+  a) JS/TS (webapp/gateway): usa `ts-prune` y `depcheck` para detectar exports/paquetes no usados.
+  b) Python (mcp_* y tools): usa `vulture`, `pipdeptree`, `pip-check` y grep de importadores.
+  c) Scripts: rastrea referencias reales desde package.json scripts, Makefile/NPM scripts, README/docs y el nuevo Process Manager. Marca BAT/PS1/SH antiguos que dupliquen funciones actuales.
+  d) Docs: busca documentos no enlazados desde README principal o docs/index; marca duplicados desfasados.
+  e) Config: lista claves/env no usadas (grep en código + validadores actuales). Verifica `projects/<id>/.agp/project.json` y URLs como MCP/Blender para coherencia.
+
+- Salida: reports/cleanup_audit.json con la estructura:
+  {
+    "file": "path/relativo",
+    "status": "KEEP|MOVE|DELETE",
+    "reason": "unused export|no refs|replaced by ...|duplicate doc|dead docker target|deprecated script",
+    "evidence": ["ruta/archivo que lo reemplaza", "comando de verificación", "grep ref count=0"],
+    "risk": "low|medium|high"
+  }
+
+3) Criterios de decisión
+- DELETE si:
+  - 0 referencias reales en código o scripts + no es doc normativo + no afecta al build o runtime
+  - Dependencia no usada (depcheck/ts-prune/vulture + verificación manual)
+- MOVE a legacy/ si:
+  - Referencias históricas o duda funcional
+  - Documentos obsoletos que aún sirven como referencia
+- KEEP si:
+  - Requerido por el dashboard actual, bridges MCP o builds
+  - Parte de ejemplos o plantillas enlazadas
+- Siempre actualizar docs/configs que mencionen lo eliminado
+
+4) Cambios de código y docs
+- Crea carpeta legacy/ en raíz y mueve allí lo marcado como MOVE, manteniendo estructura
+- Borra lo marcado como DELETE
+- Actualiza rutas en: docs/dashboard/*, README, scripts, configs (settings/project.json) y cualquier import/URL MCP
+- Sincroniza dependencias:
+  - JS/TS: elimina deps no usadas de package.json y hace `npm/yarn/pnpm install`
+  - Python: sincroniza requirements*.txt o pyproject (elimina paquetes muertos y congela versiones mínimas si procede)
+- Genera reports/cleanup_audit.md con resumen (tabla) y decisiones
+
+5) Verificación post-limpieza
+- Ejecuta:
+  - Lints y typechecks (TS/ESLint/TS-Check si aplica)
+  - Builds del webapp/gateway
+  - Health/self-test del dashboard (endpoints /health, /agent/status)
+  - Smoke test: arrancar Unity Bridge, Blender Bridge y Adaptador MCP con config sample
+- Guarda logs en reports/cleanup_runlogs/*.log
+- Si falla algo, revierte selectivamente los archivos implicados y vuelve a verificar
+
+6) PR
+- Rama: chore/cleanup-audit
+- Título: "chore: cleanup unused & obsolete files (safe)"
+- Descripción: 
+  - Resumen del impacto (nº archivos eliminados/movidos, ahorro de tamaño)
+  - Enlace a reports/cleanup_audit.md y .json
+  - Checklist:
+    [ ] Build OK
+    [ ] Lints/Typecheck OK
+    [ ] Health/Self-test OK
+    [ ] Scripts y docs actualizados
+    [ ] No secrets expuestos
+- Solicita revisión y etiquetar como `maintenance`, `infra`, `docs`
+
+Notas:
+- No eliminar claves de ejemplo ni plantillas necesarias
+- No tocar assets/unity metadatas sin verificación
+- No tocar rutas MCP productivas sin actualizar docs y pruebas
+
+Buenas prácticas (para esta tarea)
+
+Reversibilidad: mover a legacy/ todo lo dudoso antes de borrar; sólo eliminar lo inequívoco.
+
+Evidencia: cada decisión debe estar justificada con métricas (refs=0, herramientas, logs).
+
+Atómico y seguro: un único PR con cambios agrupados por tipo (código, docs, deps).
+
+No romper la DX: valida que scripts de desarrollo y quickstart sigan funcionando.
+
+Secrets: revisa que no haya credenciales en ficheros agregados o en logs de reports.
+
+CI local: añade/verifica checks mínimos (lint/build/test/self-test) antes del PR.

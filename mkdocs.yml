@@ -1,5 +1,5 @@
-site_name: AI GameDev Pipeline
-site_description: Documentación unificada del proyecto AI GameDev Pipeline
+﻿site_name: AI GameDev Pipeline
+site_description: DocumentaciÃ³n unificada del proyecto AI GameDev Pipeline
 site_url: https://example.com
 repo_url: https://example.com/repo
 theme:
@@ -43,21 +43,21 @@ plugins:
   - with-pdf
 nav:
   - Inicio: index.md
-  - Instalación:
+  - InstalaciÃ³n:
       - Requisitos: installation/requirements.md
       - Unity: installation/unity_setup.md
       - Blender: installation/blender_setup.md
       - MCP Bridge: installation/mcp_bridge_setup.md
   - Arquitectura:
-      - Visión general: architecture/overview.md
-      - Flujo de comunicación: architecture/communication_flow.md
+      - VisiÃ³n general: architecture/overview.md
+      - Flujo de comunicaciÃ³n: architecture/communication_flow.md
       - Componentes: architecture/components.md
       - Seguridad: architecture/security.md
-  - Guía de usuario:
-      - Uso básico: user_guide/basic_usage.md
+  - GuÃ­a de usuario:
+      - Uso bÃ¡sico: user_guide/basic_usage.md
       - Crear objetos: user_guide/creating_objects.md
       - Trabajar con Blender: user_guide/working_with_blender.md
-      - Ejemplos de automatización: user_guide/automation_examples.md
+      - Ejemplos de automatizaciÃ³n: user_guide/automation_examples.md
   - API:
       - Herramientas MCP: api/mcp_tools.md
       - Comandos Unity: api/unity_commands.md
@@ -65,11 +65,17 @@ nav:
       - Protocolo WebSocket: api/websocket_protocol.md
   - Desarrollo:
       - Contribuir: developer/contributing.md
-      - Añadir herramientas: developer/adding_tools.md
+      - AÃ±adir herramientas: developer/adding_tools.md
       - Testing: developer/testing.md
-      - Depuración: developer/debugging.md
-  - Solución de problemas:
+      - DepuraciÃ³n: developer/debugging.md
+  - SoluciÃ³n de problemas:
       - Problemas comunes: troubleshooting/common_issues.md
       - Preguntas frecuentes: troubleshooting/faq.md
-      - Códigos de error: troubleshooting/error_codes.md
+      - CÃ³digos de error: troubleshooting/error_codes.md
 
+
+  - Dashboard:
+      - Arquitectura: dashboard/architecture.md
+      - Eventos: dashboard/events.md
+      - API: dashboard/api.md
+      - Configuración: dashboard/config.md

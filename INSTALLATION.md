@@ -39,3 +39,6 @@ python mcp_unity_bridge/src/mcp_unity_server/main.py
 
 - Ver `Screenshot/` para pasos con imágenes: instalación de addon, consola de Unity, Bridge en ejecución.
 
+[tool.setuptools.packages.find]
+where = ["src"]
+

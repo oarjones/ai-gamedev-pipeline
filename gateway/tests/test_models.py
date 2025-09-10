@@ -1,4 +1,4 @@
-"""Smoke tests for model serialization/deserialization."""
+﻿"""Smoke tests for model serialization/deserialization."""
 
 import json
 from datetime import datetime
@@ -15,7 +15,7 @@ class TestEventType:
     def test_all_event_types(self) -> None:
         """Test all event types are defined correctly."""
         expected_types = {
-            "chat", "action", "update", "scene", "timeline", "log", "error"
+            "chat", "action", "update", "scene", "timeline", "log", "error", "project"
         }
         actual_types = {et.value for et in EventType}
         assert actual_types == expected_types
