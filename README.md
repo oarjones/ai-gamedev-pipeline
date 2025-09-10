@@ -11,13 +11,10 @@ Características
 - Documentación autogenerada desde docstrings (Python) y comentarios XML (C#).
 - Diagramas de arquitectura Mermaid y soporte de exportación a PDF.
 
-Quick Start
------------
-1) Requisitos y setup: ver `docs/installation/requirements.md`.
-2) MCP Bridge: crea entorno, instala requisitos y ejecuta `mcp_unity_server/main.py` (ver `docs/installation/mcp_bridge_setup.md`).
-3) Unity: abre `unity_project/` y verifica conexión (ver `docs/installation/unity_setup.md`).
-4) Blender: instala y activa `mcp_blender_addon` (ver `docs/installation/blender_setup.md`).
-5) Prueba un comando básico desde Unity o Blender (ver `docs/user_guide/basic_usage.md`).
+Quickstart
+----------
+- Guía paso a paso: `docs/dashboard/quickstart.md`
+- Arranque rápido en Windows: `scripts/dev_up.bat` (abre backend y webapp). Para parar: `scripts/dev_down.bat`.
 
 Documentación (MkDocs)
 ----------------------
@@ -32,12 +29,18 @@ Dashboard (Gateway)
 -------------------
 - Arquitectura: `docs/dashboard/architecture.md`
 - Eventos (Envelope/Rooms): `docs/dashboard/events.md`
-- API (projects, agent, chat, timeline, tools, context): `docs/dashboard/api.md`
+- API (system, config, deps, agent, health, projects, chat, tools, context): `docs/dashboard/api.md`
 - Configuración (project.json/env): `docs/dashboard/config.md`
 
 Contribución
 ------------
 Por favor, lee `CONTRIBUTING.md`. Mantén docstrings actualizados y ejecuta el generador de docs antes de subir cambios.
+
+Auditoría y Limpieza (DX)
+-------------------------
+- Inventario y auditoría: ejecuta `python tools/cleanup/inventory.py` y `python tools/cleanup/audit_runner.py` (salida en `reports/`).
+- Verificación post-limpieza: `python tools/cleanup/verify_cleanup.py` (guardar logs en `reports/cleanup_runlogs/`).
+- Informe: consulta `reports/cleanup_audit.md` y `reports/cleanup_audit.json`.
 
 Bootstrapper de Juegos (nuevo)
 ------------------------------

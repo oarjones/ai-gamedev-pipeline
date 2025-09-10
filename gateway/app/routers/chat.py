@@ -28,8 +28,8 @@ async def chat_send(request: Request, projectId: str, payload: ChatSendRequest) 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{projectId}' not found")
 
     # Ensure agent is running
-    from app.services.agent_runner import agent_runner
-    if not agent_runner.status().running:
+    from app.services.unified_agent import agent as unified_agent
+    if not unified_agent.status().running:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent is not running for this project")
 
     corr_id = request.headers.get("X-Correlation-Id")
@@ -56,4 +56,3 @@ async def chat_history(projectId: str, limit: Optional[int] = None) -> JSONRespo
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     return JSONResponse(status_code=status.HTTP_200_OK, content={"items": items})
-

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.models.core import CreateProject, Project
 from app.services.projects import project_service
-from app.services.agent_runner import agent_runner
+from app.services.unified_agent import agent as unified_agent
 from app.ws.events import manager
 from app.models import Envelope, EventType
 from pathlib import Path
@@ -117,13 +117,13 @@ async def select_active_project(project_id: str) -> JSONResponse:
     start_ok = True
     start_error: str | None = None
     try:
-        await agent_runner.stop()
+        await unified_agent.stop()
     except Exception:
         pass
     new_proj = project_service.get_project(project_id)
     if new_proj:
         try:
-            await agent_runner.start(Path("projects") / new_proj.id)
+            await unified_agent.start(Path("projects") / new_proj.id, "gemini")
             start_ok = True
         except Exception as e:
             start_ok = False

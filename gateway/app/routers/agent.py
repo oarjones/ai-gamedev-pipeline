@@ -1,4 +1,4 @@
-"""Agent CLI runner endpoints.
+"""Unified Agent runner endpoints.
 
 Endpoints:
 - POST /api/v1/agent/start?projectId=...
@@ -20,7 +20,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.services.agent_runner import agent_runner
+from app.services.unified_agent import agent as unified_agent
+from app.ws.events import manager
+from app.models import Envelope, EventType
 from app.services.projects import project_service
 
 
@@ -33,22 +35,37 @@ class SendRequest(BaseModel):
 
 
 @router.post("/start")
-async def start_agent(projectId: str) -> JSONResponse:  # query param required
-    """Start the agent process using the specified project as cwd."""
+async def start_agent(payload: dict | None = None, projectId: str | None = None) -> JSONResponse:
+    """Start the agent using the specified project and agentType.
+
+    Accepts either JSON body { projectId, agentType } or legacy query param projectId.
+    """
+    payload = payload or {}
+    pid = projectId or payload.get("projectId")
+    agent_type = (payload.get("agentType") or "gemini").lower()
+    if not pid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="projectId is required")
     # Validate project exists via registry and derive the folder
-    project = project_service.get_project(projectId)
+    project = project_service.get_project(pid)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project '{projectId}' not found"
+            detail=f"Project '{pid}' not found"
         )
     cwd = Path("projects") / project.id
     try:
-        status_obj = await agent_runner.start(cwd)
+        status_obj = await unified_agent.start(cwd, agent_type)
     except FileNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    # Broadcast update event (best-effort)
+    try:
+        env = Envelope(type=EventType.UPDATE, projectId=project.id, payload={"source": "agent", "event": "started", "agentType": status_obj.agentType})
+        await manager.broadcast_project(project.id, env.model_dump_json(by_alias=True))
+    except Exception:
+        pass
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -57,6 +74,8 @@ async def start_agent(projectId: str) -> JSONResponse:  # query param required
             "pid": status_obj.pid,
             "running": status_obj.running,
             "cwd": status_obj.cwd,
+            "agentType": status_obj.agentType,
+            "lastError": status_obj.lastError,
         },
     )
 
@@ -65,9 +84,17 @@ async def start_agent(projectId: str) -> JSONResponse:  # query param required
 async def stop_agent() -> JSONResponse:
     """Stop the agent process if running."""
     try:
-        status_obj = await agent_runner.stop()
+        status_obj = await unified_agent.stop()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    # Broadcast update event (best-effort)
+    try:
+        # We don't know projectId; omit or use last known via status if needed
+        env = Envelope(type=EventType.UPDATE, projectId=None, payload={"source": "agent", "event": "stopped"})
+        # No room to broadcast if no project; ignore
+    except Exception:
+        pass
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -76,6 +103,8 @@ async def stop_agent() -> JSONResponse:
             "pid": status_obj.pid,
             "running": status_obj.running,
             "cwd": status_obj.cwd,
+            "agentType": status_obj.agentType,
+            "lastError": status_obj.lastError,
         },
     )
 
@@ -83,13 +112,15 @@ async def stop_agent() -> JSONResponse:
 @router.get("/status")
 async def agent_status() -> JSONResponse:
     """Return agent running status and pid."""
-    status_obj = agent_runner.status()
+    status_obj = unified_agent.status()
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "running": status_obj.running,
             "pid": status_obj.pid,
             "cwd": status_obj.cwd,
+            "agentType": status_obj.agentType,
+            "lastError": status_obj.lastError,
         },
     )
 
@@ -99,7 +130,7 @@ async def send_to_agent(payload: SendRequest, request: Request) -> JSONResponse:
     """Send text to the agent and return the CLI response (echo for now)."""
     correlation_id = request.headers.get("X-Correlation-Id") or str(uuid.uuid4())
     try:
-        out = await agent_runner.send(payload.text, correlation_id=correlation_id)
+        out = await unified_agent.send(payload.text, correlation_id=correlation_id)
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

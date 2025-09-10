@@ -11,6 +11,7 @@ export default function App() {
             <Link className={linkCls(loc.pathname === '/')} to="/">Dashboard</Link>
             <Link className={linkCls(loc.pathname.startsWith('/logs'))} to="/logs">Logs</Link>
             <Link className={linkCls(loc.pathname.startsWith('/settings'))} to="/settings">Settings</Link>
+            <Link className={linkCls(loc.pathname.startsWith('/dependencies'))} to="/dependencies">Dependencies</Link>
           </nav>
         </div>
       </header>
@@ -24,4 +25,3 @@ export default function App() {
 function linkCls(active: boolean) {
   return `hover:underline ${active ? 'text-primary' : ''}`
 }
-

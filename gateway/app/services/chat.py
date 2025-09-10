@@ -86,8 +86,8 @@ class ChatService:
             job = await self._queue.get()
             try:
                 # Send to agent CLI; background reader will stream output
-                from app.services.agent_runner import agent_runner
-                await agent_runner.send(job.text, correlation_id=job.correlation_id)
+                from app.services.unified_agent import agent as unified_agent
+                await unified_agent.send(job.text, correlation_id=job.correlation_id)
             except Exception as e:
                 logger.error("Chat worker error: %s", e)
             finally:

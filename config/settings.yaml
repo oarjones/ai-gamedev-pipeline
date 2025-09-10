@@ -19,3 +19,26 @@ timeouts:
   mcp_bridge: 15
   unity_editor: 15
   blender_addon: 20
+gateway:
+  processes:
+    unity:
+      exe: "C:\\Program Files\\Unity\\Hub\\Editor\\<version>\\Editor\\Unity.exe"
+      args: []
+      project_path: ""
+      timeout: 20
+    unity_bridge:
+      host: 127.0.0.1
+      port: 8001
+      timeout: 15
+    blender:
+      exe: "C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe"
+      args: []
+      timeout: 20
+    blender_bridge:
+      script_path: "mcp_blender_addon/server_bootstrap.py"
+      host: 127.0.0.1
+      port: 8002
+      timeout: 20
+    mcp_adapter:
+      script_path: "mcp_unity_bridge/mcp_adapter.py"
+      timeout: 10

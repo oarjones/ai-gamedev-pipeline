@@ -1,7 +1,7 @@
 """Configuration management for AI Gateway."""
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field, ConfigDict
@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     cors: CorsConfig = Field(default_factory=CorsConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     chat: ChatConfig = Field(default_factory=ChatConfig)
+    # Raw processes config loaded from YAML under gateway.processes
+    processes: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 def load_settings() -> Settings:

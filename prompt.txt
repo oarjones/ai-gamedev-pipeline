@@ -1,65 +1,129 @@
-Tarea 10 — UI del Chat (streaming, adjuntos, tool-calls visibles)
+Tarea — Auditoría y Limpieza de Código, Docs y Config
 
-Contexto
-El chat es el centro de interacción. Debe soportar envío de mensajes, streaming (chunks type=chat), markdown básico y adjuntos (imágenes de screenshots). Debe visualizar tool-calls si llegan por WS.
+Objetivo: Identificar y eliminar (o archivar) archivos, carpetas, scripts y configuraciones no usados u obsoletos en la rama feature/hybrid-dashboard, garantizando que el dashboard, los bridges MCP (Unity/Blender) y el AgentRunner sigan funcionando. Entregar un informe reproducible y un PR con los cambios y justificaciones.
 
-Objetivo
-Implementar ChatPane con: lista de mensajes (roles user|agent|system|tool), input con Enter, render de markdown, soporte de adjuntos (imágenes) y escucha WS para eventos type=chat y type=tool. Integrar POST /api/v1/chat/send.
+Alcance (incluye pero no limitado a):
 
-Alcance y tareas
+Código y assets en: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, config/, docs/, projects/.
 
-lib/api.ts: helper sendChat({projectId, text}) usando fetch (manejo de errores).
+Archivos de config/env: settings.(yml|json), project.json, .env*, .ini, .vscode/, *.csproj/Unity meta si aplica.
 
-ChatPane:
+Dependencias declaradas vs. usadas: package.json, requirements*.txt, pyproject.toml
 
-Input controlado con Enter para enviar (sendChat).
+Scripts de arranque antiguos (BAT/PS1/SH) que hayan sido reemplazados por el Process Manager/Runner.
 
-Lista de mensajes con burbujas estilizadas (role-based).
+Documentación duplicada/desfasada en docs/dashboard/* y raíz.
 
-Render markdown (seguro) + botón “copiar”.
+Entregables:
 
-Adjuntos: <img> cuando message.attachments[].type==='image' (data URL o URL segura).
+Reporte reports/cleanup_audit.json y reports/cleanup_audit.md con:
 
-Suscribirse a WS de rooms por projectId y append de:
+Inventario de archivos y clasificación: KEEP | MOVE_TO_legacy/ | DELETE.
 
-type=chat (role=agent/user/system) con content por chunks; merge visible.
+Razón y evidencia (referencias cruzadas / uso en código / historial git / build).
 
-type=tool (mostrar badge “tool-call” + payload colapsable).
+Grafo de dependencias (por paquete) y lista de dependencias no usadas.
 
-Estado sending y toasts de error.
+PR “chore: cleanup unused & obsolete files (safe)” que:
 
-Entregables
+Mueva a legacy/ lo dudoso con aviso de deprecación.
 
-components/chat/ChatPane.tsx con UI completa.
+Elimine lo inequívocamente obsoleto.
 
-lib/api.ts con sendChat.
+Actualice docs, scripts y configs afectados.
 
-lib/markdown.ts (sanitización/render).
+Incluya checklist y resultados de verificación (build, lints, health/self-test).
 
-Añadir hooks mínimos (useChatStream(projectId)).
+Script tools/cleanup/verify_cleanup.(ps1|py) que revalide que, tras la limpieza, todo sigue funcionando (build, rutas, health-checks).
 
-Restricciones
+Prompt para el agente IA
+Contexto:
+- Rama de trabajo: feature/hybrid-dashboard
+- Repo: oarjones/ai-gamedev-pipeline
+- Objetivo: Auditoría de limpieza (código, docs, configs) + PR seguro
 
-Virtualized list si >200 mensajes (ej. react-virtuoso o propio).
+1) Preparación
+- Crea rama: chore/cleanup-audit
+- Crea carpeta: reports/ y tools/cleanup/
+- Detecta monorepo o multi-módulo: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, docs/, config/, projects/
 
-Sanitizar HTML en markdown (no ejecutar scripts).
+2) Inventario y análisis de uso
+- Genera inventario completo de archivos con tamaño y última modificación → reports/inventory.csv
+- Cruce de referencias:
+  a) JS/TS (webapp/gateway): usa `ts-prune` y `depcheck` para detectar exports/paquetes no usados.
+  b) Python (mcp_* y tools): usa `vulture`, `pipdeptree`, `pip-check` y grep de importadores.
+  c) Scripts: rastrea referencias reales desde package.json scripts, Makefile/NPM scripts, README/docs y el nuevo Process Manager. Marca BAT/PS1/SH antiguos que dupliquen funciones actuales.
+  d) Docs: busca documentos no enlazados desde README principal o docs/index; marca duplicados desfasados.
+  e) Config: lista claves/env no usadas (grep en código + validadores actuales). Verifica `projects/<id>/.agp/project.json` y URLs como MCP/Blender para coherencia.
 
-Manejo de reconexión WS (reintentos con backoff simple).
+- Salida: reports/cleanup_audit.json con la estructura:
+  {
+    "file": "path/relativo",
+    "status": "KEEP|MOVE|DELETE",
+    "reason": "unused export|no refs|replaced by ...|duplicate doc|dead docker target|deprecated script",
+    "evidence": ["ruta/archivo que lo reemplaza", "comando de verificación", "grep ref count=0"],
+    "risk": "low|medium|high"
+  }
 
-Criterios de aceptación (DoD)
+3) Criterios de decisión
+- DELETE si:
+  - 0 referencias reales en código o scripts + no es doc normativo + no afecta al build o runtime
+  - Dependencia no usada (depcheck/ts-prune/vulture + verificación manual)
+- MOVE a legacy/ si:
+  - Referencias históricas o duda funcional
+  - Documentos obsoletos que aún sirven como referencia
+- KEEP si:
+  - Requerido por el dashboard actual, bridges MCP o builds
+  - Parte de ejemplos o plantillas enlazadas
+- Siempre actualizar docs/configs que mencionen lo eliminado
 
-Enviar texto produce evento chat (eco o real) visible en pantalla (stream si aplica).
+4) Cambios de código y docs
+- Crea carpeta legacy/ en raíz y mueve allí lo marcado como MOVE, manteniendo estructura
+- Borra lo marcado como DELETE
+- Actualiza rutas en: docs/dashboard/*, README, scripts, configs (settings/project.json) y cualquier import/URL MCP
+- Sincroniza dependencias:
+  - JS/TS: elimina deps no usadas de package.json y hace `npm/yarn/pnpm install`
+  - Python: sincroniza requirements*.txt o pyproject (elimina paquetes muertos y congela versiones mínimas si procede)
+- Genera reports/cleanup_audit.md con resumen (tabla) y decisiones
 
-Si llega screenshot_ready como adjunto, se renderiza la imagen inline.
+5) Verificación post-limpieza
+- Ejecuta:
+  - Lints y typechecks (TS/ESLint/TS-Check si aplica)
+  - Builds del webapp/gateway
+  - Health/self-test del dashboard (endpoints /health, /agent/status)
+  - Smoke test: arrancar Unity Bridge, Blender Bridge y Adaptador MCP con config sample
+- Guarda logs en reports/cleanup_runlogs/*.log
+- Si falla algo, revierte selectivamente los archivos implicados y vuelve a verificar
 
-Los tool-calls (type=tool) se ven como bloques colapsables con payload.
+6) PR
+- Rama: chore/cleanup-audit
+- Título: "chore: cleanup unused & obsolete files (safe)"
+- Descripción: 
+  - Resumen del impacto (nº archivos eliminados/movidos, ahorro de tamaño)
+  - Enlace a reports/cleanup_audit.md y .json
+  - Checklist:
+    [ ] Build OK
+    [ ] Lints/Typecheck OK
+    [ ] Health/Self-test OK
+    [ ] Scripts y docs actualizados
+    [ ] No secrets expuestos
+- Solicita revisión y etiquetar como `maintenance`, `infra`, `docs`
 
-Buenas prácticas
+Notas:
+- No eliminar claves de ejemplo ni plantillas necesarias
+- No tocar assets/unity metadatas sin verificación
+- No tocar rutas MCP productivas sin actualizar docs y pruebas
 
-Accesibilidad: ARIA roles en lista y controles, foco gestionado.
+Buenas prácticas (para esta tarea)
 
-Auto-scroll al final solo si el usuario está ya al final (no romper lectura histórica).
+Reversibilidad: mover a legacy/ todo lo dudoso antes de borrar; sólo eliminar lo inequívoco.
 
-Separar MessageItem y MessageList; memoizar.
+Evidencia: cada decisión debe estar justificada con métricas (refs=0, herramientas, logs).
 
-Evitar any; usar zod para validar payloads de WS antes de pintar.
+Atómico y seguro: un único PR con cambios agrupados por tipo (código, docs, deps).
+
+No romper la DX: valida que scripts de desarrollo y quickstart sigan funcionando.
+
+Secrets: revisa que no haya credenciales en ficheros agregados o en logs de reports.
+
+CI local: añade/verifica checks mínimos (lint/build/test/self-test) antes del PR.

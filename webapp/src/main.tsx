@@ -5,6 +5,7 @@ import App from './App'
 import Dashboard from './routes/Dashboard'
 import Logs from './routes/Logs'
 import Settings from './routes/Settings'
+import Dependencies from './routes/Dependencies'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       { path: 'logs', element: <Logs /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'dependencies', element: <Dependencies /> },
     ],
   },
 ])
@@ -24,4 +26,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <RouterProvider router={router} />
   </React.StrictMode>
 )
-

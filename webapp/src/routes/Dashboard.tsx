@@ -3,6 +3,8 @@ import ChatPane from '@/components/chat/ChatPane'
 import ContextPanel from '@/components/ContextPanel'
 import ToolsPanel from '@/components/ToolsPanel'
 import Timeline from '@/components/Timeline'
+import SelfTestPanel from '@/components/SelfTestPanel'
+import PipelineLauncher from '@/components/PipelineLauncher'
 
 export default function Dashboard() {
   return (
@@ -21,8 +23,10 @@ export default function Dashboard() {
         <div className="card flex-1 overflow-auto"><ToolsPanel /></div>
       </section>
       {/* Bottom: Timeline spans all */}
-      <footer className="col-span-12 card overflow-auto">
-        <Timeline />
+      <footer className="col-span-12 grid grid-cols-12 gap-3">
+        <div className="col-span-3 card overflow-auto"><PipelineLauncher /></div>
+        <div className="col-span-3 card overflow-auto"><SelfTestPanel /></div>
+        <div className="col-span-6 card overflow-auto"><Timeline /></div>
       </footer>
     </div>
   )
