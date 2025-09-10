@@ -26,7 +26,7 @@ if exist "mcp_unity_bridge\pyproject.toml" (
 
 REM Start Gateway (Uvicorn)
 set GATEWAY_TITLE=AGP Gateway
-start "!GATEWAY_TITLE!" cmd /k "cd /d gateway && call .venv\Scripts\activate.bat && set PYTHONPATH=%REPO_ROOT%;%REPO_ROOT%\mcp_unity_bridge\src;%PYTHONPATH% && echo [Gateway Backend] && uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+start "!GATEWAY_TITLE!" cmd /k "cd /d gateway && call .venv\Scripts\activate.bat && echo [Gateway Backend] && python -V && uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
 
 REM Start Webapp (Vite)
 set WEBAPP_TITLE=AGP Webapp
