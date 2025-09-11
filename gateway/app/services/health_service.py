@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
 from app.services.process_manager import process_manager
+from app.services.adapter_lock import status as adapter_status
 from app.services.unified_agent import agent as unified_agent
 from app.services.config_service import get_all
 
@@ -86,12 +87,13 @@ async def get_health() -> Dict[str, Any]:
         )
     )
 
-    # MCP Adapter WS via Unity Bridge
+    # MCP Adapter (status by lockfile) + WS via Unity Bridge
     ok_ws, det_ws = await _ws_check(f"ws://127.0.0.1:{ub_port}/ws/gemini_cli_adapter")
+    ad_st = adapter_status()
     statuses.append(
         ComponentStatus(
             name="mcp_adapter",
-            running=bool(procs.get("mcp_adapter", {}).get("running")),
+            running=bool(ad_st.get("running")),
             endpoint_ok=bool(ok_ws),
             detail=det_ws,
         )
@@ -131,18 +133,36 @@ async def run_selftest(project_id: Optional[str] = None) -> Dict[str, Any]:
     health = await get_health()
     _step("health-check", bool(health.get("ok")), json.dumps(health))
 
-    # 3) Agent ping (best-effort)
+    # 3) Agent-only ping via shim (deterministic)
     try:
-        if project_id is None:
-            # try to infer from unified agent status cwd
+        # Prepare temp session cwd (use active project if not provided)
+        active = project_id
+        if not active:
+            st = unified_agent.status()
+            active = (st.cwd or "").split("/")[-1] or None
+        cwd = Path("projects") / (active or "_selftest")
+        try:
+            cwd.mkdir(parents=True, exist_ok=True)
+        except Exception:
             pass
-        cwd = Path("projects") / (project_id or (unified_agent.status().cwd or "").split("/")[-1])
+        # Start provider-based session
         await unified_agent.start(cwd, "gemini")
-        await unified_agent.send("ping")
-        _step("agent-ping", True, "queued")
+        # Compose deterministic prompt for shim
+        prompt = "Por favor, llama la tool `ping` y devuelve exactamente JSON {\"mcp_ping\":\"pong\"}. No añadas texto adicional."
+        corr = "selftest-ping"
+        await unified_agent.send(prompt, correlation_id=corr)
+        # Await tool_result('ping') from AgentRunner internal queue
+        from app.services.agent_runner import agent_runner as _runner
+        item = await _runner.wait_tool_result("ping", corr, timeout=5.0)
+        ok = bool(item and item.get("ok"))
+        _step("agent-ping", ok, json.dumps(item or {}))
+        # Clean up session
+        try:
+            await unified_agent.stop()
+        except Exception:
+            pass
     except Exception as e:
         _step("agent-ping", False, str(e))
 
     report["passed"] = all(s.get("ok") for s in report["steps"])  # type: ignore
     return report
-

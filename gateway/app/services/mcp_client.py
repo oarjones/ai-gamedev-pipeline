@@ -57,36 +57,15 @@ def _parse_json(s: str) -> Dict[str, Any]:
 
 
 class MCPClient:
-    """Wrapper to call MCP adapter functions with minimal ceremony."""
+    """Wrapper to call Unity/Blender bridges without importing the adapter module.
+
+    Uses WebSocket endpoints declared in config to send messages compatible
+    with the adapter's contract.
+    """
 
     def __init__(self) -> None:
         _ensure_config_env()
-        # Import lazily after env var is set to ensure URLs are resolved once
-        try:
-            from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
-            self._adapter = _adapter
-        except ModuleNotFoundError:
-            # Try to inject repo paths for local dev (without relying on PYTHONPATH)
-            repo_root = Path(__file__).resolve().parents[3]
-            extra_paths = [
-                repo_root,
-                repo_root / "mcp_unity_bridge" / "src",
-            ]
-            for p in extra_paths:
-                s = str(p)
-                if s not in sys.path:
-                    sys.path.insert(0, s)
-            try:
-                from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
-                self._adapter = _adapter
-            except ModuleNotFoundError as e:
-                raise ModuleNotFoundError(
-                    "Could not import 'mcp_unity_bridge.mcp_adapter'. Ensure either PYTHONPATH includes the repo root, "
-                    "or install the bridge package (pip install -e mcp_unity_bridge)."
-                ) from e
-        self._breaker: Dict[str, Dict[str, float]] = {
-            # key -> {"failures": int, "open_until": epoch}
-        }
+        self._breaker: Dict[str, Dict[str, float]] = {}
 
     # ------------------------ Circuit breaker ------------------------
     def _cb_check(self, key: str) -> None:
@@ -132,8 +111,7 @@ class MCPClient:
         self._cb_check(key)
         self._apply_project_env(project_id)
         async def call():
-            s = await self._adapter.unity_get_scene_hierarchy()
-            return _parse_json(s)
+            return await self._unity_send({"type": "query", "action": "get_scene_hierarchy", "payload": "{}"})
         try:
             res = await _retry(call)
             self._cb_record(key, ok=True)
@@ -147,8 +125,7 @@ class MCPClient:
         self._cb_check(key)
         self._apply_project_env(project_id)
         async def call():
-            s = await self._adapter.unity_capture_screenshot()
-            return _parse_json(s)
+            return await self._unity_send({"type": "query", "action": "capture_screenshot", "payload": "{}"})
         try:
             res = await _retry(call)
             self._cb_record(key, ok=True)
@@ -177,8 +154,7 @@ class MCPClient:
         self._cb_check(key)
         self._apply_project_env(project_id)
         async def call():
-            s = await self._adapter.unity_command(code)
-            return _parse_json(s)
+            return await self._unity_send({"type": "command", "payload": {"code": code, "additional_references": []}})
         try:
             res = await _retry(call)
             self._cb_record(key, ok=True)
@@ -197,8 +173,7 @@ class MCPClient:
         self._cb_check(key)
         self._apply_project_env(project_id)
         async def call():
-            s = await self._adapter.blender_call("export_fbx", payload)
-            return _parse_json(s)
+            return await self._blender_send("export_fbx", payload)
         try:
             res = await _retry(call)
             self._cb_record(key, ok=True)
@@ -216,8 +191,7 @@ class MCPClient:
         self._cb_check(key)
         self._apply_project_env(project_id)
         async def call():
-            s = await self._adapter.blender_modeling_create_primitive(**payload)
-            return _parse_json(s)
+            return await self._blender_send("modeling.create_primitive", payload)
         try:
             res = await _retry(call)
             self._cb_record(key, ok=True)
@@ -245,8 +219,7 @@ class MCPClient:
                 self._cb_check(key)
                 self._apply_project_env(project_id)
                 async def call():
-                    s = await self._adapter.blender_call(name.split("blender.",1)[1], args)
-                    return _parse_json(s)
+                    return await self._blender_send(name.split("blender.",1)[1], args)
                 try:
                     res = await _retry(call)
                     self._cb_record(key, ok=True)
@@ -266,6 +239,65 @@ class MCPClient:
                 pass
             raise
 
+
+
+    # --------------- Low-level bridge senders ---------------
+    async def _unity_send(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        import websockets  # type: ignore
+        url = _unity_ws_url()
+        ws = await websockets.connect(url)  # type: ignore
+        try:
+            await ws.send(json.dumps(message))
+            resp = await ws.recv()
+        finally:
+            await ws.close()
+        return _parse_json(resp)
+
+    async def _blender_send(self, command: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        import websockets  # type: ignore
+        url = _blender_ws_url()
+        ws = await websockets.connect(url)  # type: ignore
+        try:
+            await ws.send(json.dumps({"command": command, "params": params}))
+            resp = await ws.recv()
+        finally:
+            await ws.close()
+        return _parse_json(resp)
+
+
+def _unity_ws_url() -> str:
+    cfg = _ensure_cfg()
+    port = int(((cfg.get("bridges") or {}).get("unityBridgePort") or 8001))
+    return f"ws://127.0.0.1:{port}/ws/gemini_cli_adapter"
+
+
+def _blender_ws_url() -> str:
+    cfg = _ensure_cfg()
+    port = int(((cfg.get("bridges") or {}).get("blenderBridgePort") or 8002))
+    return f"ws://127.0.0.1:{port}"
+
+
+_CFG_CACHE: Optional[Dict[str, Any]] = None
+
+
+def _ensure_cfg() -> Dict[str, Any]:
+    global _CFG_CACHE
+    if _CFG_CACHE is None:
+        base = Path(__file__).resolve().parents[3]
+        cfg_path = base / "config" / "settings.yaml"
+        try:
+            import yaml  # type: ignore
+            _CFG_CACHE = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            _CFG_CACHE = {}
+    # Return normalized view like config_service.get_all bridges
+    gw = (_CFG_CACHE.get("gateway") or {})
+    processes = (gw.get("processes") or {})
+    bridges = {
+        "unityBridgePort": processes.get("unity_bridge", {}).get("port") or 8001,
+        "blenderBridgePort": processes.get("blender_bridge", {}).get("port") or 8002,
+    }
+    return {"bridges": bridges}
 
 
 # Singleton instance

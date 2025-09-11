@@ -1,63 +1,53 @@
 ---
-title: Quickstart (Dashboard)
+title: Quickstart (Windows)
 ---
 
-# Quickstart
+# Quickstart (Windows 10/11 Pro)
 
-Sigue estos pasos para levantar el Dashboard (Gateway + Webapp) y verificar tu entorno.
+Requisitos:
+- Python 3.11+, Node 18+, Git
+- Unity Editor y Blender instalados
 
-1) Requisitos
-- Python 3.12+ en PATH
-- Node.js 18+ (para el frontend)
-- Unity y Blender instalados (si vas a usar los Bridges)
+## 1) Configuración básica
 
-2) Crear venv e instalar dependencias (gateway)
-- En Windows (PowerShell):
-  - `cd gateway`
-  - `python -m venv .venv`
-  - `.venv\Scripts\activate`
-  - `pip install -e .`
+Edita `config/settings.yaml`:
 
-3) Configuración mínima
-- Edita `config/settings.yaml` y revisa la sección `gateway.config`:
 ```yaml
-gateway:
-  config:
-    executables:
-      unityExecutablePath: "C:\\Program Files\\Unity\\Hub\\Editor\\<version>\\Editor\\Unity.exe"
-      blenderExecutablePath: "C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe"
-      unityProjectRoot: "projects"
-    bridges:
-      unityBridgePort: 8001
-      blenderBridgePort: 8002
-    integrations:
-      openai: { apiKey: "****", defaultModel: "gpt-4o" }
-      anthropic: { apiKey: "****", defaultModel: "claude-3-haiku-20240307" }
-      gemini: { apiKey: "****", defaultModel: "gemini-1.5-pro" }
-    projects: { root: "projects" }
+executables:
+  unityExecutablePath: "C:/Program Files/Unity/Hub/Editor/....../Editor/Unity.exe"
+  blenderExecutablePath: "C:/Program Files/Blender Foundation/Blender 4.1/blender.exe"
+  unityProjectRoot: "projects"
+bridges:
+  unityBridgePort: 8001
+  blenderBridgePort: 8002
+providers:
+  geminiCli: { command: "gemini" }
 ```
-- Las API keys se enmascaran en respuestas. No uses secretos reales en repos públicos.
 
-4) Arranque rápido
-- Usa los scripts: `scripts/dev_up.bat` (Windows)
-  - Abre dos ventanas: backend FastAPI (Uvicorn) y frontend Vite.
-  - Backend en `http://127.0.0.1:8000`, Frontend en `http://127.0.0.1:5173`.
+## 2) Levantar entorno
 
-5) Verifica salud
-- `GET http://127.0.0.1:8000/api/v1/health` debe devolver `ok: true` si los Bridges están activos.
-- En el Dashboard, pulsa “Run Self-Test” para un diagnóstico guiado.
+En la raíz del repo:
 
-6) Primer uso
-- Crea o selecciona un proyecto (panel izquierdo).
-- En “Agent”, elige `Gemini` (MCP) o `OpenAI/Claude` y pulsa `Re/Start`.
-- Envía un mensaje en el chat. Observa eventos en el Timeline.
+```bat
+scripts\dev_up.bat
+```
 
-Troubleshooting rápido
-- Puertos ocupados: cambia `unityBridgePort/blenderBridgePort` en `settings.yaml` y reinicia.
-- Ejecutables no encontrados: corrige `unityExecutablePath/blenderExecutablePath`.
-- API keys faltantes: actualiza `Dashboard → Settings → Agents` y guarda.
-- `pip install` falla: usa la página `Dependencies` para (re)crear venv e instalar requirements.
+Esto instala dependencias mínimas, prepara la base y arranca el Dashboard.
 
-Notas
-- Más detalles en `docs/dashboard/api.md`, `docs/dashboard/config.md` y `docs/troubleshooting/*`.
----
+## 3) Self-Test
+
+En la UI (Dashboard → Self-Test) ejecuta “Run Self-Test”.
+- Verifica puentes (Unity/Blender)
+- Inicia el agente Gemini CLI
+- Ejecuta shim `ping` y espera `{ "mcp_ping": "pong" }`
+
+## 4) Primer proyecto
+
+1. Crea proyecto (panel izquierdo)
+2. Ve a “Wizard” y completa el `project_manifest.yaml`
+3. “Generate Plan (via Agent)” — revisa propuesta en Chat
+4. Pega JSON en “Plan of Record” y guarda
+5. Ve a “Tasks” → “Import from Plan”, selecciona y ejecuta tareas con confirmación cuando aplique
+
+Siguientes pasos: consulta `docs/guides`.
+

@@ -49,6 +49,63 @@ class TimelineEventDB(SQLModel, table=True):
     finished_at: datetime | None = Field(default=None, description="Step finish UTC time")
 
 
+class SessionDB(SQLModel, table=True):
+    """Agent session per project/provider with optional summary."""
+
+    __tablename__ = "sessions"
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, description="Project ID")
+    provider: str = Field(default="gemini_cli", description="Provider name")
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    ended_at: datetime | None = Field(default=None)
+    summary_text: str | None = Field(default=None, description="Latest session summary (markdown)")
+
+
+class AgentMessageDB(SQLModel, table=True):
+    """Stored conversation messages for sessions."""
+
+    __tablename__ = "agent_messages"
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(index=True)
+    role: str = Field(description="user|assistant|tool")
+    content: str = Field(default="", description="Message content")
+    ts: datetime = Field(default_factory=datetime.utcnow)
+    tool_name: str | None = Field(default=None)
+    tool_args_json: str | None = Field(default=None)
+    tool_result_json: str | None = Field(default=None)
+
+
+class ArtifactDB(SQLModel, table=True):
+    """References to generated artifacts tied to a session."""
+
+    __tablename__ = "artifacts"
+
+    id: int | None = Field(default=None, primary_key=True)
+    session_id: int = Field(index=True)
+    type: str = Field(description="Kind of artifact (fbx,image,etc)")
+    path: str = Field(description="Filesystem path")
+    meta_json: str | None = Field(default=None)
+    ts: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TaskDB(SQLModel, table=True):
+    """Project task persisted from plan_of_record or UI."""
+
+    __tablename__ = "tasks"
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True)
+    task_id: str = Field(index=True, description="Stable task identifier, e.g., T-001")
+    title: str = Field()
+    description: str = Field(default="")
+    acceptance: str = Field(default="")
+    status: str = Field(default="pending")  # pending|in_progress|done
+    deps_json: str | None = Field(default=None)
+    evidence_json: str | None = Field(default=None)
+
+
 class DatabaseManager:
     """Manages SQLite database connection and operations."""
     
@@ -181,6 +238,122 @@ class DatabaseManager:
     def get_timeline_event(self, event_id: int) -> Optional[TimelineEventDB]:
         with self.get_session() as session:
             return session.get(TimelineEventDB, event_id)
+
+    # Sessions
+    def create_session(self, project_id: str, provider: str = "gemini_cli") -> SessionDB:
+        with self.get_session() as session:
+            s = SessionDB(project_id=project_id, provider=provider)
+            session.add(s)
+            session.commit()
+            session.refresh(s)
+            return s
+
+    def end_session(self, session_id: int) -> None:
+        with self.get_session() as session:
+            s = session.get(SessionDB, session_id)
+            if s:
+                s.ended_at = datetime.utcnow()
+                session.add(s)
+                session.commit()
+
+    def update_session_summary(self, session_id: int, summary_text: str) -> None:
+        with self.get_session() as session:
+            s = session.get(SessionDB, session_id)
+            if s:
+                s.summary_text = summary_text
+                session.add(s)
+                session.commit()
+
+    def list_sessions(self, project_id: str, limit: int = 20) -> List[SessionDB]:
+        with self.get_session() as session:
+            stmt = (
+                select(SessionDB)
+                .where(SessionDB.project_id == project_id)
+                .order_by(SessionDB.started_at.desc())
+                .limit(limit)
+            )
+            return list(session.exec(stmt).all())
+
+    def get_last_session(self, project_id: str) -> Optional[SessionDB]:
+        rows = self.list_sessions(project_id, limit=1)
+        return rows[0] if rows else None
+
+    def get_session(self, session_id: Optional[int]) -> Optional[SessionDB]:
+        if not session_id:
+            return None
+        with self.get_session() as session:
+            return session.get(SessionDB, session_id)
+
+    # Messages
+    def add_agent_message(self, msg: AgentMessageDB) -> AgentMessageDB:
+        with self.get_session() as session:
+            session.add(msg)
+            session.commit()
+            session.refresh(msg)
+            return msg
+
+    def list_agent_messages(self, session_id: int, limit: int = 50) -> List[AgentMessageDB]:
+        with self.get_session() as session:
+            stmt = (
+                select(AgentMessageDB)
+                .where(AgentMessageDB.session_id == session_id)
+                .order_by(AgentMessageDB.ts.desc())
+                .limit(limit)
+            )
+            return list(session.exec(stmt).all())
+
+    # Artifacts
+    def add_artifact(self, art: ArtifactDB) -> ArtifactDB:
+        with self.get_session() as session:
+            session.add(art)
+            session.commit()
+            session.refresh(art)
+            return art
+
+    def list_artifacts(self, session_id: int, limit: int = 50) -> List[ArtifactDB]:
+        with self.get_session() as session:
+            stmt = (
+                select(ArtifactDB)
+                .where(ArtifactDB.session_id == session_id)
+                .order_by(ArtifactDB.ts.desc())
+                .limit(limit)
+            )
+            return list(session.exec(stmt).all())
+
+    # Tasks
+    def add_task(self, task: TaskDB) -> TaskDB:
+        with self.get_session() as session:
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+            return task
+
+    def get_task(self, id_: int) -> Optional[TaskDB]:
+        with self.get_session() as session:
+            return session.get(TaskDB, id_)
+
+    def list_tasks(self, project_id: str) -> List[TaskDB]:
+        with self.get_session() as session:
+            stmt = select(TaskDB).where(TaskDB.project_id == project_id).order_by(TaskDB.id.asc())
+            return list(session.exec(stmt).all())
+
+    def find_task_by_task_id(self, project_id: str, task_id: str) -> Optional[TaskDB]:
+        with self.get_session() as session:
+            stmt = select(TaskDB).where(TaskDB.project_id == project_id).where(TaskDB.task_id == task_id)
+            return session.exec(stmt).first()
+
+    def update_task(self, id_: int, **fields) -> Optional[TaskDB]:
+        with self.get_session() as session:
+            t = session.get(TaskDB, id_)
+            if not t:
+                return None
+            for k, v in fields.items():
+                if hasattr(t, k):
+                    setattr(t, k, v)
+            session.add(t)
+            session.commit()
+            session.refresh(t)
+            return t
     
     def delete_project(self, project_id: str) -> bool:
         """Delete a project from the database.

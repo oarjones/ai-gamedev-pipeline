@@ -66,6 +66,9 @@ def _default_config() -> Dict[str, Any]:
             "unityBridgePort": 8001,
             "blenderBridgePort": 8002,
         },
+        "providers": {
+            "geminiCli": {"command": "gemini"}
+        },
         "integrations": {
             "gemini": {"apiKey": "", "defaultModel": ""},
             "openai": {"apiKey": "", "defaultModel": ""},
@@ -168,6 +171,11 @@ def _validate_paths(cfg: Dict[str, Any]) -> Dict[str, str]:
                 p.mkdir(parents=True, exist_ok=True)
         except Exception:
             errors["projects.root"] = f"Cannot access or create project root: {proj_root}"
+    # Providers (geminiCli): if command looks like a path, check exists
+    cmd = (cfg.get("providers", {}) or {}).get("geminiCli", {}).get("command")
+    if isinstance(cmd, str) and ("/" in cmd or "\\" in cmd):
+        if not Path(cmd).exists():
+            errors["providers.geminiCli.command"] = f"Gemini CLI command not found: {cmd}"
     return errors
 
 

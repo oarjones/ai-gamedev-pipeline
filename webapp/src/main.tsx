@@ -6,6 +6,9 @@ import Dashboard from './routes/Dashboard'
 import Logs from './routes/Logs'
 import Settings from './routes/Settings'
 import Dependencies from './routes/Dependencies'
+import Sessions from './routes/Sessions'
+import ProjectWizard from './routes/ProjectWizard'
+import Tasks from './routes/Tasks'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -17,6 +20,9 @@ const router = createBrowserRouter([
       { path: 'logs', element: <Logs /> },
       { path: 'settings', element: <Settings /> },
       { path: 'dependencies', element: <Dependencies /> },
+      { path: 'sessions', element: <Sessions /> },
+      { path: 'wizard', element: <ProjectWizard /> },
+      { path: 'tasks', element: <Tasks /> },
     ],
   },
 ])

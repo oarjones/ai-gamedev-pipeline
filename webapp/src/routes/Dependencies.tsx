@@ -80,8 +80,8 @@ export default function Dependencies() {
           </label>
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-primary" onClick={onCreateVenv} disabled={creating}>Create venv</button>
-          <button className="btn" onClick={onInstallReqs} disabled={installing}>Install from requirements</button>
+          <button className="btn btn-primary" onClick={onCreateVenv} disabled={creating}>{creating ? <span className="spinner"/> : null} Create venv</button>
+          <button className="btn" onClick={onInstallReqs} disabled={installing}>{installing ? <span className="spinner"/> : null} Install from requirements</button>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export default function Dependencies() {
         </label>
         <div className="flex gap-2">
           <button className="btn" onClick={onCheck}>Check installed</button>
-          <button className="btn btn-primary" onClick={onInstallPkgs} disabled={installing}>Install selected</button>
+          <button className="btn btn-primary" onClick={onInstallPkgs} disabled={installing}>{installing ? <span className="spinner"/> : null} Install selected</button>
         </div>
         {check && (
           <div className="text-sm">
@@ -110,11 +110,10 @@ export default function Dependencies() {
 
       <div className="card">
         <div className="text-sm font-semibold mb-2">Logs</div>
-        <div ref={logsRef} className="h-64 overflow-auto text-xs font-mono whitespace-pre-wrap">
-          {logs.join('\n')}
+        <div ref={logsRef} className="h-64 overflow-auto text-xs font-mono whitespace-pre">
+          {logs.length ? logs.map((l, i) => (<div key={i}>{l}</div>)) : <div className="text-sm text-muted-foreground"><span className="spinner"/> Waiting…</div>}
         </div>
       </div>
     </div>
   )
 }
-

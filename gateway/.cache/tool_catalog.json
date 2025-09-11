@@ -1,0 +1,18 @@
+{
+  "version": "18d4a7ac0e89",
+  "hash": "18d4a7ac0e8917d210074b8ac557a8a50eef835e",
+  "count": 1,
+  "promptList": "- ping: Comprobación rápida de vida del servidor MCP (no toca Unity).",
+  "functionSchema": [
+    {
+      "name": "ping",
+      "description": "Comprobación rápida de vida del servidor MCP (no toca Unity).",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

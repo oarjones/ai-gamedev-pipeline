@@ -127,20 +127,9 @@ class TimelineService:
         try:
             # Simple case: try to undo a Unity instantiation by asset path
             if ev_tool == "unity.instantiate_fbx" and ev.result_json:
-                data = json.loads(ev.result_json)
-                asset = data.get("instantiated")
-                if isinstance(asset, str) and asset:
-                    code = (
-                        "using UnityEditor; using UnityEngine;\n"
-                        f"var go = AssetDatabase.LoadAssetAtPath<GameObject>(@\"{asset}\");\n"
-                        "if (go!=null){ var instances = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None);\n"
-                        "foreach (var i in instances){ if (i.name==go.name){ Object.DestroyImmediate(i); } } }\n"
-                    )
-                    from mcp_unity_bridge import mcp_adapter as _adapter  # type: ignore
-                    s = await _adapter.unity_command(code)
-                    # If adapter returns JSON ok, mark reverted; we ignore content parsing here
-                    reverted = True
-                    note = "Destroyed GameObjects matching asset name"
+                # T1: Direct adapter calls disabled; report cannot for now.
+                reverted = False
+                note = "Revert requires adapter tool; disabled in gateway"
             # File export compensation
             if ev_tool == "blender.export_fbx" and ev.result_json:
                 data = json.loads(ev.result_json)
