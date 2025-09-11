@@ -1,0 +1,16 @@
+{
+  "id": "unity.instantiate_fbx",
+  "name": "Instantiate FBX",
+  "category": "Unity",
+  "description": "Instantiate an FBX asset in the Unity scene",
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "asset": {"type": "string"}
+    },
+    "required": ["asset"],
+    "additionalProperties": false
+  }
+}
+

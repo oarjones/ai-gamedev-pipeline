@@ -1,0 +1,4 @@
+# mcp_blender_addon / requirements-blender.txt  (Blender 4.5, Python 3.11)
+Pillow>=10.2,<12
+websockets>=12,<14
+numpy>=1.26.4,<2.0

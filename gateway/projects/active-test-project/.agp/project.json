@@ -1,0 +1,27 @@
+﻿{
+    "id":  "active-test-project",
+    "name":  "Active Test Project",
+    "version":  "1.0.0",
+    "created_at":  "2025-09-06T05:33:50.094905Z",
+    "updated_at":  "2025-09-06T05:33:50.094905Z",
+    "type":  "ai-gamedev-project",
+    "settings":  {
+                     "version_schema":  "1.0",
+                     "default_context_path":  "context",
+                     "default_logs_path":  "logs"
+                 },
+    "agent":  {
+                  "args":  [
+                               "-u",
+                               "-m",
+                               "mcp_unity_bridge.mcp_adapter"
+                           ],
+                  "env":  {
+
+                          },
+                  "default_timeout":  5,
+                  "terminate_grace":  3,
+                  "executable":  "python",
+                  "adapter":  "cli_generic"
+              }
+}

@@ -6,6 +6,11 @@ using WebSocketSharp;
 using System;
 using Newtonsoft.Json;
 
+/// <summary>
+/// Cliente WebSocket del lado del Editor de Unity.
+/// Mantiene una conexión con el MCP Bridge para recibir comandos y
+/// enviar respuestas serializadas en JSON.
+/// </summary>
 [InitializeOnLoad]
 public static class MCPWebSocketClient
 {
@@ -17,6 +22,10 @@ public static class MCPWebSocketClient
         EditorApplication.delayCall += Initialize;
     }
 
+    /// <summary>
+    /// Inicializa el cliente y establece la conexión WebSocket.
+    /// Se invoca en el primer ciclo del Editor tras cargar scripts.
+    /// </summary>
     private static void Initialize()
     {
         if (isInitialized) return;
@@ -41,12 +50,20 @@ public static class MCPWebSocketClient
         }
     }
 
+    /// <summary>
+    /// Callback de recepción de mensajes desde el Bridge.
+    /// Encola el procesamiento en el hilo del Editor.
+    /// </summary>
     private static void OnMessageReceived(object sender, MessageEventArgs e)
     {
         Debug.Log($"[MCP] Mensaje JSON recibido: {e.Data}");
         CommandDispatcher.EnqueueAction(() => CommandDispatcher.ProcessIncomingMessage(e.Data));
     }
 
+    /// <summary>
+    /// Envía una respuesta de Unity al Bridge por WebSocket.
+    /// </summary>
+    /// <param name="response">Objeto con request_id, status y payload.</param>
     public static void SendResponse(UnityResponse response)
     {
         if (ws == null || !ws.IsAlive)
@@ -65,6 +82,9 @@ public static class MCPWebSocketClient
         ws.Send(jsonResponse);
     }
 
+    /// <summary>
+    /// Cierra la conexión WebSocket de forma ordenada al salir del Editor.
+    /// </summary>
     private static void Disconnect()
     {
         if (ws != null && ws.IsAlive)

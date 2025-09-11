@@ -28,6 +28,9 @@
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# Herramientas AI / IDE
+.claude/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -42,6 +45,14 @@ env/
 build/
 dist/
 *.egg-info/
+
+# Node.js / Frontend
+node_modules/
+webapp/dist/
+npm-debug.log*
+
+# Datos Locales (No versionar BBDD locales)
+gateway/data/gateway.db
 
 # Sistema Operativo
 .DS_Store
@@ -105,6 +116,3 @@ unity_project/ServerData/
 
 # Commit message
 commit-msg.txt
-Generated/
-webapp/node_modules/
-unity_project/Assets/Generated/

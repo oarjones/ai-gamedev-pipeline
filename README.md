@@ -1,110 +1,53 @@
-# AI GameDev Pipeline
+AI GameDev Pipeline — Documentación Unificada
+============================================
 
-Este repositorio contiene el proyecto para construir una pipeline de desarrollo de videojuegos completamente automatizada y dirigida por un agente de IA.
+AI GameDev Pipeline conecta Unity, Blender y un puente MCP en Python para habilitar flujos de trabajo asistidos por IA en desarrollo de videojuegos. Esta README ofrece una visión general, características y un arranque rápido. La documentación completa está publicada bajo `docs/` (MkDocs) y organizada por instalación, arquitectura, guía de usuario, API y desarrollo.
 
-## Visión del Proyecto
+Características
+---------------
+- Integración Unity ↔ MCP por WebSocket y comandos de Editor.
+- Addon de Blender con comandos de modelado y automatización.
+- Bridge en Python con servidor, validación y logging centralizado.
+- Documentación autogenerada desde docstrings (Python) y comentarios XML (C#).
+- Diagramas de arquitectura Mermaid y soporte de exportación a PDF.
 
-El objetivo es crear un ecosistema donde un agente de IA pueda orquestar un flujo de trabajo completo a través de múltiples aplicaciones de software (Unity, Blender, etc.) para facilitar y acelerar la creación de videojuegos. La meta es permitir que el desarrollador se centre en las mecánicas y la visión creativa, mientras que la IA se encarga de la implementación técnica.
+Quickstart
+----------
+- Guía paso a paso: `docs/dashboard/quickstart.md`
+- Arranque rápido en Windows: `scripts/dev_up.bat` (abre backend y webapp). Para parar: `scripts/dev_down.bat`.
 
-## Arquitectura Planificada
+Documentación (MkDocs)
+----------------------
+- Índice: `docs/index.md`.
+- API: `docs/api/` (actualiza con `python scripts/generate_docs.py`).
+- Arquitectura: `docs/architecture/`.
+- Guía de usuario: `docs/user_guide/`.
+- Desarrollo: `docs/developer/`.
+- Problemas comunes: `docs/troubleshooting/`.
 
-El sistema se basará en una arquitectura de microservicios, con un "puente" (servidor MCP) para cada aplicación de software:
+Dashboard (Gateway)
+-------------------
+- Arquitectura: `docs/dashboard/architecture.md`
+- Eventos (Envelope/Rooms): `docs/dashboard/events.md`
+- API (system, config, deps, agent, health, projects, chat, tools, context): `docs/dashboard/api.md`
+- Configuración (project.json/env): `docs/dashboard/config.md`
 
-- **`mcp_unity_bridge`**: Un servidor en Python que se comunica con el editor de Unity para ejecutar scripts de C#, manipular escenas y gestionar los assets del proyecto.
-- **`mcp_blender_bridge`**: Un servidor en Python que se comunica con Blender para ejecutar scripts de Python (`bpy`), permitiendo el modelado 3D, texturizado y animación de forma programática.
+Contribución
+------------
+Por favor, lee `CONTRIBUTING.md`. Mantén docstrings actualizados y ejecuta el generador de docs antes de subir cambios.
 
-## Estado Actual
+Auditoría y Limpieza (DX)
+-------------------------
+- Inventario y auditoría: ejecuta `python tools/cleanup/inventory.py` y `python tools/cleanup/audit_runner.py` (salida en `reports/`).
+- Verificación post-limpieza: `python tools/cleanup/verify_cleanup.py` (guardar logs en `reports/cleanup_runlogs/`).
+- Informe: consulta `reports/cleanup_audit.md` y `reports/cleanup_audit.json`.
 
-Proyecto en fase de inicialización. El primer objetivo es implementar el `mcp_unity_bridge`.
-
-## Ejemplos de ejecución
-
-### Unity Bridge
-```sh
-python -m mcp_unity_server.main
-```
-
-### Blender Bridge
-```sh
-blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py
-```
-
-### Instalación para Blender 2.79
-
-Blender 2.79 incluye Python 3.5. Para ejecutar el servidor WebSocket debes
-instalar la versión compatible de la librería `websockets` dentro del entorno
-de Blender:
-
-1. Descarga [Blender&nbsp;2.79](https://download.blender.org/release/Blender2.79/).
-2. Abre una terminal en la carpeta de Blender y prepara `pip`:
-   ```sh
-   ./2.79/python/bin/python3.5 -m ensurepip
-   ./2.79/python/bin/pip install websockets==7.0
-   ```
-3. Desde la raíz de este repositorio ejecuta:
-   ```sh
-   blender --background --python mcp_blender_bridge/mcp_blender_addon/websocket_server.py
-   ```
-
-Si `blender` no está en el `PATH` usa la ruta completa al ejecutable.
-La única dependencia externa es `websockets==7.0`, necesaria porque las
-versiones más recientes requieren Python&nbsp;3.7 o superior.
-
-### Adaptador unificado
-```sh
-python mcp_unity_bridge/mcp_adapter.py
-```
-
-También puedes lanzar todo el stack con:
-```sh
-./launch_unified_adapter.sh
-```
- o en Windows:
-```bat
-launch_unified_adapter.bat
-```
-
-
-## Ejecución remota en Blender
-
-### `execute_python` / `execute_python_file`
-
-El servidor WebSocket puede evaluar código Python enviado por el cliente.
-
-```python
-await websocket.send(json.dumps({"command": "execute_python", "params": {"code": "print('hola')"}}))
-```
-
-Para ejecutar un archivo almacenado en la máquina que corre Blender:
-
-```python
-await websocket.send(json.dumps({"command": "execute_python_file", "params": {"path": "/ruta/script.py"}}))
-```
-
-### Macros
-
-Los macros son módulos dentro de `mcp_blender_bridge/mcp_blender_addon/macros` que definen una función `run(**kwargs)`.
-Se invocan con el comando `run_macro`.
-
-```python
-await websocket.send(json.dumps({
-    "command": "run_macro",
-    "params": {
-        "name": "assign_material",
-        "object_name": "Cube",
-        "material_name": "Demo"
-    }
-}))
-```
-
-### Cargar macros personalizados
-
-1. Crea un archivo Python en `mcp_blender_bridge/mcp_blender_addon/macros/` con un nombre único.
-2. Define en él una función `run(**kwargs)` que contenga la lógica del macro.
-3. Reinicia el servidor WebSocket si estaba en ejecución.
-4. Desde el cliente, llama a `run_macro` indicando el nombre del archivo sin `.py` y los parámetros necesarios.
-
-### Seguridad
-
-Ejecutar código remoto otorga acceso completo al entorno de Blender.
-Utiliza estas capacidades solo con scripts y macros de confianza y evita exponer el puerto a redes públicas.
+Bootstrapper de Juegos (nuevo)
+------------------------------
+- Ubicación: `mcp_unity_bridge/src/bootstrapper/`
+- Clases clave: `GameBootstrapper`, `SpecificationParser`, `UnityHubCLI`, `ProjectStructureGenerator`.
+- Uso básico (Python):
+  - `from mcp_unity_bridge.src.bootstrapper.game_bootstrapper import GameBootstrapper`
+  - `bootstrapper = GameBootstrapper()`
+  - `await bootstrapper.create_game("Crea un juego 3D tipo plataforma para PC")`
+- El wrapper de Unity Hub intenta usar `UNITY_HUB_CLI` si está disponible; si no, simula la creación del proyecto para flujos offline.

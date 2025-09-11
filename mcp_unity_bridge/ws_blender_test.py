@@ -3,8 +3,19 @@ import asyncio
 import json
 
 import websockets  # pip install websockets==10.* o 11.* (en tu Python normal)
+try:
+    from src.config_manager import ConfigManager  # type: ignore
+except Exception:
+    ConfigManager = None  # type: ignore
 
-URI = "ws://127.0.0.1:8002"
+if ConfigManager is not None:
+    _cfg = ConfigManager().get()
+    URI = f"ws://{_cfg.servers.blender_addon.host}:{_cfg.servers.blender_addon.port}"
+    _repo_root = ConfigManager().get_repo_root()
+else:
+    URI = "ws://127.0.0.1:8002"
+    from pathlib import Path
+    _repo_root = Path(__file__).resolve().parents[1]
 
 EXEC_CODE = """import bpy
 # Limpia la escena
@@ -15,8 +26,9 @@ bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
 """
 
 
-EXPORT_PATH = r"D:\ai-gamedev-pipeline\unity_project\Assets\Generated\test_cube.fbx"
-NAVE_PATH= r"D:\ai-gamedev-pipeline\mcp_unity_bridge\nave.py"
+from pathlib import Path
+EXPORT_PATH = str((_cfg.paths.blender_export if ConfigManager is not None else (_repo_root / "unity_project" / "Assets" / "Generated")) / "test_cube.fbx")
+NAVE_PATH = str(_repo_root / "mcp_unity_bridge" / "nave.py")
 
 async def main():
     print("Conectando a", URI)

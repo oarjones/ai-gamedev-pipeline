@@ -1,0 +1,195 @@
+"""Timeline service: persistence, listing, and basic revert stub.
+
+Represents timeline entries in a normalized API shape:
+- id: int
+- projectId: str
+- type: str (e.g., 'step', 'event:<kind>')
+- payload: dict
+- ts: ISO-8601 timestamp
+- relatedIds: list[str]
+
+Persistence uses TimelineEventDB from app.db. For generic events, we encode:
+- tool = f"event:{type}"
+- args_json = {"relatedIds": [...]} as JSON
+- result_json = payload as JSON
+- status = "event"
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from app.db import TimelineEventDB, db
+from app.models import Envelope, EventType
+from app.ws.events import manager
+from app.services.mcp_client import mcp_client
+
+
+logger = logging.getLogger(__name__)
+
+
+class TimelineService:
+    def _to_api_item(self, ev: TimelineEventDB) -> dict:
+        # Derive type
+        ev_type = ev.tool if ev.tool else ""
+        if ev_type.startswith("event:"):
+            ev_type_api = ev_type.split(":", 1)[1]
+        else:
+            ev_type_api = "step"
+
+        # payload selection
+        try:
+            payload = json.loads(ev.result_json) if ev.result_json else None
+        except Exception:
+            payload = None
+        # related ids
+        related = []
+        try:
+            aj = json.loads(ev.args_json) if ev.args_json else {}
+            related = aj.get("relatedIds", []) or []
+        except Exception:
+            related = []
+        ts = (ev.finished_at or ev.started_at or datetime.utcnow()).isoformat() + "Z"
+        return {
+            "id": ev.id,
+            "projectId": ev.project_id,
+            "type": ev_type_api,
+            "payload": payload,
+            "ts": ts,
+            "relatedIds": related,
+        }
+
+    async def list(self, project_id: str, limit: int = 100) -> List[dict]:
+        rows = db.list_timeline_events(project_id, limit=limit)
+        return [self._to_api_item(r) for r in rows]
+
+    async def record_event(
+        self,
+        project_id: str,
+        type_: str,
+        payload: Dict[str, Any] | None = None,
+        related_ids: List[str] | None = None,
+        correlation_id: Optional[str] = None,
+    ) -> dict:
+        payload = payload or {}
+        related_ids = related_ids or []
+        ev = db.add_timeline_event(
+            TimelineEventDB(
+                project_id=project_id,
+                step_index=-1,
+                tool=f"event:{type_}",
+                args_json=json.dumps({"relatedIds": related_ids}, ensure_ascii=False),
+                status="event",
+                result_json=json.dumps(payload, ensure_ascii=False),
+                correlation_id=correlation_id,
+                started_at=datetime.utcnow(),
+                finished_at=datetime.utcnow(),
+            )
+        )
+        item = self._to_api_item(ev)
+
+        # WS broadcast
+        env = Envelope(
+            type=EventType.TIMELINE,
+            projectId=project_id,
+            payload={
+                "index": item["id"],
+                "tool": item["type"],
+                "status": "event",
+                "result": item["payload"],
+                "timestamp": item["ts"],
+                "correlationId": correlation_id,
+            },
+        )
+        try:
+            await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
+        except Exception as e:
+            logger.error("Failed to broadcast timeline event: %s", e)
+        return item
+
+    async def revert(self, event_id: int) -> dict:
+        """Attempt to revert an event via compensating actions.
+
+        Returns dict with { status: 'reverted'|'pending'|'cannot', note?: str }
+        """
+        ev = db.get_timeline_event(event_id)
+        if not ev:
+            return {"status": "error", "error": "event not found"}
+
+        # Derive type/tool and minimal revert attempt
+        ev_tool = ev.tool or ""
+        reverted = False
+        note = None
+        try:
+            # Simple case: try to undo a Unity instantiation by asset path
+            if ev_tool == "unity.instantiate_fbx" and ev.result_json:
+                # T1: Direct adapter calls disabled; report cannot for now.
+                reverted = False
+                note = "Revert requires adapter tool; disabled in gateway"
+            # File export compensation
+            if ev_tool == "blender.export_fbx" and ev.result_json:
+                data = json.loads(ev.result_json)
+                comp = data.get("compensate") if isinstance(data, dict) else None
+                if isinstance(comp, dict) and comp.get("type") == "file" and comp.get("op") == "export":
+                    path = comp.get("path")
+                    existed = bool(comp.get("existed"))
+                    backup = comp.get("backup_path")
+                    from pathlib import Path
+                    target = Path(str(path))
+                    try:
+                        if existed and backup:
+                            # restore backup
+                            bp = Path(str(backup))
+                            if bp.exists():
+                                data_bytes = bp.read_bytes()
+                                target.write_bytes(data_bytes)
+                                reverted = True
+                                note = "Restored previous file content"
+                            else:
+                                reverted = False
+                                note = "Backup missing; cannot restore"
+                        else:
+                            # File did not exist before; remove if exists
+                            if target.exists():
+                                target.unlink(missing_ok=True)
+                            reverted = True
+                            note = "Removed created file"
+                    except Exception as e:
+                        reverted = False
+                        note = f"File revert failed: {e}"
+        except Exception as e:
+            logger.warning("Revert attempt failed: %s", e)
+
+        status = "reverted" if reverted else "cannot"
+        # Record a revert-requested/reverted event linked to original
+        await self.record_event(
+            ev.project_id,
+            f"revert-{status}",
+            payload={"target": ev.id, "note": note},
+            related_ids=[str(ev.id)],
+            correlation_id=ev.correlation_id,
+        )
+        # Also broadcast timeline status update for the original step index
+        try:
+            from app.models import Envelope, EventType
+            payload = {
+                "index": ev.step_index,
+                "tool": ev.tool,
+                "status": status,
+                "result": {"note": note},
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "correlationId": ev.correlation_id,
+            }
+            env = Envelope(type=EventType.TIMELINE, projectId=ev.project_id, payload=payload, correlationId=ev.correlation_id)
+            await manager.broadcast_project(ev.project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
+        except Exception as e:
+            logger.error("Failed to broadcast timeline revert status: %s", e)
+        return {"status": status, "note": note}
+
+
+# Singleton
+timeline_service = TimelineService()

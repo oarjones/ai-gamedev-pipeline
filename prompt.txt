@@ -1,0 +1,29 @@
+T13 — Documentación (architecture, api, quickstart, guides)
+
+Objetivo: Dejar la documentación alineada al nuevo flujo (agente único que usa MCP; sesiones/plantilla/plan).
+
+Prompt
+
+1) docs/dashboard/architecture.md:
+   - Diagrama: UI → Gateway → AgentRunner → MCP Adapter → Bridges (Unity/Blender).
+   - Secuencia tool-call shim.
+
+2) docs/dashboard/api.md:
+   - /system/*, /agent/*, /health/selftest, /sessions/*, /tasks/* (si aplica).
+
+3) docs/dashboard/quickstart.md:
+   - Windows 10 Pro: requisitos, settings.yaml, dev_up.bat, Self-Test, primera tarea.
+
+4) docs/guides/:
+   - “Crear proyecto con plantilla”
+   - “Acordar plan de desarrollo”
+   - “Ejecutar tareas con confirmación”
+
+
+Buenas prácticas
+
+Ejemplos pequeños y precisos; sin secretos reales.
+
+Capturas de UI donde ayuden.
+
+Mantener versión/esquema de settings visible.

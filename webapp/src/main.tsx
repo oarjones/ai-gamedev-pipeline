@@ -1,0 +1,34 @@
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import App from './App'
+import Dashboard from './routes/Dashboard'
+import Logs from './routes/Logs'
+import Settings from './routes/Settings'
+import Dependencies from './routes/Dependencies'
+import Sessions from './routes/Sessions'
+import ProjectWizard from './routes/ProjectWizard'
+import Tasks from './routes/Tasks'
+import './styles.css'
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <App />,
+    children: [
+      { index: true, element: <Dashboard /> },
+      { path: 'logs', element: <Logs /> },
+      { path: 'settings', element: <Settings /> },
+      { path: 'dependencies', element: <Dependencies /> },
+      { path: 'sessions', element: <Sessions /> },
+      { path: 'wizard', element: <ProjectWizard /> },
+      { path: 'tasks', element: <Tasks /> },
+    ],
+  },
+])
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>
+)

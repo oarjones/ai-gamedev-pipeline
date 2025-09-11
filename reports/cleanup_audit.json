@@ -1,0 +1,52 @@
+﻿[
+    {
+        "file":  "scripts/archive/start_dashboard_old.bat",
+        "status":  "MOVE",
+        "reason":  "replaced by dev_up/dev_down and Process Manager",
+        "evidence":  [
+                         "scripts/dev_up.bat",
+                         "gateway/app/services/process_manager.py"
+                     ],
+        "risk":  "low"
+    },
+    {
+        "risk":  "low",
+        "status":  "MOVE",
+        "evidence":  [
+                         "scripts/dev_up.bat",
+                         "gateway/app/services/process_manager.py"
+                     ],
+        "file":  "scripts/archive/start_dashboard_old.bat",
+        "reason":  "Replaced by scripts/dev_up.bat and Process Manager"
+    },
+    {
+        "risk":  "low",
+        "status":  "MOVE",
+        "evidence":  [
+                         "scripts/dev_up.bat",
+                         "gateway/app/services/process_manager.py"
+                     ],
+        "file":  "start_agp_debug.bat",
+        "reason":  "Replaced by scripts/dev_up.bat and Process Manager"
+    },
+    {
+        "risk":  "low",
+        "status":  "MOVE",
+        "evidence":  [
+                         "scripts/dev_up.bat",
+                         "gateway/app/routers/system.py"
+                     ],
+        "file":  "start_agp_system.bat",
+        "reason":  "Replaced by scripts/dev_up.bat and /api/v1/system/*"
+    },
+    {
+        "risk":  "low",
+        "status":  "MOVE",
+        "evidence":  [
+                         "scripts/dev_down.bat",
+                         "gateway/app/routers/system.py"
+                     ],
+        "file":  "stop_agp_system.bat",
+        "reason":  "Replaced by /api/v1/system/stop and dev_down"
+    }
+]
