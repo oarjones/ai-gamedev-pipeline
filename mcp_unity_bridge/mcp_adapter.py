@@ -1,5 +1,6 @@
 # mcp_adapter.py
 import asyncio
+import atexit
 import json
 import logging
 import os
@@ -7,8 +8,28 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, Optional, Tuple, List
 
-# SDK MCP (stdio por defecto)
-from mcp.server.fastmcp import FastMCP
+# SDK MCP (stdio por defecto) o Dummy en modo test
+_TESTMODE = os.getenv("AGP_ADAPTER_TESTMODE", "0") == "1"
+if _TESTMODE:
+    class _DummyMCP:
+        def tool(self):
+            def deco(fn):
+                return fn
+            return deco
+        def run(self):
+            # Quedarse vivo leyendo stdin para simular servidor
+            try:
+                while True:
+                    data = sys.stdin.buffer.readline()
+                    if not data:
+                        break
+            except Exception:
+                pass
+    FastMCP = None  # type: ignore
+    _USING_DUMMY = True
+else:
+    from mcp.server.fastmcp import FastMCP
+    _USING_DUMMY = False
 
 # ---------------------------------------------------------------------
 # Logging SIEMPRE a stderr (stdout queda limpio para el protocolo MCP)
@@ -27,9 +48,9 @@ else:
     log = logging.getLogger("unity_mcp_adapter")
 
 # ---------------------------------------------------------------------
-# Instancia MCP: el nombre debe coincidir con settings.json (unity_editor)
+# Instancia MCP o Dummy: el nombre debe coincidir con settings.json (unity_editor)
 # ---------------------------------------------------------------------
-mcp = FastMCP("unity_editor")
+mcp = _DummyMCP() if _TESTMODE else FastMCP("unity_editor")
 
 # ---------------------------------------------------------------------
 # URL del puente Unity (puedes sobreescribir con la variable de entorno)
@@ -66,6 +87,114 @@ else:
     BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", "ws://127.0.0.1:8002")
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
+
+
+# ---------------------------------------------------------------------
+# Single-instance lock (Windows-friendly; works cross-platform)
+# ---------------------------------------------------------------------
+import tempfile
+import time
+
+_LOCK_PATH = os.path.join(os.environ.get("TEMP", tempfile.gettempdir()), "agp_mcp_adapter.lock")
+
+
+def _is_pid_alive(pid: int) -> bool:
+    try:
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            OpenProcess = kernel32.OpenProcess
+            OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            OpenProcess.restype = wintypes.HANDLE
+            GetExitCodeProcess = kernel32.GetExitCodeProcess
+            GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            GetExitCodeProcess.restype = wintypes.BOOL
+            CloseHandle = kernel32.CloseHandle
+            CloseHandle.argtypes = [wintypes.HANDLE]
+            CloseHandle.restype = wintypes.BOOL
+
+            h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not h:
+                return False
+            try:
+                code = wintypes.DWORD()
+                if not GetExitCodeProcess(h, ctypes.byref(code)):
+                    return False
+                return int(code.value) == STILL_ACTIVE
+            finally:
+                try:
+                    CloseHandle(h)
+                except Exception:
+                    pass
+        else:
+            # POSIX
+            os.kill(pid, 0)
+            return True
+    except Exception:
+        return False
+
+
+def _read_lock() -> Optional[Dict[str, Any]]:
+    try:
+        if not os.path.exists(_LOCK_PATH):
+            return None
+        data = Path(_LOCK_PATH).read_text(encoding="utf-8")
+        obj = json.loads(data)
+        if not isinstance(obj, dict):
+            return None
+        return obj
+    except Exception:
+        return None
+
+
+def _write_lock(pid: int) -> None:
+    payload = {"pid": int(pid), "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    try:
+        Path(_LOCK_PATH).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _clear_lock() -> None:
+    try:
+        if os.path.exists(_LOCK_PATH):
+            os.remove(_LOCK_PATH)
+    except Exception:
+        pass
+
+
+def _acquire_single_instance_or_exit() -> None:
+    try:
+        existing = _read_lock()
+        if existing:
+            pid = int(existing.get("pid") or 0)
+            if _is_pid_alive(pid):
+                msg = f"Adapter already running by PID={pid}. Refusing to start."
+                try:
+                    log.error(msg)
+                except Exception:
+                    pass
+                # Exit without printing to stdout
+                sys.stderr.write(msg + "\n")
+                sys.stderr.flush()
+                os._exit(1)
+            else:
+                # Stale lock; clean up
+                _clear_lock()
+        _write_lock(os.getpid())
+        atexit.register(_clear_lock)
+    except Exception:
+        # Best-effort; continue without lock
+        try:
+            log.warning("Failed to manage adapter lock; proceeding anyway")
+        except Exception:
+            pass
 
 
 async def send_to_unity_and_get_response(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -1138,5 +1267,6 @@ async def blender_mod_apply(object_name: str, name: str) -> str:
 if __name__ == "__main__":
     # mcp.run() usa stdio por defecto.
     # Ejecuta este archivo con 'python -u' y/o PYTHONUNBUFFERED=1 para evitar delays de buffer.
-    log.info("Arrancando servidor MCP 'unity_editor' (stdio). URL puente Unity: %s", MCP_SERVER_URL)
+    _acquire_single_instance_or_exit()
+    log.info("Arrancando servidor MCP 'unity_editor'%s. URL puente Unity: %s", " (dummy)" if _TESTMODE else "", MCP_SERVER_URL)
     mcp.run()

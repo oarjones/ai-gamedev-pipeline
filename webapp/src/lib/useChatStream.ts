@@ -28,6 +28,7 @@ export type ChatMessage = {
   content?: string
   attachments?: { type: 'image', url?: string, dataUrl?: string }[]
   toolPayload?: unknown
+  ts?: string
 }
 
 export function useChatStream(projectId: string | null) {
@@ -53,19 +54,20 @@ export function useChatStream(projectId: string | null) {
           id: crypto.randomUUID(),
           role,
           content: p.data.content,
-          attachments: (p.data.attachments?.map(a => ({ type: a.type as 'image', url: a.url, dataUrl: a.dataUrl })) ?? [])
+          attachments: (p.data.attachments?.map(a => ({ type: a.type as 'image', url: a.url, dataUrl: a.dataUrl })) ?? []),
+          ts: new Date().toISOString(),
         }
         setMessages(prev => mergeIfSameRole(prev, msg))
       } else if (type === 'action') {
         const t = ToolPayload.safeParse(payload)
         if (!t.success) return
-        const msg: ChatMessage = { id: crypto.randomUUID(), role: 'tool', toolPayload: t.data.data }
+        const msg: ChatMessage = { id: crypto.randomUUID(), role: 'tool', toolPayload: t.data.data, ts: new Date().toISOString() }
         setMessages(prev => [...prev, msg])
       } else if (type === 'scene') {
         // Screenshot ready → render as image attachment
         const p = (payload as any) ?? {}
         if (p?.kind === 'screenshot' && p?.url) {
-          const msg: ChatMessage = { id: crypto.randomUUID(), role: 'system', attachments: [{ type: 'image', url: String(p.url) }] }
+          const msg: ChatMessage = { id: crypto.randomUUID(), role: 'system', attachments: [{ type: 'image', url: String(p.url) }], ts: new Date().toISOString() }
           setMessages(prev => [...prev, msg])
         }
       }
@@ -98,4 +100,3 @@ function mergeIfSameRole(prev: ChatMessage[], msg: ChatMessage): ChatMessage[] {
   }
   return [...prev, msg]
 }
-

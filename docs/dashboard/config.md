@@ -11,6 +11,7 @@ Archivo `config/settings.yaml`:
 - `servers`: endpoints de `mcp_bridge`, `unity_editor`, `blender_addon`
 - `paths`: rutas (e.g., `unity_project`)
 - `timeouts`: por servicio
+- `agent.mcp.adapterOwnership`: control de propiedad del MCP Adapter (`agent_runner_only` por defecto). Si está activo, el `AgentRunner` lanza y detiene el adapter, garantizando instancia única via lockfile.
 - `gateway.config`: configuración centralizada (nueva)
 
 Ejemplo `gateway.config`:
@@ -63,6 +64,7 @@ Archivo `projects/<id>/.agp/project.json`:
 - `agent.executable/args`: binario del agente y argumentos
 - `agent.env`: variables para MCP/LLM
 - Tiempos: afectan a `AgentRunner.send()` y parada
+ - Cuando `agent.mcp.adapterOwnership` es `agent_runner_only`, no arranques el adapter desde scripts externos; el `AgentRunner` lo hará como `python -u -m mcp_unity_bridge.mcp_adapter` usando los puertos configurados.
 
 ## Notas
 - El `MCPClient` recoge `agent.env` por proyecto para apuntar a los endpoints correctos.

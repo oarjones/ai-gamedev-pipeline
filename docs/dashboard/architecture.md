@@ -15,37 +15,66 @@ flowchart LR
   B -->|Rooms por proyecto| GW
 
   subgraph GWINT[Gateway Interno]
-    R[Routers: projects, agent, chat, timeline, tools, context]
-    S[Services: AgentRunner, ChatService, ActionOrchestrator, MCPClient, ToolsRegistry, TimelineService]
-    DB[(SQLite: projects, chat_messages, timeline_events)]
+    R[Routers: projects, agent, sessions, tasks, health, ...]
+    S[Services: AgentRunner, ProviderRegistry, ToolCatalog, SessionsService, Health]
+    DB[(SQLite: projects, sessions, agent_messages, artifacts, timeline)]
   end
 
   GW --> R
   R --> S
   S --> DB
 
-  subgraph AGENT[Agente CLI por proyecto]
+  subgraph AGENT[Agente CLI (provider: gemini_cli)]
     CWD[cwd=projects/<id>]
-    CLI[Agente CLI real]
+    CLI[Gemini CLI]
   end
 
   S -.start/stop/send.-> CLI
   CLI -.stdout/stderr stream.-> S
 
-  subgraph MCP[MCP Adapters]
-    U[Unity MCP (WS)]
+  subgraph MCP[MCP Adapter + Bridges]
+    AD[Adapter MCP (stdio)]
+    U[Unity Bridge (WS)]
     BL[Blender Add-on (WS)]
   end
 
-  S -->|run_tool / helpers| U
-  S -->|run_tool / helpers| BL
+  S -->|lockfile + PID| AD
+  AD -->|WS| U
+  AD -->|WS| BL
 
-  S -->|Envelope| B
+  S -->|Envelope (events)| B
 ```
 
 Notas clave:
 - WS usa salas por `projectId` y un Envelope unificado (`type`, `projectId`, `payload`, `correlationId`, `timestamp`).
-- `AgentRunner` gestiona el proceso del agente con lectura incremental de `stdout/stderr` y correlación.
-- `ActionOrchestrator` valida un plan y ejecuta herramientas (MCP) secuencialmente, emitiendo `timeline` y `update`.
-- `TimelineService` persiste y soporta `revert` con acciones compensatorias.
+- `AgentRunner` gestiona el provider (Gemini CLI), arranca el MCP Adapter con lockfile único y orquesta el shim de function-calling.
+- `ProviderRegistry` permite añadir futuros providers sin cambiar el Runner.
+- `SessionsService` persiste sesiones, mensajes y artefactos; construye Context Packs para reanudar.
+- `ToolCatalog` inspecciona el Adapter y genera `promptList` + `functionSchema` con cache y versión.
+
+## Secuencia: tool-call shim
+
+```mermaid
+sequenceDiagram
+  participant UI
+  participant Runner as AgentRunner
+  participant Provider as Gemini CLI
+  participant Adapter as MCP Adapter
+  participant Bridges as Unity/Blender
+
+  UI->>Runner: send(user prompt)
+  Runner->>Provider: stdin(user prompt)
+  Provider-->>Runner: stdout(token | {"tool_call": {name,args}})
+  alt token
+    Runner-->>UI: WS chat(token)
+  else tool_call
+    Runner->>Runner: validar contra toolCatalog (JSON Schema)
+    Runner->>Adapter: ejecutar tool (WS puente)
+    Adapter->>Bridges: petición
+    Bridges-->>Adapter: respuesta
+    Adapter-->>Runner: JSON result
+    Runner->>Provider: stdin({"tool_result": { ok, result|error }})
+    Runner-->>UI: WS action/timeline
+  end
+```
 

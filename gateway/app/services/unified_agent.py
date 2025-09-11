@@ -15,6 +15,7 @@ from typing import Optional
 from app.services.agent_runner import agent_runner as _gemini_runner
 from app.services.config_service import get_all
 from app.services.process_manager import process_manager
+from app.services.adapter_lock import status as adapter_status
 
 
 @dataclass
@@ -50,7 +51,8 @@ class UnifiedAgent:
             if not {"unity_bridge", "blender_bridge"}.issubset(names):
                 self._last_error = "Bridges not ready (require unity_bridge and blender_bridge)"
                 raise RuntimeError(self._last_error)
-            rs = await _gemini_runner.start(self._cwd)
+            # Ensure MCP adapter via AgentRunner, then start CLI
+            rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
             self._active_type = "gemini"
             return AgentStatus(agentType=self._active_type, running=rs.running, pid=rs.pid, cwd=rs.cwd, lastError=None)
 
@@ -164,4 +166,3 @@ class UnifiedAgent:
 
 # Singleton
 agent = UnifiedAgent()
-

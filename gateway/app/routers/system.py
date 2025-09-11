@@ -33,6 +33,8 @@ async def system_start(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"ok": True, "statuses": statuses}
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

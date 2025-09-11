@@ -1,7 +1,7 @@
 """Local process orchestration for Unity, Blender, Bridges, and MCP Adapter (Windows-friendly).
 
 This module exposes a `ProcessManager` singleton with methods to start/stop
-Unity, Unity Bridge, Blender, Blender Bridge, and MCP Adapter, capturing
+Unity, Unity Bridge, Blender, and Blender Bridge, capturing
 stdout/stderr into small circular buffers and reporting status via dicts.
 """
 
@@ -207,6 +207,7 @@ class ManagedProcess:
             "pid": str(self.pid) if self.pid else None,
             "running": running,
             "lastStdout": self._stdout_buf.get_text()[-1024:],
+            "lastStderr": self._stderr_buf.get_text()[-1024:],
             "lastError": self.last_error or (self._stderr_buf.get_text()[-1024:] if not running else None),
             "startedAt": self.started_at,
         }
@@ -216,6 +217,15 @@ class ProcessManager:
     def __init__(self) -> None:
         self.procs: Dict[str, ManagedProcess] = {}
         self._lock = threading.Lock()
+
+    @staticmethod
+    def _port_in_use(host: str, port: int, timeout: float = 0.5) -> bool:
+        import socket
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                return True
+        except Exception:
+            return False
 
     def _build_unity_cmd(self, project_id: Optional[str]) -> List[str]:
         proc_cfg = (settings.processes or {}).get("unity", {})
@@ -279,16 +289,7 @@ class ProcessManager:
             str(port),
         ]
 
-    def _build_mcp_adapter_cmd(self) -> List[str]:
-        proc_cfg = (settings.processes or {}).get("mcp_adapter", {})
-        python_exe = proc_cfg.get("python", sys.executable)
-        script_path = proc_cfg.get("script_path", "mcp_unity_bridge/mcp_adapter.py")
-        if not Path(script_path).exists():
-            # Allow running as module if script not present
-            return [python_exe, "-u", "-m", "mcp_unity_bridge.mcp_adapter"]
-        args = [python_exe, "-u", str(script_path)]
-        args.extend(proc_cfg.get("args", []))
-        return args
+    # MCP Adapter lifecycle is managed by AgentRunner when configured
 
     def _spawn(self, name: str, cmd: List[str], timeout: float = 15.0) -> ManagedProcess:
         mp = ManagedProcess(name=name, command=cmd, timeout_start=timeout)
@@ -304,6 +305,12 @@ class ProcessManager:
         return proc.status()
 
     def startUnityBridge(self) -> Dict:
+        # Preflight: port free
+        proc_cfg = (settings.processes or {}).get("unity_bridge", {})
+        host = proc_cfg.get("host", "127.0.0.1")
+        port = int(proc_cfg.get("port", 8001))
+        if self._port_in_use(host, port):
+            raise RuntimeError(f"Port in use for unity_bridge: {host}:{port}")
         cmd = self._build_unity_bridge_cmd()
         timeout = float((settings.processes or {}).get("unity_bridge", {}).get("timeout", 15))
         proc = self._spawn("unity_bridge", cmd, timeout)
@@ -316,16 +323,18 @@ class ProcessManager:
         return proc.status()
 
     def startBlenderBridge(self) -> Dict:
+        # Preflight: port free
+        proc_cfg = (settings.processes or {}).get("blender_bridge", {})
+        host = proc_cfg.get("host", "127.0.0.1")
+        port = int(proc_cfg.get("port", 8002))
+        if self._port_in_use(host, port):
+            raise RuntimeError(f"Port in use for blender_bridge: {host}:{port}")
         cmd = self._build_blender_bridge_cmd()
         timeout = float((settings.processes or {}).get("blender_bridge", {}).get("timeout", 20))
         proc = self._spawn("blender_bridge", cmd, timeout)
         return proc.status()
 
-    def startMCPAdapter(self) -> Dict:
-        cmd = self._build_mcp_adapter_cmd()
-        timeout = float((settings.processes or {}).get("mcp_adapter", {}).get("timeout", 10))
-        proc = self._spawn("mcp_adapter", cmd, timeout)
-        return proc.status()
+    # def startMCPAdapter(self) -> Dict: ... removed
 
     def start_sequence(self, project_id: Optional[str]) -> List[Dict]:
         statuses = []
@@ -337,15 +346,16 @@ class ProcessManager:
         statuses.append(self.startBlender())
         # Blender Bridge
         statuses.append(self.startBlenderBridge())
-        # MCP Adapter
-        statuses.append(self.startMCPAdapter())
+        # MCP Adapter removed from automatic sequence; managed by AgentRunner
         return statuses
 
     def stopAll(self) -> None:
         with self._lock:
             names = list(self.procs.keys())
-        # Stop in reverse order
-        for name in reversed(names):
+        # Desired stop order: blender_bridge -> unity_bridge -> blender -> unity, then others
+        preferred = ["blender_bridge", "unity_bridge", "blender", "unity"]
+        ordered = [n for n in preferred if n in names] + [n for n in names if n not in preferred]
+        for name in ordered:
             try:
                 proc = self.procs.get(name)
                 if proc:

@@ -24,6 +24,7 @@ from app.services.unified_agent import agent as unified_agent
 from app.ws.events import manager
 from app.models import Envelope, EventType
 from app.services.projects import project_service
+from app.services.adapter_lock import status as adapter_status
 
 
 router = APIRouter()
@@ -42,7 +43,9 @@ async def start_agent(payload: dict | None = None, projectId: str | None = None)
     """
     payload = payload or {}
     pid = projectId or payload.get("projectId")
-    agent_type = (payload.get("agentType") or "gemini").lower()
+    provider = (payload.get("provider") or "gemini_cli").lower()
+    # Map provider to agent_type for current implementation
+    agent_type = "gemini" if provider == "gemini_cli" else (payload.get("agentType") or "gemini").lower()
     if not pid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="projectId is required")
     # Validate project exists via registry and derive the folder
@@ -75,6 +78,7 @@ async def start_agent(payload: dict | None = None, projectId: str | None = None)
             "running": status_obj.running,
             "cwd": status_obj.cwd,
             "agentType": status_obj.agentType,
+            "provider": provider,
             "lastError": status_obj.lastError,
         },
     )
@@ -104,6 +108,7 @@ async def stop_agent() -> JSONResponse:
             "running": status_obj.running,
             "cwd": status_obj.cwd,
             "agentType": status_obj.agentType,
+            "provider": None,
             "lastError": status_obj.lastError,
         },
     )
@@ -113,6 +118,7 @@ async def stop_agent() -> JSONResponse:
 async def agent_status() -> JSONResponse:
     """Return agent running status and pid."""
     status_obj = unified_agent.status()
+    ad = adapter_status()
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -120,7 +126,9 @@ async def agent_status() -> JSONResponse:
             "pid": status_obj.pid,
             "cwd": status_obj.cwd,
             "agentType": status_obj.agentType,
+            "provider": "gemini_cli" if status_obj.agentType == "gemini" else None,
             "lastError": status_obj.lastError,
+            "adapter": {"running": bool(ad.get("running")), "pid": ad.get("pid"), "startedAt": ad.get("startedAt")},
         },
     )
 

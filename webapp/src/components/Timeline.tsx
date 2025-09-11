@@ -52,7 +52,7 @@ export default function Timeline() {
           <span className="truncate">{it.text}</span>
         </div>
       ))}
-      {!items.length && <div className="text-sm text-muted-foreground">No events yet</div>}
+      {!items.length && <div className="text-sm text-muted-foreground"><span className="spinner" /> No events yet</div>}
     </div>
   )
 }

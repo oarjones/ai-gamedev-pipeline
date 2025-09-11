@@ -36,6 +36,9 @@ export type GatewayConfig = {
     unityBridgePort: number
     blenderBridgePort: number
   }
+  providers: {
+    geminiCli: { command: string }
+  }
   integrations: {
     gemini: { apiKey: string, defaultModel: string }
     openai: { apiKey: string, defaultModel: string }
@@ -95,4 +98,22 @@ export async function pipelineStart(projectId: string, agentType?: 'gemini'|'ope
 
 export async function pipelineCancel() {
   return apiPost<{ cancelled: boolean }>('/api/v1/pipeline/cancel', {})
+}
+
+// Sessions API
+export type SessionItem = { id: number, projectId: string, provider: string, startedAt: string, endedAt?: string | null, hasSummary: boolean }
+
+export function listSessions(projectId: string, limit = 20) {
+  const url = new URL('/api/v1/sessions', BASE)
+  url.searchParams.set('projectId', projectId)
+  url.searchParams.set('limit', String(limit))
+  return apiGet<SessionItem[]>(url.pathname + url.search)
+}
+
+export function getSessionDetail(sessionId: number, recent = 10) {
+  return apiGet<{ id: number, projectId: string, provider: string, startedAt: string, endedAt?: string | null, summary?: string | null, recentMessages: { role: string, content: string, tool?: string, ts: string }[], artifacts: { type: string, path: string, ts: string }[] }>(`/api/v1/sessions/${sessionId}?recent=${recent}`)
+}
+
+export function resumeSession(sessionId: number) {
+  return apiPost<{ resumed: boolean, sessionId: number, runner: { running: boolean, pid?: number, cwd?: string } }>(`/api/v1/sessions/${sessionId}/resume`, {})
 }

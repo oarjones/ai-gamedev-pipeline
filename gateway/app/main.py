@@ -71,6 +71,9 @@ async def websocket_events(websocket: WebSocket) -> None:
 
 # Include routers
 from app.routers import projects_router, agent_router, chat_router, timeline_router, tools_router, context_router, config_router, deps_router
+from app.routers import sessions as sessions_router
+from app.routers import manifest as manifest_router
+from app.routers import tasks as tasks_router
 from app.routers.health import router as health_router
 from app.routers.pipeline import router as pipeline_router
 from app.routers.system import router as system_router
@@ -149,6 +152,27 @@ app.include_router(
     pipeline_router,
     prefix="/api/v1",
     tags=["pipeline"],
+)
+
+# Sessions
+app.include_router(
+    sessions_router.router,
+    prefix="/api/v1/sessions",
+    tags=["sessions"],
+)
+
+# Project manifest / plan
+app.include_router(
+    manifest_router.router,
+    prefix="/api/v1/projects",
+    tags=["project-manifest"],
+)
+
+# Tasks
+app.include_router(
+    tasks_router.router,
+    prefix="/api/v1/tasks",
+    tags=["tasks"],
 )
 
 

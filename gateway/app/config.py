@@ -55,7 +55,8 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         case_sensitive=False,
-        extra="forbid",
+        # Ignore unrelated env vars so legacy .env keys don't break startup
+        extra="ignore",
     )
     
     server: ServerConfig = Field(default_factory=ServerConfig)

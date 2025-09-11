@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 # Adapter interfaces
 from app.services.adapters.registry import get_adapter
 from app.services.adapters.base import AgentAdapter, StreamEvent
+from app.services.providers.registry import registry as provider_registry
+from app.services.providers.base import IAgentProvider, SessionCtx, ProviderEvent
+from app.services.adapter_lock import status as adapter_status
+from app.services.config_service import get_all as get_cfg
 
 
 @dataclass
@@ -65,6 +69,17 @@ class AgentRunner:
         self._project_id: Optional[str] = None
         self._last_correlation_id: Optional[str] = None
         self._adapter: Optional[AgentAdapter] = None
+        self._provider: Optional[IAgentProvider] = None
+        self._provider_name: Optional[str] = None
+        self._tool_catalog: Optional[dict] = None
+        self._turn_id: Optional[str] = None
+        self._turn_calls: int = 0
+        self._tool_max_calls: int = 4
+        self._tool_timeout_sec: float = 15.0
+        self._tool_results: asyncio.Queue = asyncio.Queue()
+        # MCP Adapter process (owned by AgentRunner when configured)
+        self._adapter_proc: Optional[asyncio.subprocess.Process] = None
+        self._adapter_owned: bool = False
 
     @staticmethod
     def _mask(s: str) -> str:
@@ -153,7 +168,7 @@ class AgentRunner:
             env[str(k)] = str(v)
         return cmd, env
 
-    async def start(self, cwd: Path) -> RunnerStatus:
+    async def start(self, cwd: Path, provider: Optional[str] = None, context_pack: Optional[dict] = None) -> RunnerStatus:
         """Start the agent process in the provided working directory.
 
         If a process is already running, returns its status without restarting.
@@ -175,11 +190,52 @@ class AgentRunner:
 
         # Adapter per project
         self._adapter = get_adapter(getattr(cfg, "adapter", None))
+        # Ensure MCP adapter if ownership is configured
+        await self._ensure_mcp_adapter()
+        self._project_id = self._cwd.name
+
+        if provider:
+            # Provider mode
+            self._provider_name = provider
+            # Build tool catalog for provider session
+            try:
+                from app.services.tool_catalog import get_catalog_cached
+                catalog = get_catalog_cached()
+            except Exception:
+                catalog = None
+            self._tool_catalog = catalog
+            # Load limits from config
+            self._load_toolshim_config()
+            # Start session and build context pack
+            # Build context pack if not provided
+            if context_pack is None:
+                try:
+                from app.services.sessions_service import sessions_service
+                sess = sessions_service.start_session(self._project_id, provider)
+                self._session_id = getattr(sess, "id", None)
+                cp = sessions_service.build_context_pack(self._project_id)
+                context_pack = {
+                    "project_manifest": cp.project_manifest,
+                    "plan_of_record": cp.plan_of_record,
+                    "last_summary": cp.last_summary,
+                    "recent_messages": cp.recent_messages,
+                    "artifacts": cp.artifacts,
+                }
+                except Exception:
+                    self._session_id = None
+                    context_pack = None
+            session = SessionCtx(projectId=self._project_id, sessionId=_gen_session_id(), toolCatalog=catalog, contextPack=context_pack)
+            # Late register default provider
+            _ensure_default_providers()
+            self._provider = provider_registry.get(provider, session)
+            self._provider.onEvent(self._on_provider_event)
+            await self._provider.start(session)
+            return self.status()
+
+        # Legacy CLI mode
         cmd, env = self._build_from_config(self._cwd, cfg)
-        # Log safe command line (no env values)
         safe_cmd = " ".join(shlex.quote(p) for p in cmd)
         logger.info("Starting agent CLI: %s (cwd=%s)", safe_cmd, str(self._cwd))
-        # DEBUG level logs of stdout/stderr will be written upon send() or when stopping
         self._proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(self._cwd),
@@ -188,13 +244,25 @@ class AgentRunner:
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
-        # Track project id and start background readers
-        self._project_id = self._cwd.name
         self._start_readers()
         return self.status()
 
     async def stop(self) -> RunnerStatus:
         """Stop the agent process gracefully (terminate → kill)."""
+        if self._provider:
+            try:
+                await self._provider.stop()
+            except Exception:
+                pass
+            self._provider = None
+            self._provider_name = None
+        # End DB session if created
+        try:
+            if getattr(self, "_session_id", None) is not None:
+                from app.services.sessions_service import sessions_service
+                sessions_service.end_session(self._session_id)  # type: ignore[arg-type]
+        except Exception:
+            pass
         if not self._proc or self._proc.returncode is not None:
             # Already stopped
             return self.status()
@@ -224,6 +292,8 @@ class AgentRunner:
         # Drain remaining output for logs
         await self._drain_pipes_for_logging()
         self._proc = None
+        # Stop MCP adapter if we own it
+        await self._stop_mcp_adapter_if_owned()
         return RunnerStatus(running=False, pid=None, cwd=str(self._cwd) if self._cwd else None)
 
     async def send(self, text: str, correlation_id: str | None = None, timeout: Optional[float] = None) -> dict:
@@ -231,6 +301,20 @@ class AgentRunner:
 
         Returns an ack dict: {queued: True, msgId: <generated or None>}
         """
+        if self._provider:
+            # Start a new turn
+            self._turn_id = _gen_session_id()
+            self._turn_calls = 0
+            self._last_correlation_id = correlation_id
+            # Persist user message
+            try:
+                if getattr(self, "_session_id", None) is not None:
+                    from app.services.sessions_service import sessions_service
+                    sessions_service.add_user_message(self._session_id, text)  # type: ignore[arg-type]
+            except Exception:
+                pass
+            await self._provider.send(text)
+            return {"queued": True, "msgId": None}
         if not self._proc or self._proc.returncode is not None or not self._proc.stdin:
             raise RuntimeError("Agent process is not running")
 
@@ -255,8 +339,13 @@ class AgentRunner:
 
     def status(self) -> RunnerStatus:
         """Return current runner status (running, pid, cwd)."""
-        running = bool(self._proc and self._proc.returncode is None)
-        pid = self._proc.pid if running and self._proc else None
+        if self._provider:
+            st = self._provider.status()
+            running = bool(st.get("running"))
+            pid = st.get("pid") if running else None
+        else:
+            running = bool(self._proc and self._proc.returncode is None)
+            pid = self._proc.pid if running and self._proc else None
         return RunnerStatus(running=running, pid=pid, cwd=str(self._cwd) if self._cwd else None)
 
     def _start_readers(self) -> None:
@@ -266,6 +355,114 @@ class AgentRunner:
             self._reader_task = asyncio.create_task(self._stdout_reader(), name="agent-stdout-reader")
         if self._stderr_task is None or self._stderr_task.done():
             self._stderr_task = asyncio.create_task(self._stderr_reader(), name="agent-stderr-reader")
+
+    async def _on_provider_event(self, ev: ProviderEvent) -> None:
+        project_id = self._project_id or ""
+        corr = self._last_correlation_id
+        try:
+            if ev.kind == "tool_call":
+                # Persist tool call
+                try:
+                    if getattr(self, "_session_id", None) is not None:
+                        from app.services.sessions_service import sessions_service
+                        sessions_service.add_tool_call(self._session_id, str((ev.payload or {}).get("name")), (ev.payload or {}).get("args") or {})  # type: ignore[arg-type]
+                except Exception:
+                    pass
+                # Shim: validate -> execute -> inject result
+                await self._handle_tool_call(ev.payload, project_id, corr)
+            elif ev.kind == "token":
+                from app.services.chat import chat_service
+                await chat_service.on_agent_output_line(project_id, ev.payload.get("content", ""), correlation_id=corr)
+            elif ev.kind == "final":
+                # no-op placeholder for now
+                pass
+            elif ev.kind == "error":
+                from app.ws.events import manager
+                from app.models import Envelope, EventType
+                payload = {"level": "error", "message": ev.payload.get("message", "")}
+                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload, correlationId=corr)
+                await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
+        except Exception:
+            pass
+
+    async def _ensure_mcp_adapter(self) -> None:
+        """Start MCP Adapter if configured to be owned by AgentRunner.
+
+        Respects lockfile and does nothing if an instance is already running.
+        """
+        try:
+            full = _read_settings_yaml()
+            ownership = str((((full.get("agent") or {}).get("mcp") or {}).get("adapterOwnership") or "agent_runner_only")).lower()
+        except Exception:
+            ownership = "agent_runner_only"
+
+        if ownership != "agent_runner_only":
+            return
+
+        st = adapter_status()
+        if st.get("running"):
+            # Do not start another instance; not owned
+            self._adapter_owned = False
+            self._adapter_proc = None
+            return
+
+        # Build env from config
+        cfg = get_cfg(mask_secrets=False)
+        ub_port = int(((cfg.get("bridges") or {}).get("unityBridgePort") or 8001))
+        bb_port = int(((cfg.get("bridges") or {}).get("blenderBridgePort") or 8002))
+        mcp_ws = f"ws://127.0.0.1:{ub_port}/ws/gemini_cli_adapter"
+        blender_ws = f"ws://127.0.0.1:{bb_port}"
+        env = os.environ.copy()
+        env["MCP_SERVER_URL"] = mcp_ws
+        env["BLENDER_SERVER_URL"] = blender_ws
+
+        # Launch adapter as module
+        python_exe = sys.executable
+        cmd = [python_exe, "-u", "-m", "mcp_unity_bridge.mcp_adapter"]
+        # Use repo root as cwd
+        cwd = Path(__file__).resolve().parents[3]
+        self._adapter_proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(cwd),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        self._adapter_owned = True
+
+    async def _stop_mcp_adapter_if_owned(self) -> None:
+        if not self._adapter_owned:
+            return
+        if not self._adapter_proc:
+            self._adapter_owned = False
+            return
+        try:
+            if self._adapter_proc.returncode is None:
+                self._adapter_proc.terminate()
+                try:
+                    await asyncio.wait_for(self._adapter_proc.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    self._adapter_proc.kill()
+                    try:
+                        await asyncio.wait_for(self._adapter_proc.wait(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        pass
+        except Exception:
+            pass
+        finally:
+            self._adapter_proc = None
+            self._adapter_owned = False
+
+
+def _read_settings_yaml() -> dict:
+    """Read raw config/settings.yaml for flags not normalized in config_service."""
+    p = Path("config") / "settings.yaml"
+    try:
+        import yaml  # type: ignore
+        return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.exists() else {}
+    except Exception:
+        return {}
 
     async def _cancel_readers(self) -> None:
         for t in (self._reader_task, self._stderr_task):
@@ -380,7 +577,171 @@ class AgentRunner:
             except asyncio.TimeoutError:
                 pass
 
+    def _load_toolshim_config(self) -> None:
+        try:
+            from app.services.config_service import get_all
+            cfg = get_all(mask_secrets=False) or {}
+            toolshim = ((cfg.get("agents") or {}).get("toolShim") or {})
+            self._tool_max_calls = int(toolshim.get("maxCallsPerTurn", 4))
+            self._tool_timeout_sec = float(toolshim.get("toolTimeoutSeconds", 15))
+        except Exception:
+            self._tool_max_calls = 4
+            self._tool_timeout_sec = 15.0
+
+    async def _handle_tool_call(self, payload: dict, project_id: str, corr: Optional[str]) -> None:
+        import uuid, time
+        request_id = uuid.uuid4().hex[:8]
+
+        # Enforce per-turn max
+        if self._turn_id is None:
+            self._turn_id = uuid.uuid4().hex
+            self._turn_calls = 0
+        if self._turn_calls >= max(1, self._tool_max_calls):
+            await self._inject_tool_result({
+                "ok": False,
+                "error": f"maxCallsPerTurn exceeded ({self._tool_max_calls})",
+            })
+            return
+
+        name = str((payload or {}).get("name", "")).strip()
+        args = (payload or {}).get("args") or {}
+
+        # Timeline started
+        try:
+            from app.services.timeline import timeline_service
+            await timeline_service.record_event(project_id, "tool_call.started", {"name": name, "args": args, "requestId": request_id}, correlation_id=corr)
+        except Exception:
+            pass
+
+        # Validate against catalog
+        valid, verror = self._validate_tool_args(name, args)
+        if not valid:
+            await self._inject_tool_result({"name": name, "ok": False, "error": verror})
+            try:
+                from app.services.timeline import timeline_service
+                await timeline_service.record_event(project_id, "tool_call.finished", {"name": name, "ok": False, "error": verror, "requestId": request_id}, correlation_id=corr)
+            except Exception:
+                pass
+            # Count attempt
+            self._turn_calls += 1
+            return
+
+        # Execute via MCP with timeout (special-case 'ping')
+        t0 = time.time()
+        ok = True
+        result: dict | None = None
+        err: str | None = None
+        try:
+            if name == "ping":
+                # Adapter ping: return deterministic payload
+                result = {"mcp_ping": "pong"}
+            else:
+                from app.services.mcp_client import mcp_client
+                async def run():
+                    return await mcp_client.run_tool(project_id, name, args, correlation_id=corr)
+                result = await asyncio.wait_for(run(), timeout=max(1.0, float(self._tool_timeout_sec)))
+        except asyncio.TimeoutError:
+            ok = False
+            err = "timeout"
+        except Exception as e:
+            ok = False
+            err = str(e)
+
+        # Inject result to provider
+        if ok and result is not None:
+            await self._inject_tool_result({"name": name, "ok": True, "result": result})
+        else:
+            await self._inject_tool_result({"name": name, "ok": False, "error": err or "execution failed"})
+
+        # Timeline finished
+        try:
+            from app.services.timeline import timeline_service
+            await timeline_service.record_event(project_id, "tool_call.finished", {"name": name, "ok": ok, "durationMs": int((time.time()-t0)*1000), "requestId": request_id, "error": err, "result": result}, correlation_id=corr)
+        except Exception:
+            pass
+
+        self._turn_calls += 1
+
+    async def _inject_tool_result(self, data: dict) -> None:
+        if not self._provider:
+            return
+        try:
+            line = json.dumps({"tool_result": data}, ensure_ascii=False)
+            await self._provider.send(line)
+        except Exception:
+            pass
+        # Also push into internal queue for self-tests/awaiters
+        try:
+            item = {**data, "correlationId": self._last_correlation_id, "turnId": self._turn_id}
+            self._tool_results.put_nowait(item)
+        except Exception:
+            pass
+
+    def _validate_tool_args(self, name: str, args: dict) -> tuple[bool, str | None]:
+        try:
+            catalog = self._tool_catalog or {}
+            fs = catalog.get("functionSchema") or []
+            schema = None
+            for s in fs:
+                if str(s.get("name")) == name:
+                    schema = s.get("parameters")
+                    break
+            if not schema:
+                return False, "unknown tool"
+            # jsonschema validation if available
+            try:
+                import jsonschema  # type: ignore
+                jsonschema.validate(instance=args, schema=schema)  # type: ignore
+                return True, None
+            except Exception as e:
+                # Fall back to basic required check
+                req = (schema or {}).get("required") or []
+                for r in req:
+                    if r not in (args or {}):
+                        return False, f"missing required arg: {r}"
+                # Accept if basic check passes
+                return True, None
+        except Exception as e:
+            return False, str(e)
+
+    async def wait_tool_result(self, name: str, correlation_id: Optional[str], timeout: float = 5.0) -> Optional[dict]:
+        end = asyncio.get_event_loop().time() + max(0.1, float(timeout))
+        while True:
+            remaining = end - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                return None
+            try:
+                item = await asyncio.wait_for(self._tool_results.get(), timeout=remaining)
+                if str(item.get("name")) == name and (correlation_id is None or item.get("correlationId") == correlation_id):
+                    return item
+            except asyncio.TimeoutError:
+                return None
+
 
 # Singleton instance used by API routes
 agent_runner = AgentRunner()
+
+
+def _gen_session_id() -> str:
+    import uuid
+    return uuid.uuid4().hex
+
+
+def _ensure_default_providers() -> None:
+    from app.services.providers.registry import registry
+    try:
+        # Register gemini_cli if not present
+        registry.get  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    # Avoid duplicate registration
+    try:
+        registry.get("__probe__", SessionCtx(projectId="_", sessionId="_"))
+    except Exception:
+        pass
+    # Always (re)register
+    from app.services.providers.gemini_cli import GeminiCliProvider
+    def factory(session: SessionCtx):
+        return GeminiCliProvider(session)
+    provider_registry.register("gemini_cli", factory)
 

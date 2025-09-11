@@ -1,129 +1,29 @@
-Tarea — Auditoría y Limpieza de Código, Docs y Config
+T13 — Documentación (architecture, api, quickstart, guides)
 
-Objetivo: Identificar y eliminar (o archivar) archivos, carpetas, scripts y configuraciones no usados u obsoletos en la rama feature/hybrid-dashboard, garantizando que el dashboard, los bridges MCP (Unity/Blender) y el AgentRunner sigan funcionando. Entregar un informe reproducible y un PR con los cambios y justificaciones.
+Objetivo: Dejar la documentación alineada al nuevo flujo (agente único que usa MCP; sesiones/plantilla/plan).
 
-Alcance (incluye pero no limitado a):
+Prompt
 
-Código y assets en: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, config/, docs/, projects/.
+1) docs/dashboard/architecture.md:
+   - Diagrama: UI → Gateway → AgentRunner → MCP Adapter → Bridges (Unity/Blender).
+   - Secuencia tool-call shim.
 
-Archivos de config/env: settings.(yml|json), project.json, .env*, .ini, .vscode/, *.csproj/Unity meta si aplica.
+2) docs/dashboard/api.md:
+   - /system/*, /agent/*, /health/selftest, /sessions/*, /tasks/* (si aplica).
 
-Dependencias declaradas vs. usadas: package.json, requirements*.txt, pyproject.toml
+3) docs/dashboard/quickstart.md:
+   - Windows 10 Pro: requisitos, settings.yaml, dev_up.bat, Self-Test, primera tarea.
 
-Scripts de arranque antiguos (BAT/PS1/SH) que hayan sido reemplazados por el Process Manager/Runner.
+4) docs/guides/:
+   - “Crear proyecto con plantilla”
+   - “Acordar plan de desarrollo”
+   - “Ejecutar tareas con confirmación”
 
-Documentación duplicada/desfasada en docs/dashboard/* y raíz.
 
-Entregables:
+Buenas prácticas
 
-Reporte reports/cleanup_audit.json y reports/cleanup_audit.md con:
+Ejemplos pequeños y precisos; sin secretos reales.
 
-Inventario de archivos y clasificación: KEEP | MOVE_TO_legacy/ | DELETE.
+Capturas de UI donde ayuden.
 
-Razón y evidencia (referencias cruzadas / uso en código / historial git / build).
-
-Grafo de dependencias (por paquete) y lista de dependencias no usadas.
-
-PR “chore: cleanup unused & obsolete files (safe)” que:
-
-Mueva a legacy/ lo dudoso con aviso de deprecación.
-
-Elimine lo inequívocamente obsoleto.
-
-Actualice docs, scripts y configs afectados.
-
-Incluya checklist y resultados de verificación (build, lints, health/self-test).
-
-Script tools/cleanup/verify_cleanup.(ps1|py) que revalide que, tras la limpieza, todo sigue funcionando (build, rutas, health-checks).
-
-Prompt para el agente IA
-Contexto:
-- Rama de trabajo: feature/hybrid-dashboard
-- Repo: oarjones/ai-gamedev-pipeline
-- Objetivo: Auditoría de limpieza (código, docs, configs) + PR seguro
-
-1) Preparación
-- Crea rama: chore/cleanup-audit
-- Crea carpeta: reports/ y tools/cleanup/
-- Detecta monorepo o multi-módulo: gateway/, webapp/, mcp_unity_bridge/, mcp_blender_addon/, scripts/, docs/, config/, projects/
-
-2) Inventario y análisis de uso
-- Genera inventario completo de archivos con tamaño y última modificación → reports/inventory.csv
-- Cruce de referencias:
-  a) JS/TS (webapp/gateway): usa `ts-prune` y `depcheck` para detectar exports/paquetes no usados.
-  b) Python (mcp_* y tools): usa `vulture`, `pipdeptree`, `pip-check` y grep de importadores.
-  c) Scripts: rastrea referencias reales desde package.json scripts, Makefile/NPM scripts, README/docs y el nuevo Process Manager. Marca BAT/PS1/SH antiguos que dupliquen funciones actuales.
-  d) Docs: busca documentos no enlazados desde README principal o docs/index; marca duplicados desfasados.
-  e) Config: lista claves/env no usadas (grep en código + validadores actuales). Verifica `projects/<id>/.agp/project.json` y URLs como MCP/Blender para coherencia.
-
-- Salida: reports/cleanup_audit.json con la estructura:
-  {
-    "file": "path/relativo",
-    "status": "KEEP|MOVE|DELETE",
-    "reason": "unused export|no refs|replaced by ...|duplicate doc|dead docker target|deprecated script",
-    "evidence": ["ruta/archivo que lo reemplaza", "comando de verificación", "grep ref count=0"],
-    "risk": "low|medium|high"
-  }
-
-3) Criterios de decisión
-- DELETE si:
-  - 0 referencias reales en código o scripts + no es doc normativo + no afecta al build o runtime
-  - Dependencia no usada (depcheck/ts-prune/vulture + verificación manual)
-- MOVE a legacy/ si:
-  - Referencias históricas o duda funcional
-  - Documentos obsoletos que aún sirven como referencia
-- KEEP si:
-  - Requerido por el dashboard actual, bridges MCP o builds
-  - Parte de ejemplos o plantillas enlazadas
-- Siempre actualizar docs/configs que mencionen lo eliminado
-
-4) Cambios de código y docs
-- Crea carpeta legacy/ en raíz y mueve allí lo marcado como MOVE, manteniendo estructura
-- Borra lo marcado como DELETE
-- Actualiza rutas en: docs/dashboard/*, README, scripts, configs (settings/project.json) y cualquier import/URL MCP
-- Sincroniza dependencias:
-  - JS/TS: elimina deps no usadas de package.json y hace `npm/yarn/pnpm install`
-  - Python: sincroniza requirements*.txt o pyproject (elimina paquetes muertos y congela versiones mínimas si procede)
-- Genera reports/cleanup_audit.md con resumen (tabla) y decisiones
-
-5) Verificación post-limpieza
-- Ejecuta:
-  - Lints y typechecks (TS/ESLint/TS-Check si aplica)
-  - Builds del webapp/gateway
-  - Health/self-test del dashboard (endpoints /health, /agent/status)
-  - Smoke test: arrancar Unity Bridge, Blender Bridge y Adaptador MCP con config sample
-- Guarda logs en reports/cleanup_runlogs/*.log
-- Si falla algo, revierte selectivamente los archivos implicados y vuelve a verificar
-
-6) PR
-- Rama: chore/cleanup-audit
-- Título: "chore: cleanup unused & obsolete files (safe)"
-- Descripción: 
-  - Resumen del impacto (nº archivos eliminados/movidos, ahorro de tamaño)
-  - Enlace a reports/cleanup_audit.md y .json
-  - Checklist:
-    [ ] Build OK
-    [ ] Lints/Typecheck OK
-    [ ] Health/Self-test OK
-    [ ] Scripts y docs actualizados
-    [ ] No secrets expuestos
-- Solicita revisión y etiquetar como `maintenance`, `infra`, `docs`
-
-Notas:
-- No eliminar claves de ejemplo ni plantillas necesarias
-- No tocar assets/unity metadatas sin verificación
-- No tocar rutas MCP productivas sin actualizar docs y pruebas
-
-Buenas prácticas (para esta tarea)
-
-Reversibilidad: mover a legacy/ todo lo dudoso antes de borrar; sólo eliminar lo inequívoco.
-
-Evidencia: cada decisión debe estar justificada con métricas (refs=0, herramientas, logs).
-
-Atómico y seguro: un único PR con cambios agrupados por tipo (código, docs, deps).
-
-No romper la DX: valida que scripts de desarrollo y quickstart sigan funcionando.
-
-Secrets: revisa que no haya credenciales en ficheros agregados o en logs de reports.
-
-CI local: añade/verifica checks mínimos (lint/build/test/self-test) antes del PR.
+Mantener versión/esquema de settings visible.
