@@ -105,3 +105,5 @@ unity_project/ServerData/
 
 # Commit message
 commit-msg.txt
+Generated
+webapp\node_modules
