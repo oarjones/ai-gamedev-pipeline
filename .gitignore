@@ -54,6 +54,13 @@ npm-debug.log*
 # Datos Locales (No versionar BBDD locales)
 gateway/data/gateway.db
 
+# Proyectos locales generados por el dashboard (no versionar contenido)
+projects/
+!projects/.gitkeep
+
+# (Compat) por si alguna herramienta usa este path
+gateway/projects/
+
 # Sistema Operativo
 .DS_Store
 .DS_Store?
