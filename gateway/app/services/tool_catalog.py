@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-ADAPTER_PATH = Path("mcp_unity_bridge") / "mcp_adapter.py"
+ADAPTER_PATH = Path("bridges") / "mcp_adapter.py"
 CACHE_PATH = Path("gateway") / ".cache" / "tool_catalog.json"
 
 

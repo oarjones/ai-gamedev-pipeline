@@ -25,6 +25,22 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function apiPatch<T>(path: string, body: any): Promise<T> {
+  const res = await fetch(new URL(path, BASE).toString(), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY ?? ''
+    },
+    body: JSON.stringify(body ?? {})
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`PATCH ${path} ${res.status}: ${msg}`)
+  }
+  return res.json() as Promise<T>
+}
+
 export type GatewayConfig = {
   version: string
   executables: {
@@ -130,4 +146,49 @@ export async function systemStop() {
 
 export async function systemStatus() {
   return apiGet<Array<{ name: string, pid?: number, running: boolean, lastStdout?: string, lastStderr?: string, lastError?: string, startedAt?: string }>>('/api/v1/system/status')
+}
+
+// Projects API
+export type Project = {
+  id: string
+  name: string
+  description?: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+  settings: Record<string, any>
+}
+
+export async function listProjects() {
+  return apiGet<Project[]>('/api/v1/projects')
+}
+
+export async function getProject(projectId: string) {
+  return apiGet<Project>(`/api/v1/projects/${projectId}`)
+}
+
+export async function createProject(payload: { name: string; description?: string; settings?: Record<string, any> }) {
+  return apiPost<Project>('/api/v1/projects', payload)
+}
+
+export async function selectProject(projectId: string) {
+  return apiPatch<{ message: string }>(`/api/v1/projects/${projectId}/select`, {})
+}
+
+export async function getActiveProject() {
+  return apiGet<Project | null>('/api/v1/projects/active/current')
+}
+
+export async function deleteProject(projectId: string, purge = true) {
+  const url = new URL(`/api/v1/projects/${projectId}`, BASE)
+  if (purge) url.searchParams.set('purge', 'true')
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: { 'X-API-Key': API_KEY ?? '' }
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`DELETE /api/v1/projects/${projectId} ${res.status}: ${msg}`)
+  }
+  return res.json() as Promise<{ message: string }>
 }

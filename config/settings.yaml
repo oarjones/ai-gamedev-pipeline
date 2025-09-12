@@ -39,5 +39,5 @@ gateway:
       timeout: 20
     # REMOVIDO blender_bridge - no es necesario
     mcp_adapter:
-      script_path: "mcp_unity_bridge/mcp_adapter.py"
+      script_path: "bridges/mcp_adapter.py"
       timeout: 10

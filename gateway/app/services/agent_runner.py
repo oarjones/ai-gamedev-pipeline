@@ -418,7 +418,7 @@ class AgentRunner:
 
         # Launch adapter as module
         python_exe = sys.executable
-        cmd = [python_exe, "-u", "-m", "mcp_unity_bridge.mcp_adapter"]
+        cmd = [python_exe, "-u", "-m", "bridges.mcp_adapter"]
         # Use repo root as cwd
         cwd = Path(__file__).resolve().parents[3]
         self._adapter_proc = await asyncio.create_subprocess_exec(

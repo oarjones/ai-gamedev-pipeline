@@ -1,4 +1,5 @@
 # mcp_adapter.py
+# Note: File relocated to 'bridges/' to reflect multi-engine usage (Unity/Blender/etc.)
 import asyncio
 import atexit
 import json
@@ -86,7 +87,7 @@ if ConfigManager is not None:
 else:
     BLENDER_SERVER_URL = os.getenv("BLENDER_SERVER_URL", "ws://127.0.0.1:8002")
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
+UNITY_PROJECT_DIR = os.path.join(BASE_DIR, "unity_project")
 
 
 # ---------------------------------------------------------------------
@@ -193,8 +194,26 @@ def _acquire_single_instance_or_exit() -> None:
         # Best-effort; continue without lock
         try:
             log.warning("Failed to manage adapter lock; proceeding anyway")
-        except Exception:
-            pass
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------
+# Auto-load tool modules (Unity, others) so they register on @mcp.tool
+# This import happens after defining 'mcp', 'log' and helper functions to
+# avoid circular import issues with bridges.mcp_adapter.
+# ---------------------------------------------------------------------
+try:  # Unity tools
+    import mcp_unity_bridge.unity_tools as _unity_tools  # noqa: F401
+    try:
+        log.info("Unity tools loaded and registered")
+    except Exception:
+        pass
+except Exception as _tool_err:
+    try:
+        log.warning("Failed to load Unity tools: %s", _tool_err)
+    except Exception:
+        pass
 
 
 async def send_to_unity_and_get_response(message: Dict[str, Any]) -> Dict[str, Any]:

@@ -441,7 +441,7 @@ sysinfo.txt
             "agent": {
                 "adapter": "cli_generic",
                 "executable": "python",
-                "args": ["-u", "-m", "mcp_unity_bridge.mcp_adapter"],
+                "args": ["-u", "-m", "bridges.mcp_adapter"],
                 "env": {},
                 "default_timeout": 5.0,
                 "terminate_grace": 3.0
@@ -560,16 +560,34 @@ sysinfo.txt
             return self._project_db_to_model(active_project)
         return None
     
-    def delete_project(self, project_id: str) -> bool:
-        """Delete a project (database only, filesystem is preserved).
+    def delete_project(self, project_id: str, purge_fs: bool = False) -> bool:
+        """Delete a project.
+        
+        By default deletes only the database record (preserves filesystem).
+        If ``purge_fs`` is True, also removes the project's folder under ``projects_root``.
         
         Args:
             project_id: Project ID to delete
+            purge_fs: Whether to remove the project directory from disk
             
         Returns:
             True if project was deleted, False if not found
         """
-        return self.db.delete_project(project_id)
+        # Delete DB record first
+        ok = self.db.delete_project(project_id)
+        if not ok:
+            return False
+        
+        # Optionally remove filesystem
+        if purge_fs:
+            try:
+                project_dir = self.projects_root / project_id
+                if project_dir.exists() and project_dir.is_dir():
+                    shutil.rmtree(project_dir, ignore_errors=True)
+            except Exception:
+                # We already removed DB record; ignore FS purge errors to avoid 404 mismatches
+                pass
+        return True
 
 
 # Global project service instance

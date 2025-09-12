@@ -1,4 +1,4 @@
-{
+﻿{
   "theme": "Default",
   "selectedAuthType": "oauth-personal",
   "mcpServers": {
@@ -6,7 +6,7 @@
       "command": "D:/ai-gamedev-pipeline/mcp_unity_bridge/.venv/Scripts/python.exe",
       "args": [
         "-u",
-        "D:/ai-gamedev-pipeline/mcp_unity_bridge/mcp_adapter.py"
+        "D:/ai-gamedev-pipeline/bridges/mcp_adapter.py"
       ],
       "cwd": "D:/ai-gamedev-pipeline/mcp_unity_bridge",
       "env": {
@@ -16,3 +16,4 @@
     }
   }
 }
+

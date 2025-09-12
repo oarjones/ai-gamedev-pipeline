@@ -1,32 +1,32 @@
----
-title: Catálogo de Tools (MCP → Providers)
+﻿---
+title: CatÃ¡logo de Tools (MCP â†’ Providers)
 ---
 
-# Catálogo de Tools
+# CatÃ¡logo de Tools
 
-Este documento describe cómo se construye y se entrega el catálogo de herramientas MCP a los providers (p. ej., Gemini CLI) para habilitar prompts y esquemas de function-calling.
+Este documento describe cÃ³mo se construye y se entrega el catÃ¡logo de herramientas MCP a los providers (p. ej., Gemini CLI) para habilitar prompts y esquemas de function-calling.
 
 ## Fuente de verdad
 
-- El origen único es `mcp_unity_bridge/mcp_adapter.py`.
+- El origen Ãºnico es `bridges/mcp_adapter.py`.
 - Se detectan funciones decoradas con `@mcp.tool()` como herramientas disponibles.
-- La descripción se extrae del docstring (primera línea). Los ejemplos se infieren de líneas que comienzan con `Ejemplo:` o `Example:`.
+- La descripciÃ³n se extrae del docstring (primera lÃ­nea). Los ejemplos se infieren de lÃ­neas que comienzan con `Ejemplo:` o `Example:`.
 
-## Construcción del catálogo
+## ConstrucciÃ³n del catÃ¡logo
 
 Componente: `gateway/app/services/tool_catalog.py`.
 
-- Analiza el archivo del adapter con AST (no ejecución) y crea `ToolSpec` por función.
-- Mapeo básico de tipos de parámetros a JSON Schema:
-  - `str → {"type":"string"}`
-  - `int → {"type":"integer"}`
-  - `float → {"type":"number"}`
-  - `bool → {"type":"boolean"}`
-  - `dict → {"type":"object"}`
-  - `list → {"type":"array"}`
-  - otros/ausentes → tipo permisivo (`[string, number, boolean, object, array, null]`).
+- Analiza el archivo del adapter con AST (no ejecuciÃ³n) y crea `ToolSpec` por funciÃ³n.
+- Mapeo bÃ¡sico de tipos de parÃ¡metros a JSON Schema:
+  - `str â†’ {"type":"string"}`
+  - `int â†’ {"type":"integer"}`
+  - `float â†’ {"type":"number"}`
+  - `bool â†’ {"type":"boolean"}`
+  - `dict â†’ {"type":"object"}`
+  - `list â†’ {"type":"array"}`
+  - otros/ausentes â†’ tipo permisivo (`[string, number, boolean, object, array, null]`).
 - Reglas de `required`: argumentos sin valor por defecto.
-- Validación opcional de JSON Schema con `jsonschema` si está instalado.
+- ValidaciÃ³n opcional de JSON Schema con `jsonschema` si estÃ¡ instalado.
 
 ### Artefactos generados
 
@@ -34,14 +34,14 @@ Componente: `gateway/app/services/tool_catalog.py`.
 
 - `version`: hash abreviado del adapter (12 chars)
 - `hash`: SHA-1 del archivo `mcp_adapter.py`
-- `count`: número de tools
-- `promptList`: texto human-readable (nombre + descripción + ejemplos)
+- `count`: nÃºmero de tools
+- `promptList`: texto human-readable (nombre + descripciÃ³n + ejemplos)
 - `functionSchema`: lista `[{ name, description, parameters }]`
 
-## Caché
+## CachÃ©
 
-- Ubicación: `gateway/.cache/tool_catalog.json`.
-- `get_catalog_cached()` devuelve el catálogo cacheado si el hash del adapter coincide; en caso contrario, reconstruye y sobrescribe.
+- UbicaciÃ³n: `gateway/.cache/tool_catalog.json`.
+- `get_catalog_cached()` devuelve el catÃ¡logo cacheado si el hash del adapter coincide; en caso contrario, reconstruye y sobrescribe.
 
 ## Entrega a Providers
 
@@ -61,15 +61,16 @@ Componente: `gateway/app/services/tool_catalog.py`.
 }
 ```
 
-## Buenas prácticas al definir tools
+## Buenas prÃ¡cticas al definir tools
 
-- Añade docstrings claros. La primera línea se usa como descripción.
-- Incluye una o dos líneas de ejemplo precedidas por `Ejemplo:` / `Example:` para enriquecer `promptList`.
-- Anota tipos de parámetros Python simples (`str`, `int`, `float`, `bool`, `list`, `dict`) cuando sea posible; ayudarán a generar JSON Schema más preciso.
-- Mantén estable el nombre de la función; se usa como `name` del tool.
+- AÃ±ade docstrings claros. La primera lÃ­nea se usa como descripciÃ³n.
+- Incluye una o dos lÃ­neas de ejemplo precedidas por `Ejemplo:` / `Example:` para enriquecer `promptList`.
+- Anota tipos de parÃ¡metros Python simples (`str`, `int`, `float`, `bool`, `list`, `dict`) cuando sea posible; ayudarÃ¡n a generar JSON Schema mÃ¡s preciso.
+- MantÃ©n estable el nombre de la funciÃ³n; se usa como `name` del tool.
 
 ## Futuro
 
 - Extender el mapeo de tipos (e.g., `Literal`, `Annotated`) y enriquecer validaciones.
-- Soporte opcional de descriptor estático si el adapter no está disponible (no implementado aún).
+- Soporte opcional de descriptor estÃ¡tico si el adapter no estÃ¡ disponible (no implementado aÃºn).
+
 

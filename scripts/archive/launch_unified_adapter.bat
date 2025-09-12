@@ -13,6 +13,6 @@ REM Lanzar Blender Bridge (requiere 'blender' en el PATH)
 start "Blender Bridge" cmd /c "blender --python mcp_blender_bridge\mcp_blender_addon\websocket_server.py"
 
 REM Lanzar el adaptador unificado en primer plano
-python mcp_unity_bridge\mcp_adapter.py
+python bridges\mcp_adapter.py
 
 endlocal

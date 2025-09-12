@@ -67,7 +67,7 @@ def find_blender_installations():
 def check_bridge_scripts():
     """Verificar que los scripts de los bridges existan."""
     scripts = {
-        "Unity Bridge": "mcp_unity_bridge/mcp_adapter.py",
+        "Unity Bridge": "bridges/mcp_adapter.py",
         "Blender Bridge": "mcp_blender_addon/server_bootstrap.py"
     }
     

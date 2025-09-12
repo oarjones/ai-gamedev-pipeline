@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 
 from app.models.core import CreateProject, Project
@@ -172,14 +172,15 @@ async def get_active_project() -> Project | None:
 
 
 @router.delete("/{project_id}")
-async def delete_project(project_id: str) -> JSONResponse:
+async def delete_project(project_id: str, purge: bool = Query(default=False, description="Also delete the project's folder from disk")) -> JSONResponse:
     """Delete a project from the registry.
     
-    Note: This only removes the project from the database.
-    The filesystem structure is preserved for safety.
+    By default only removes the project from the database and preserves the filesystem.
+    If ``purge=true`` is provided, it will also remove the project's directory from disk.
     
     Args:
         project_id: ID of project to delete
+        purge: When true, also delete the project directory from disk
         
     Returns:
         Success confirmation
@@ -187,7 +188,18 @@ async def delete_project(project_id: str) -> JSONResponse:
     Raises:
         HTTPException: 404 if project not found
     """
-    success = project_service.delete_project(project_id)
+    # If deleting the active project, attempt to stop the agent first
+    try:
+        active = project_service.get_active_project()
+        if active and active.id == project_id:
+            try:
+                await unified_agent.stop()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    success = project_service.delete_project(project_id, purge_fs=purge)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -197,8 +209,8 @@ async def delete_project(project_id: str) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "message": f"Project '{project_id}' deleted from registry",
+            "message": f"Project '{project_id}' deleted from registry" + (" and filesystem" if purge else ""),
             "project_id": project_id,
-            "note": "Filesystem structure preserved"
+            "note": "Filesystem structure preserved" if not purge else "Filesystem removed"
         }
     )

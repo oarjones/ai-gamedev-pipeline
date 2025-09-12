@@ -21,7 +21,7 @@ def test_adapter_start_stop_cycle():
     _cleanup_lock()
 
     # Start adapter as a subprocess (module)
-    cmd = [sys.executable, "-u", "-m", "mcp_unity_bridge.mcp_adapter"]
+    cmd = [sys.executable, "-u", "-m", "bridges.mcp_adapter"]
     env = os.environ.copy()
     env["AGP_ADAPTER_TESTMODE"] = "1"
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)

@@ -2,7 +2,7 @@
 
 import json
 from typing import Any
-from mcp_adapter import send_to_unity_and_get_response, log, mcp
+from bridges.mcp_adapter import send_to_unity_and_get_response, log, mcp
 
 # Reutilizamos la instancia ``mcp`` creada en ``mcp_adapter`` para registrar
 # las herramientas en el mismo servidor. Crear una nueva instancia aquí
