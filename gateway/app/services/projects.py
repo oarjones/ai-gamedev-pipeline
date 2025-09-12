@@ -511,8 +511,8 @@ sysinfo.txt
             name=project_db.name,
             description=description,
             status="active" if project_db.active else "inactive",
-            created_at=created_at,
-            updated_at=updated_at,
+            createdAt=created_at,
+            updatedAt=updated_at,
             settings=settings,
         )
     
