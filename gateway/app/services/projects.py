@@ -327,6 +327,9 @@ Transform:
         
         # Copiar los scripts del puente MCP a la carpeta del Editor
         self._copy_mcp_scripts(project_dir)
+
+        # Copiar solución mínima de Editor para mejorar soporte IDE
+        self._copy_unity_editor_csproj(project_dir)
         
         # Crear archivo .gitignore para Unity
         gitignore = project_dir / ".gitignore"
@@ -401,6 +404,25 @@ sysinfo.txt
         _copy_tree(editor_src_root / "MCP", editor_dst_root / "MCP")
         # Copy MCPBridge folder if present (installer, health checks, etc.)
         _copy_tree(editor_src_root / "MCPBridge", editor_dst_root / "MCPBridge")
+
+    def _copy_unity_editor_csproj(self, project_dir: Path) -> None:
+        """Copy Assembly-CSharp-Editor.csproj from template into the new project.
+
+        This provides basic IDE project support even before Unity regenerates
+        solution files.
+        """
+        try:
+            repo_root = Path(__file__).resolve().parents[3]
+            src = repo_root / "unity_project" / "Assembly-CSharp-Editor.csproj"
+            dst = project_dir / "Assembly-CSharp-Editor.csproj"
+            if not src.exists():
+                logger.warning("Unity Editor csproj template not found at %s", src)
+                return
+            # Copy as-is; template is generic and uses relative paths
+            shutil.copy2(src, dst)
+            logger.info("Copied Unity csproj to %s", dst)
+        except Exception as e:
+            logger.warning("Failed to copy Unity csproj: %s", e)
     
     def _create_project_structure(self, project_id: str, project_name: str, settings: dict = None) -> Path:
         """Create filesystem structure for a new project.
