@@ -25,7 +25,7 @@ agent:
 gateway:
   processes:
     unity:  
-      exe: "C:\\Program Files\\Unity\\Editor\\Unity.exe"
+      exe: "C:/Program Files/Unity/Editor/Unity.exe"
       args: []
       project_path: ""
       timeout: 20
@@ -34,7 +34,7 @@ gateway:
       port: 8001
       timeout: 15
     blender:
-      exe: "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe"
+      exe: "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe"
       args: []
       timeout: 20
     blender_bridge:

@@ -1,213 +1,141 @@
-"""Local process orchestration for Unity, Blender, Bridges, and MCP Adapter (Windows-friendly).
+"""Process manager for Unity, Blender and bridge servers."""
 
-This module exposes a `ProcessManager` singleton with methods to start/stop
-Unity, Unity Bridge, Blender, and Blender Bridge, capturing
-stdout/stderr into small circular buffers and reporting status via dicts.
-"""
-
-from __future__ import annotations
-
+import logging
 import os
-import signal
-import sys
-import time
-import threading
+import queue
+import shutil
+import socket
 import subprocess
-from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime
+import sys
+import threading
+import time
 from pathlib import Path
-from typing import Deque, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from app.config import settings
-from app.services.projects import project_service
 
-
-def _now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+logger = logging.getLogger(__name__)
 
 
 class CircularBuffer:
-    """Simple circular buffer for text with byte-size cap."""
+    def __init__(self, max_size: int = 10240):
+        self.buf: List[str] = []
+        self.max_size = max_size
 
-    def __init__(self, capacity_bytes: int = 4096) -> None:
-        self.capacity = max(512, capacity_bytes)
-        self._buf: Deque[bytes] = deque()
-        self._size = 0
-        self._lock = threading.Lock()
+    def append(self, text: str) -> None:
+        self.buf.append(text)
+        size = sum(len(s) for s in self.buf)
+        while size > self.max_size and len(self.buf) > 1:
+            removed = self.buf.pop(0)
+            size -= len(removed)
 
-    def append(self, data: bytes) -> None:
-        if not data:
-            return
-        with self._lock:
-            self._buf.append(data)
-            self._size += len(data)
-            while self._size > self.capacity and self._buf:
-                dropped = self._buf.popleft()
-                self._size -= len(dropped)
-
-    def get_text(self, encoding: str = "utf-8", errors: str = "replace") -> str:
-        with self._lock:
-            chunks = list(self._buf)
-        try:
-            return b"".join(chunks).decode(encoding, errors)
-        except Exception:
-            return ""
+    def get_text(self, limit: Optional[int] = None) -> str:
+        result = "".join(self.buf)
+        return result[-limit:] if limit else result
 
 
-@dataclass
 class ManagedProcess:
-    name: str
-    command: List[str]
-    cwd: Optional[Path] = None
-    env: Optional[Dict[str, str]] = None
-    timeout_start: float = 15.0
-    grace_stop: float = 5.0
-    retries: int = 1
-    started_at: Optional[str] = None
-    pid: Optional[int] = None
-    last_error: Optional[str] = None
-    _proc: Optional[subprocess.Popen] = field(default=None, init=False, repr=False)
-    _stdout_buf: CircularBuffer = field(default_factory=lambda: CircularBuffer(4096), init=False, repr=False)
-    _stderr_buf: CircularBuffer = field(default_factory=lambda: CircularBuffer(4096), init=False, repr=False)
-    _stdout_thread: Optional[threading.Thread] = field(default=None, init=False, repr=False)
-    _stderr_thread: Optional[threading.Thread] = field(default=None, init=False, repr=False)
+    def __init__(self, name: str, command: List[str], timeout_start: float = 15.0):
+        self.name = name
+        self.command = command
+        self.timeout_start = timeout_start
+        self.proc: Optional[subprocess.Popen] = None
+        self.started_at: Optional[str] = None
+        self.last_error: Optional[str] = None
+        self._stdout_buf = CircularBuffer()
+        self._stderr_buf = CircularBuffer()
+        self._reader_threads: List[threading.Thread] = []
 
-    def _reader(self, stream, buffer: CircularBuffer) -> None:
+    def _stream_reader(self, stream, buf: CircularBuffer, label: str) -> None:
         try:
             while True:
-                chunk = stream.readline()
-                if not chunk:
+                line = stream.readline()
+                if not line:
                     break
-                buffer.append(chunk)
-        except Exception:
-            pass
-
-    def is_running(self) -> bool:
-        return self._proc is not None and self._proc.poll() is None
+                decoded = line.decode("utf-8", errors="replace")
+                buf.append(decoded)
+                logger.debug(f"[{self.name}/{label}] {decoded.rstrip()}")
+        except Exception as e:
+            logger.debug(f"Stream reader error for {self.name}/{label}: {e}")
 
     def start(self) -> None:
-        if self.is_running():
+        if self.proc:
             return
-        self.last_error = None
-
-        creationflags = 0
-        startupinfo = None
-        if os.name == "nt":
-            # Create a new process group to allow sending CTRL_BREAK_EVENT to the group
-            creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
+        
+        # Log detallado del comando que se va a ejecutar
+        logger.info(f"[{self.name}] Starting process with command: {self.command}")
+        logger.info(f"[{self.name}] Executable path: {self.command[0]}")
+        
+        # Verificar si el ejecutable existe antes de intentar lanzarlo
+        exe_path = Path(self.command[0])
+        if not exe_path.exists():
+            error_msg = f"Executable not found at path: {exe_path}"
+            logger.error(f"[{self.name}] {error_msg}")
+            logger.error(f"[{self.name}] Absolute path: {exe_path.absolute()}")
+            self.last_error = error_msg
+            raise FileNotFoundError(error_msg)
+            
         try:
-            self._proc = subprocess.Popen(
+            self.proc = subprocess.Popen(
                 self.command,
-                cwd=str(self.cwd) if self.cwd else None,
-                env=self.env if self.env else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                creationflags=creationflags,
-                startupinfo=startupinfo,
-                text=False,
-                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
-            self.pid = self._proc.pid
-            self.started_at = _now_iso()
-
-            # Start reader threads
-            if self._proc.stdout is not None:
-                self._stdout_thread = threading.Thread(target=self._reader, args=(self._proc.stdout, self._stdout_buf), daemon=True)
-                self._stdout_thread.start()
-            if self._proc.stderr is not None:
-                self._stderr_thread = threading.Thread(target=self._reader, args=(self._proc.stderr, self._stderr_buf), daemon=True)
-                self._stderr_thread.start()
-
-            # Optional: wait for a short period to see if it crashes immediately
-            deadline = time.time() + max(0.5, min(self.timeout_start, 2.0))
-            while time.time() < deadline and self._proc.poll() is None:
-                time.sleep(0.05)
-
-            if self._proc.poll() is not None and self._proc.returncode != 0:
-                self.last_error = f"Exited immediately with code {self._proc.returncode}"
-                raise RuntimeError(self.last_error)
+            self.started_at = time.strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(f"[{self.name}] Process started with PID {self.proc.pid}")
+            
+            # Start stream readers
+            stdout_thread = threading.Thread(
+                target=self._stream_reader,
+                args=(self.proc.stdout, self._stdout_buf, "stdout"),
+                daemon=True,
+            )
+            stderr_thread = threading.Thread(
+                target=self._stream_reader,
+                args=(self.proc.stderr, self._stderr_buf, "stderr"),
+                daemon=True,
+            )
+            stdout_thread.start()
+            stderr_thread.start()
+            self._reader_threads = [stdout_thread, stderr_thread]
+            
+            # Wait for startup
+            time.sleep(min(self.timeout_start, 2.0))
+            
         except Exception as e:
-            # Retry once if configured
-            self._cleanup_handles()
-            if self.retries > 0:
-                self.retries -= 1
-                time.sleep(0.5)
-                self.start()
-                return
+            logger.error(f"[{self.name}] Failed to start process: {e}")
             self.last_error = str(e)
+            self.proc = None
             raise
 
     def stop(self, graceful: bool = True) -> None:
-        if not self._proc:
+        if not self.proc:
             return
-        if self._proc.poll() is not None:
-            self._cleanup_handles()
-            return
-
         try:
             if graceful:
-                if os.name == "nt":
-                    # Try to send CTRL_BREAK to the process group
-                    try:
-                        os.kill(self._proc.pid, getattr(signal, "CTRL_BREAK_EVENT", 1))  # type: ignore
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        self._proc.terminate()
-                    except Exception:
-                        pass
-                self._wait_for_exit(self.grace_stop)
-
-            if self._proc and self._proc.poll() is None:
-                # Force kill
+                self.proc.terminate()
                 try:
-                    self._proc.kill()
-                except Exception:
-                    pass
-                self._wait_for_exit(2.0)
+                    self.proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    self.proc.kill()
+                    self.proc.wait(timeout=2)
+            else:
+                self.proc.kill()
+                self.proc.wait(timeout=2)
+        except Exception as e:
+            logger.warning(f"[{self.name}] Error stopping process: {e}")
         finally:
-            self._cleanup_handles()
+            self.proc = None
 
-    def _wait_for_exit(self, timeout: float) -> None:
-        try:
-            self._proc.wait(timeout=timeout)  # type: ignore[union-attr]
-        except Exception:
-            pass
-
-    def _cleanup_handles(self) -> None:
-        try:
-            if self._proc and self._proc.stdout:
-                try:
-                    self._proc.stdout.close()
-                except Exception:
-                    pass
-            if self._proc and self._proc.stderr:
-                try:
-                    self._proc.stderr.close()
-                except Exception:
-                    pass
-            if self._proc and self._proc.stdin:
-                try:
-                    self._proc.stdin.close()
-                except Exception:
-                    pass
-        finally:
-            self._proc = None
-
-    def status(self) -> Dict[str, Optional[str]]:
-        running = self.is_running()
+    def status(self) -> Dict:
+        running = self.proc is not None and self.proc.poll() is None
         return {
             "name": self.name,
-            "pid": str(self.pid) if self.pid else None,
             "running": running,
-            "lastStdout": self._stdout_buf.get_text()[-1024:],
-            "lastStderr": self._stderr_buf.get_text()[-1024:],
+            "pid": self.proc.pid if self.proc else None,
+            "returnCode": self.proc.returncode if self.proc and not running else None,
+            "lastOutput": (self._stdout_buf.get_text())[-1024:],
             "lastError": self.last_error or (self._stderr_buf.get_text()[-1024:] if not running else None),
             "startedAt": self.started_at,
         }
@@ -228,18 +156,49 @@ class ProcessManager:
             return False
 
     def _build_unity_cmd(self, project_id: Optional[str]) -> List[str]:
+        # Obtener configuración
         proc_cfg = (settings.processes or {}).get("unity", {})
         exe = proc_cfg.get("exe")
-        if not exe or not Path(exe).exists():
-            raise FileNotFoundError(f"Unity executable not found: {exe}")
+        
+        # Log detallado de la configuración
+        logger.info(f"Unity configuration from settings: {proc_cfg}")
+        logger.info(f"Unity exe path from config: {exe}")
+        
+        if not exe:
+            error_msg = "Unity executable path not configured in settings.yaml"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+            
+        # Convertir a Path y verificar existencia
+        exe_path = Path(exe)
+        logger.info(f"Checking Unity executable at: {exe_path}")
+        logger.info(f"Absolute path: {exe_path.absolute()}")
+        logger.info(f"Exists: {exe_path.exists()}")
+        
+        if not exe_path.exists():
+            # Intentar expandir variables de entorno o rutas relativas
+            expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
+            logger.info(f"Expanded path: {expanded}")
+            logger.info(f"Expanded exists: {expanded.exists()}")
+            
+            if expanded.exists():
+                exe_path = expanded
+            else:
+                error_msg = f"Unity executable not found at: {exe} (expanded: {expanded})"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
+        
         args = list(proc_cfg.get("args", []))
+        
         # Resolve project path
         project_path = proc_cfg.get("project_path")
         if not project_path and project_id:
             project_path = str(Path("projects") / project_id)
         if project_path:
             args.extend(["-projectPath", str(project_path)])
-        return [str(exe), *args]
+            
+        logger.info(f"Unity command built: {[str(exe_path)] + args}")
+        return [str(exe_path), *args]
 
     def _build_unity_bridge_cmd(self) -> List[str]:
         proc_cfg = (settings.processes or {}).get("unity_bridge", {})
@@ -247,6 +206,9 @@ class ProcessManager:
         port = int(proc_cfg.get("port", 8001))
         python_exe = proc_cfg.get("python", sys.executable)
         app_import = proc_cfg.get("app_import", "mcp_unity_bridge.src.mcp_unity_server.main:app")
+        
+        logger.info(f"Unity Bridge configuration: host={host}, port={port}, python={python_exe}")
+        
         return [
             python_exe,
             "-m",
@@ -261,24 +223,60 @@ class ProcessManager:
     def _build_blender_cmd(self) -> List[str]:
         proc_cfg = (settings.processes or {}).get("blender", {})
         exe = proc_cfg.get("exe")
-        if not exe or not Path(exe).exists():
-            raise FileNotFoundError(f"Blender executable not found: {exe}")
+        
+        logger.info(f"Blender configuration: {proc_cfg}")
+        logger.info(f"Blender exe path: {exe}")
+        
+        if not exe:
+            error_msg = "Blender executable path not configured"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+            
+        exe_path = Path(exe)
+        if not exe_path.exists():
+            # Intentar expandir variables de entorno
+            expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
+            if expanded.exists():
+                exe_path = expanded
+            else:
+                error_msg = f"Blender executable not found at: {exe} (expanded: {expanded})"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
+                
         args = list(proc_cfg.get("args", []))
-        return [str(exe), *args]
+        return [str(exe_path), *args]
 
     def _build_blender_bridge_cmd(self) -> List[str]:
         proc_cfg = (settings.processes or {}).get("blender_bridge", {})
         exe = (settings.processes or {}).get("blender", {}).get("exe")
-        if not exe or not Path(exe).exists():
-            raise FileNotFoundError(f"Blender executable not found for bridge: {exe}")
+        
+        if not exe:
+            error_msg = "Blender executable not configured for bridge"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+            
+        exe_path = Path(exe)
+        if not exe_path.exists():
+            expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
+            if expanded.exists():
+                exe_path = expanded
+            else:
+                error_msg = f"Blender executable not found for bridge: {exe}"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
+                
         script_path = proc_cfg.get("script_path")
         if not script_path or not Path(script_path).exists():
-            raise FileNotFoundError(f"Blender bridge script not found: {script_path}")
+            error_msg = f"Blender bridge script not found: {script_path}"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+            
         host = proc_cfg.get("host", "127.0.0.1")
         port = int(proc_cfg.get("port", 8002))
+        
         # Launch blender with python script and pass host/port via args
         return [
-            str(exe),
+            str(exe_path),
             "--background",
             "--python",
             str(script_path),
@@ -289,8 +287,6 @@ class ProcessManager:
             str(port),
         ]
 
-    # MCP Adapter lifecycle is managed by AgentRunner when configured
-
     def _spawn(self, name: str, cmd: List[str], timeout: float = 15.0) -> ManagedProcess:
         mp = ManagedProcess(name=name, command=cmd, timeout_start=timeout)
         mp.start()
@@ -299,10 +295,14 @@ class ProcessManager:
         return mp
 
     def startUnity(self, project_id: Optional[str]) -> Dict:
-        cmd = self._build_unity_cmd(project_id)
-        timeout = float((settings.processes or {}).get("unity", {}).get("timeout", 15))
-        proc = self._spawn("unity", cmd, timeout)
-        return proc.status()
+        try:
+            cmd = self._build_unity_cmd(project_id)
+            timeout = float((settings.processes or {}).get("unity", {}).get("timeout", 15))
+            proc = self._spawn("unity", cmd, timeout)
+            return proc.status()
+        except Exception as e:
+            logger.error(f"Failed to start Unity: {e}")
+            raise
 
     def startUnityBridge(self) -> Dict:
         # Preflight: port free
@@ -334,19 +334,42 @@ class ProcessManager:
         proc = self._spawn("blender_bridge", cmd, timeout)
         return proc.status()
 
-    # def startMCPAdapter(self) -> Dict: ... removed
-
     def start_sequence(self, project_id: Optional[str]) -> List[Dict]:
         statuses = []
+        
         # Unity
-        statuses.append(self.startUnity(project_id))
+        try:
+            logger.info("Starting Unity...")
+            statuses.append(self.startUnity(project_id))
+        except Exception as e:
+            logger.error(f"Unity start failed: {e}")
+            raise
+            
         # Unity Bridge
-        statuses.append(self.startUnityBridge())
-        # Blender
-        statuses.append(self.startBlender())
-        # Blender Bridge
-        statuses.append(self.startBlenderBridge())
-        # MCP Adapter removed from automatic sequence; managed by AgentRunner
+        try:
+            logger.info("Starting Unity Bridge...")
+            statuses.append(self.startUnityBridge())
+        except Exception as e:
+            logger.error(f"Unity Bridge start failed: {e}")
+            # Continue even if bridge fails
+            statuses.append({"name": "unity_bridge", "running": False, "error": str(e)})
+            
+        # Blender (opcional)
+        try:
+            logger.info("Starting Blender...")
+            statuses.append(self.startBlender())
+        except Exception as e:
+            logger.warning(f"Blender start failed (non-critical): {e}")
+            statuses.append({"name": "blender", "running": False, "error": str(e)})
+            
+        # Blender Bridge (opcional)
+        try:
+            logger.info("Starting Blender Bridge...")
+            statuses.append(self.startBlenderBridge())
+        except Exception as e:
+            logger.warning(f"Blender Bridge start failed (non-critical): {e}")
+            statuses.append({"name": "blender_bridge", "running": False, "error": str(e)})
+            
         return statuses
 
     def stopAll(self) -> None:
@@ -359,7 +382,10 @@ class ProcessManager:
             try:
                 proc = self.procs.get(name)
                 if proc:
+                    logger.info(f"Stopping {name}...")
                     proc.stop(graceful=True)
+            except Exception as e:
+                logger.error(f"Error stopping {name}: {e}")
             finally:
                 with self._lock:
                     self.procs.pop(name, None)

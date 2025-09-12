@@ -15,30 +15,51 @@ from typing import Any, Dict, Tuple
 import yaml
 
 
-CONFIG_PATH = Path("config/settings.yaml")
+# Buscar el archivo relativo al archivo Python actual, no al CWD
+# Este archivo está en gateway/app/services/config_service.py
+# El settings.yaml está en la raíz del proyecto: config/settings.yaml
+current_file = Path(__file__).resolve()  # gateway/app/services/config_service.py
+project_root = current_file.parent.parent.parent.parent  # Subir 4 niveles: services -> app -> gateway -> raíz
+CONFIG_PATH = project_root / "config" / "settings.yaml"
+
+# También permitir configuración local en gateway/config
+LOCAL_CONFIG_PATH = current_file.parent.parent.parent / "config" / "settings.yaml"
+
+
+def _get_config_path() -> Path:
+    """Obtener la ruta del archivo de configuración."""
+    if CONFIG_PATH.exists():
+        return CONFIG_PATH
+    elif LOCAL_CONFIG_PATH.exists():
+        return LOCAL_CONFIG_PATH
+    else:
+        # Si ninguno existe, usar la raíz del proyecto por defecto
+        return CONFIG_PATH
 
 
 def _load_full_yaml() -> Dict[str, Any]:
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    config_path = _get_config_path()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 
 
 def _save_full_yaml_atomic(data: Dict[str, Any]) -> None:
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    config_path = _get_config_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     # Backup
-    if CONFIG_PATH.exists():
-        backup = CONFIG_PATH.with_suffix(CONFIG_PATH.suffix + ".bak")
+    if config_path.exists():
+        backup = config_path.with_suffix(config_path.suffix + ".bak")
         try:
-            CONFIG_PATH.replace(backup)
+            config_path.replace(backup)
         except Exception:
             pass
         # If backup moved, write fresh file; else continue to atomic write as well
-    tmp = CONFIG_PATH.with_suffix(CONFIG_PATH.suffix + ".tmp")
+    tmp = config_path.with_suffix(config_path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
-    tmp.replace(CONFIG_PATH)
+    tmp.replace(config_path)
 
 
 def _mask_key(v: str | None) -> str | None:
@@ -51,11 +72,13 @@ def _mask_key(v: str | None) -> str | None:
 
 
 def _is_masked(v: Any) -> bool:
-    return isinstance(v, str) and re.match(r"^\*{3,}.*$", v or "") is not None
+    return isinstance(v, str) and re.match(r"^\*{3,}.*", v) is not None
 
 
 def _default_config() -> Dict[str, Any]:
-    return {
+    """Default configuration structure compatible with frontend expectations."""
+    full_yaml = _load_full_yaml()
+    base = {
         "version": "1.0",
         "executables": {
             "unityExecutablePath": "",
@@ -66,42 +89,21 @@ def _default_config() -> Dict[str, Any]:
             "unityBridgePort": 8001,
             "blenderBridgePort": 8002,
         },
-        "providers": {
-            "geminiCli": {"command": "gemini"}
-        },
         "integrations": {
-            "gemini": {"apiKey": "", "defaultModel": ""},
-            "openai": {"apiKey": "", "defaultModel": ""},
-            "anthropic": {"apiKey": "", "defaultModel": ""},
+            "gemini": {"apiKey": None, "defaultModel": ""},
+            "openai": {"apiKey": None, "defaultModel": "gpt-4o"},
+            "anthropic": {"apiKey": None, "defaultModel": "claude-3-sonnet-20240229"},
         },
-        "projects": {"root": "projects"},
-        "dependencies": {
-            "requirementFiles": [
-                "mcp_unity_bridge/requirements.txt",
-                "gateway/pyproject.toml"
-            ],
-            "extraAllowed": [
-                "openai",
-                "anthropic",
-                "google-generativeai",
-                "typer",
-                "mcp",
-                "mcp[cli]"
-            ],
-            "venvRoots": [
-                "projects/*/.venv",
-                "venvs/*"
-            ],
-            "venvDefault": "venvs/agp",
-            "minimalPackages": ["fastapi", "uvicorn", "websockets"]
+        "projects": {
+            "root": "projects",
         },
-        "agents": {
-            "default": "gemini"
-        }
+        "providers": {
+            "geminiCli": {
+                "command": "gemini",
+            },
+        },
     }
-
-
-def _merge_compatibility(base: Dict[str, Any], full_yaml: Dict[str, Any]) -> Dict[str, Any]:
+    # Fill from existing if available for compatibility
     gateway = full_yaml.get("gateway", {}) if isinstance(full_yaml, dict) else {}
     processes = gateway.get("processes", {}) if isinstance(gateway, dict) else {}
     paths = full_yaml.get("paths", {}) if isinstance(full_yaml, dict) else {}
@@ -144,38 +146,26 @@ def get_all(mask_secrets: bool = True) -> Dict[str, Any]:
                 merged[k].update(v)
             else:
                 merged[k] = v
-    # Fill from compatibility sources
-    merged = _merge_compatibility(merged, full)
-
+    # Mask api keys if requested
     if mask_secrets:
+        integrations = merged.get("integrations", {})
         for prov in ("gemini", "openai", "anthropic"):
-            key = merged["integrations"].get(prov, {}).get("apiKey")
-            merged["integrations"][prov]["apiKey"] = _mask_key(key)
-
+            if prov in integrations and "apiKey" in integrations[prov]:
+                integrations[prov]["apiKey"] = _mask_key(integrations[prov]["apiKey"])
     return merged
 
 
 def _validate_paths(cfg: Dict[str, Any]) -> Dict[str, str]:
     errors: Dict[str, str] = {}
-    unity = cfg.get("executables", {}).get("unityExecutablePath")
-    blender = cfg.get("executables", {}).get("blenderExecutablePath")
-    if unity and not Path(unity).exists():
-        errors["executables.unityExecutablePath"] = f"Unity executable not found: {unity}"
-    if blender and not Path(blender).exists():
-        errors["executables.blenderExecutablePath"] = f"Blender executable not found: {blender}"
-    proj_root = cfg.get("projects", {}).get("root") or cfg.get("executables", {}).get("unityProjectRoot")
-    if proj_root:
-        p = Path(proj_root)
-        try:
-            if not p.exists():
-                p.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            errors["projects.root"] = f"Cannot access or create project root: {proj_root}"
-    # Providers (geminiCli): if command looks like a path, check exists
-    cmd = (cfg.get("providers", {}) or {}).get("geminiCli", {}).get("command")
-    if isinstance(cmd, str) and ("/" in cmd or "\\" in cmd):
-        if not Path(cmd).exists():
-            errors["providers.geminiCli.command"] = f"Gemini CLI command not found: {cmd}"
+    # Unity executable
+    unity_exe = cfg.get("executables", {}).get("unityExecutablePath")
+    if unity_exe and not Path(unity_exe).exists():
+        errors["executables.unityExecutablePath"] = "File not found"
+    # Blender executable (optional)
+    blender_exe = cfg.get("executables", {}).get("blenderExecutablePath")
+    if blender_exe and not Path(blender_exe).exists():
+        errors["executables.blenderExecutablePath"] = "File not found"
+    # Unity project root (can be created later)
     return errors
 
 
