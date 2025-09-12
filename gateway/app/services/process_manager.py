@@ -62,11 +62,9 @@ class ManagedProcess:
         if self.proc:
             return
         
-        # Log detallado del comando que se va a ejecutar
         logger.info(f"[{self.name}] Starting process with command: {self.command}")
         logger.info(f"[{self.name}] Executable path: {self.command[0]}")
         
-        # Verificar si el ejecutable existe antes de intentar lanzarlo
         exe_path = Path(self.command[0])
         if not exe_path.exists():
             error_msg = f"Executable not found at path: {exe_path}"
@@ -85,7 +83,6 @@ class ManagedProcess:
             self.started_at = time.strftime("%Y-%m-%d %H:%M:%S")
             logger.info(f"[{self.name}] Process started with PID {self.proc.pid}")
             
-            # Start stream readers
             stdout_thread = threading.Thread(
                 target=self._stream_reader,
                 args=(self.proc.stdout, self._stdout_buf, "stdout"),
@@ -100,7 +97,6 @@ class ManagedProcess:
             stderr_thread.start()
             self._reader_threads = [stdout_thread, stderr_thread]
             
-            # Wait for startup
             time.sleep(min(self.timeout_start, 2.0))
             
         except Exception as e:
@@ -156,11 +152,9 @@ class ProcessManager:
             return False
 
     def _build_unity_cmd(self, project_id: Optional[str]) -> List[str]:
-        # Obtener configuración
         proc_cfg = (settings.processes or {}).get("unity", {})
         exe = proc_cfg.get("exe")
         
-        # Log detallado de la configuración
         logger.info(f"Unity configuration from settings: {proc_cfg}")
         logger.info(f"Unity exe path from config: {exe}")
         
@@ -169,14 +163,12 @@ class ProcessManager:
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
             
-        # Convertir a Path y verificar existencia
         exe_path = Path(exe)
         logger.info(f"Checking Unity executable at: {exe_path}")
         logger.info(f"Absolute path: {exe_path.absolute()}")
         logger.info(f"Exists: {exe_path.exists()}")
         
         if not exe_path.exists():
-            # Intentar expandir variables de entorno o rutas relativas
             expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
             logger.info(f"Expanded path: {expanded}")
             logger.info(f"Expanded exists: {expanded.exists()}")
@@ -196,6 +188,7 @@ class ProcessManager:
             project_path = str(Path("projects") / project_id)
         if project_path:
             args.extend(["-projectPath", str(project_path)])
+            logger.info(f"Unity project path: {project_path}")
             
         logger.info(f"Unity command built: {[str(exe_path)] + args}")
         return [str(exe_path), *args]
@@ -234,7 +227,6 @@ class ProcessManager:
             
         exe_path = Path(exe)
         if not exe_path.exists():
-            # Intentar expandir variables de entorno
             expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
             if expanded.exists():
                 exe_path = expanded
@@ -245,47 +237,6 @@ class ProcessManager:
                 
         args = list(proc_cfg.get("args", []))
         return [str(exe_path), *args]
-
-    def _build_blender_bridge_cmd(self) -> List[str]:
-        proc_cfg = (settings.processes or {}).get("blender_bridge", {})
-        exe = (settings.processes or {}).get("blender", {}).get("exe")
-        
-        if not exe:
-            error_msg = "Blender executable not configured for bridge"
-            logger.error(error_msg)
-            raise FileNotFoundError(error_msg)
-            
-        exe_path = Path(exe)
-        if not exe_path.exists():
-            expanded = Path(os.path.expandvars(os.path.expanduser(exe)))
-            if expanded.exists():
-                exe_path = expanded
-            else:
-                error_msg = f"Blender executable not found for bridge: {exe}"
-                logger.error(error_msg)
-                raise FileNotFoundError(error_msg)
-                
-        script_path = proc_cfg.get("script_path")
-        if not script_path or not Path(script_path).exists():
-            error_msg = f"Blender bridge script not found: {script_path}"
-            logger.error(error_msg)
-            raise FileNotFoundError(error_msg)
-            
-        host = proc_cfg.get("host", "127.0.0.1")
-        port = int(proc_cfg.get("port", 8002))
-        
-        # Launch blender with python script and pass host/port via args
-        return [
-            str(exe_path),
-            "--background",
-            "--python",
-            str(script_path),
-            "--",
-            "--host",
-            host,
-            "--port",
-            str(port),
-        ]
 
     def _spawn(self, name: str, cmd: List[str], timeout: float = 15.0) -> ManagedProcess:
         mp = ManagedProcess(name=name, command=cmd, timeout_start=timeout)
@@ -305,12 +256,15 @@ class ProcessManager:
             raise
 
     def startUnityBridge(self) -> Dict:
-        # Preflight: port free
+        # Verificar si el puerto está libre
         proc_cfg = (settings.processes or {}).get("unity_bridge", {})
         host = proc_cfg.get("host", "127.0.0.1")
         port = int(proc_cfg.get("port", 8001))
         if self._port_in_use(host, port):
-            raise RuntimeError(f"Port in use for unity_bridge: {host}:{port}")
+            logger.warning(f"Port {host}:{port} is already in use - Unity Bridge might be running already")
+            # No lanzar error, solo advertir
+            return {"name": "unity_bridge", "running": False, "error": f"Port {port} already in use"}
+        
         cmd = self._build_unity_bridge_cmd()
         timeout = float((settings.processes or {}).get("unity_bridge", {}).get("timeout", 15))
         proc = self._spawn("unity_bridge", cmd, timeout)
@@ -320,18 +274,6 @@ class ProcessManager:
         cmd = self._build_blender_cmd()
         timeout = float((settings.processes or {}).get("blender", {}).get("timeout", 20))
         proc = self._spawn("blender", cmd, timeout)
-        return proc.status()
-
-    def startBlenderBridge(self) -> Dict:
-        # Preflight: port free
-        proc_cfg = (settings.processes or {}).get("blender_bridge", {})
-        host = proc_cfg.get("host", "127.0.0.1")
-        port = int(proc_cfg.get("port", 8002))
-        if self._port_in_use(host, port):
-            raise RuntimeError(f"Port in use for blender_bridge: {host}:{port}")
-        cmd = self._build_blender_bridge_cmd()
-        timeout = float((settings.processes or {}).get("blender_bridge", {}).get("timeout", 20))
-        proc = self._spawn("blender_bridge", cmd, timeout)
         return proc.status()
 
     def start_sequence(self, project_id: Optional[str]) -> List[Dict]:
@@ -362,21 +304,16 @@ class ProcessManager:
             logger.warning(f"Blender start failed (non-critical): {e}")
             statuses.append({"name": "blender", "running": False, "error": str(e)})
             
-        # Blender Bridge (opcional)
-        try:
-            logger.info("Starting Blender Bridge...")
-            statuses.append(self.startBlenderBridge())
-        except Exception as e:
-            logger.warning(f"Blender Bridge start failed (non-critical): {e}")
-            statuses.append({"name": "blender_bridge", "running": False, "error": str(e)})
+        # NO INICIAMOS blender_bridge - se eliminó porque no es necesario
+        # El adaptador MCP unificado se comunica directamente con Blender
             
         return statuses
 
     def stopAll(self) -> None:
         with self._lock:
             names = list(self.procs.keys())
-        # Desired stop order: blender_bridge -> unity_bridge -> blender -> unity, then others
-        preferred = ["blender_bridge", "unity_bridge", "blender", "unity"]
+        # Orden de parada deseado
+        preferred = ["unity_bridge", "blender", "unity"]
         ordered = [n for n in preferred if n in names] + [n for n in names if n not in preferred]
         for name in ordered:
             try:
