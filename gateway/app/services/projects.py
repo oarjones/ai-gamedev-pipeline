@@ -373,25 +373,34 @@ sysinfo.txt
             gitignore.write_text(gitignore_content, encoding="utf-8")
     
     def _copy_mcp_scripts(self, project_dir: Path) -> None:
-        """Copy MCP bridge scripts to Unity Editor folder.
-        
+        """Copy MCP-related Unity Editor scripts from template into new project.
+
+        Copies both 'MCP' and 'MCPBridge' folders recursively from
+        <repo_root>/unity_project/Assets/Editor into the project's
+        Assets/Editor destination.
+
         Args:
             project_dir: Path to project directory
         """
-        # Buscar los scripts del puente MCP
-        mcp_scripts_source = Path("unity_project") / "Assets" / "Editor" / "MCP"
-        mcp_scripts_dest = project_dir / "Assets" / "Editor" / "MCP"
-        
-        if mcp_scripts_source.exists():
-            logger.info(f"Copying MCP scripts from {mcp_scripts_source} to {mcp_scripts_dest}")
-            # Copiar todos los archivos .cs y .meta
-            for file in mcp_scripts_source.glob("*"):
-                if file.is_file():
-                    dest_file = mcp_scripts_dest / file.name
-                    shutil.copy2(file, dest_file)
-                    logger.info(f"Copied {file.name}")
-        else:
-            logger.warning(f"MCP scripts source not found at {mcp_scripts_source}")
+        # Resolve repository root from this file location
+        repo_root = Path(__file__).resolve().parents[3]
+        editor_src_root = repo_root / "unity_project" / "Assets" / "Editor"
+        editor_dst_root = project_dir / "Assets" / "Editor"
+
+        def _copy_tree(src: Path, dst: Path) -> None:
+            if not src.exists():
+                logger.warning(f"MCP scripts source not found at {src}")
+                return
+            logger.info(f"Copying Unity Editor scripts from {src} to {dst}")
+            try:
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to copy scripts from {src} to {dst}: {e}")
+
+        # Copy MCP folder
+        _copy_tree(editor_src_root / "MCP", editor_dst_root / "MCP")
+        # Copy MCPBridge folder if present (installer, health checks, etc.)
+        _copy_tree(editor_src_root / "MCPBridge", editor_dst_root / "MCPBridge")
     
     def _create_project_structure(self, project_id: str, project_name: str, settings: dict = None) -> Path:
         """Create filesystem structure for a new project.
@@ -466,23 +475,43 @@ sysinfo.txt
             API project model
         """
         project_path = self.projects_root / project_db.path
-        
+
         # Read manifest if it exists
         manifest_path = project_path / ".agp" / "project.json"
-        manifest = None
+        manifest: dict | None = None
         if manifest_path.exists():
             try:
                 with open(manifest_path, "r", encoding="utf-8") as f:
                     manifest = json.load(f)
             except Exception:
-                pass
-        
+                manifest = None
+
+        from datetime import datetime
+
+        def _parse_dt(val: str | None) -> datetime:
+            if not val:
+                return datetime.utcnow()
+            try:
+                # Handle trailing Z
+                if isinstance(val, str) and val.endswith("Z"):
+                    return datetime.fromisoformat(val.replace("Z", "+00:00"))
+                return datetime.fromisoformat(val)  # type: ignore[arg-type]
+            except Exception:
+                return datetime.utcnow()
+
+        created_at = _parse_dt((manifest or {}).get("created_at"))
+        updated_at = _parse_dt((manifest or {}).get("updated_at"))
+        settings = (manifest or {}).get("settings", {})
+        description = (manifest or {}).get("description")
+
         return Project(
             id=project_db.id,
             name=project_db.name,
-            path=str(project_path.absolute()),
+            description=description,
             status="active" if project_db.active else "inactive",
-            manifest=manifest
+            created_at=created_at,
+            updated_at=updated_at,
+            settings=settings,
         )
     
     def list_projects(self) -> List[Project]:
