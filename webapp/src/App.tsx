@@ -3,6 +3,13 @@ import { useAppStore } from '@/store/appStore'
 
 export default function App() {
   const loc = useLocation()
+  const projectId = useAppStore(s => s.projectId)
+  const hasProject = !!projectId
+  const pushToast = useAppStore(s => s.pushToast)
+  const onDisabledClick = (e: React.MouseEvent, label: string) => {
+    e.preventDefault()
+    pushToast(`Selecciona un proyecto para abrir "${label}"`)
+  }
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b sticky top-0 z-10 bg-background/80 backdrop-blur">
@@ -15,9 +22,34 @@ export default function App() {
             <Link className={linkCls(loc.pathname.startsWith('/logs'))} to="/logs">Logs</Link>
             <Link className={linkCls(loc.pathname.startsWith('/settings'))} to="/settings">Settings</Link>
             <Link className={linkCls(loc.pathname.startsWith('/dependencies'))} to="/dependencies">Dependencies</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/sessions'))} to="/sessions">Sessions</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/wizard'))} to="/wizard">Wizard</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/tasks'))} to="/tasks">Tasks</Link>
+            {/* Project-scoped tabs: disable until a project is selected */}
+            <Link
+              className={linkCls(loc.pathname.startsWith('/sessions'), !hasProject)}
+              to="/sessions"
+              onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Sessions')}
+              aria-disabled={!hasProject}
+              title={hasProject ? 'Sessions' : 'Selecciona un proyecto primero'}
+            >
+              Sessions
+            </Link>
+            <Link
+              className={linkCls(loc.pathname.startsWith('/wizard'), !hasProject)}
+              to="/wizard"
+              onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Wizard')}
+              aria-disabled={!hasProject}
+              title={hasProject ? 'Wizard' : 'Selecciona un proyecto primero'}
+            >
+              Wizard
+            </Link>
+            <Link
+              className={linkCls(loc.pathname.startsWith('/tasks'), !hasProject)}
+              to="/tasks"
+              onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Tasks')}
+              aria-disabled={!hasProject}
+              title={hasProject ? 'Tasks' : 'Selecciona un proyecto primero'}
+            >
+              Tasks
+            </Link>
           </nav>
         </div>
       </header>
@@ -29,8 +61,11 @@ export default function App() {
   )
 }
 
-function linkCls(active: boolean) {
-  return `px-3 py-1.5 rounded-md hover:bg-[hsl(var(--secondary))] ${active ? 'text-[hsl(var(--primary))] border-b-2 border-[hsl(var(--primary))]' : 'text-foreground/80'}`
+function linkCls(active: boolean, disabled = false) {
+  const base = 'px-3 py-1.5 rounded-md'
+  const state = active ? 'text-[hsl(var(--primary))] border-b-2 border-[hsl(var(--primary))]' : 'text-foreground/80'
+  const hover = disabled ? 'cursor-not-allowed opacity-50 pointer-events-none' : 'hover:bg-[hsl(var(--secondary))]'
+  return `${base} ${state} ${hover}`
 }
 
 function LogoIcon() {
