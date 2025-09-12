@@ -3,6 +3,7 @@
 from typing import List
 
 from fastapi import APIRouter, HTTPException, status, Query
+import logging
 from fastapi.responses import JSONResponse
 
 from app.models.core import CreateProject, Project
@@ -23,10 +24,13 @@ async def list_projects() -> List[Project]:
     Returns a list of all projects with their current status.
     The active project will have status='active'.
     """
+    logger = logging.getLogger(__name__)
     try:
         projects = project_service.list_projects()
+        logger.debug("Returning %d projects", len(projects))
         return projects
     except Exception as e:
+        logger.exception("List projects failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list projects: {str(e)}"

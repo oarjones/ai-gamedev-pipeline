@@ -483,7 +483,8 @@ sysinfo.txt
             try:
                 with open(manifest_path, "r", encoding="utf-8") as f:
                     manifest = json.load(f)
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to read manifest for project %s at %s: %s", project_db.id, manifest_path, e)
                 manifest = None
 
         from datetime import datetime
@@ -501,7 +502,8 @@ sysinfo.txt
 
         created_at = _parse_dt((manifest or {}).get("created_at"))
         updated_at = _parse_dt((manifest or {}).get("updated_at"))
-        settings = (manifest or {}).get("settings", {})
+        settings_obj = (manifest or {}).get("settings", {})
+        settings = settings_obj if isinstance(settings_obj, dict) else {}
         description = (manifest or {}).get("description")
 
         return Project(
@@ -520,8 +522,20 @@ sysinfo.txt
         Returns:
             List of all projects
         """
-        projects_db = self.db.list_projects()
-        return [self._project_db_to_model(p) for p in projects_db]
+        try:
+            projects_db = self.db.list_projects()
+            logger.debug("DB returned %d projects", len(projects_db))
+            out: List[Project] = []
+            for p in projects_db:
+                try:
+                    out.append(self._project_db_to_model(p))
+                except Exception as e:
+                    logger.exception("Failed to map project '%s': %s", getattr(p, 'id', '?'), e)
+            logger.debug("Mapped %d projects for API response", len(out))
+            return out
+        except Exception as e:
+            logger.exception("Error listing projects: %s", e)
+            raise
     
     def get_project(self, project_id: str) -> Optional[Project]:
         """Get a project by ID.
