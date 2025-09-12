@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { useAppStore } from '@/store/appStore' 
 
 export default function App() {
   const loc = useLocation()

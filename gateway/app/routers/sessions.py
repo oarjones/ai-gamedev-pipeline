@@ -33,7 +33,7 @@ async def list_sessions(projectId: str, limit: int = Query(20, ge=1, le=200)) ->
 
 @router.get("/{session_id}")
 async def get_session(session_id: int, recent: int = Query(10, ge=1, le=100)) -> Dict[str, Any]:
-    s = db.get_session(session_id)
+    s = db.get_user_session(session_id)
     if not s:
         raise HTTPException(status_code=404, detail="session not found")
     msgs = db.list_agent_messages(session_id, limit=recent)
@@ -55,7 +55,7 @@ async def get_session(session_id: int, recent: int = Query(10, ge=1, le=100)) ->
 
 @router.post("/{session_id}/resume")
 async def resume_session(session_id: int) -> Dict[str, Any]:
-    s = db.get_session(session_id)
+    s = db.get_user_session(session_id)
     if not s:
         raise HTTPException(status_code=404, detail="session not found")
     # Build context pack for this specific session

@@ -278,7 +278,8 @@ class DatabaseManager:
         rows = self.list_sessions(project_id, limit=1)
         return rows[0] if rows else None
 
-    def get_session(self, session_id: Optional[int]) -> Optional[SessionDB]:
+    def get_user_session(self, session_id: Optional[int]) -> Optional[SessionDB]:
+        """Get a user session by ID."""
         if not session_id:
             return None
         with self.get_session() as session:

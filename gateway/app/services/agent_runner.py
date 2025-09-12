@@ -210,17 +210,17 @@ class AgentRunner:
             # Build context pack if not provided
             if context_pack is None:
                 try:
-                from app.services.sessions_service import sessions_service
-                sess = sessions_service.start_session(self._project_id, provider)
-                self._session_id = getattr(sess, "id", None)
-                cp = sessions_service.build_context_pack(self._project_id)
-                context_pack = {
-                    "project_manifest": cp.project_manifest,
-                    "plan_of_record": cp.plan_of_record,
-                    "last_summary": cp.last_summary,
-                    "recent_messages": cp.recent_messages,
-                    "artifacts": cp.artifacts,
-                }
+                    from app.services.sessions_service import sessions_service
+                    sess = sessions_service.start_session(self._project_id, provider)
+                    self._session_id = getattr(sess, "id", None)
+                    cp = sessions_service.build_context_pack(self._project_id)
+                    context_pack = {
+                        "project_manifest": cp.project_manifest,
+                        "plan_of_record": cp.plan_of_record,
+                        "last_summary": cp.last_summary,
+                        "recent_messages": cp.recent_messages,
+                        "artifacts": cp.artifacts,
+                    }
                 except Exception:
                     self._session_id = None
                     context_pack = None

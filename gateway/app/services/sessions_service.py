@@ -91,7 +91,8 @@ class SessionsService:
                 por = pr.read_text(encoding="utf-8")
         except Exception:
             pass
-        last = db.get_session(session_id) if session_id else db.get_last_session(project_id)
+        
+        last = db.get_user_session(session_id) if session_id else db.get_last_session(project_id)
         last_summary = getattr(last, "summary_text", None) if last else None
         # Messages from last session
         recent: List[Dict[str, Any]] = []

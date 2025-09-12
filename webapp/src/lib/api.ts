@@ -117,3 +117,17 @@ export function getSessionDetail(sessionId: number, recent = 10) {
 export function resumeSession(sessionId: number) {
   return apiPost<{ resumed: boolean, sessionId: number, runner: { running: boolean, pid?: number, cwd?: string } }>(`/api/v1/sessions/${sessionId}/resume`, {})
 }
+
+
+export async function systemStart(projectId?: string) {
+  const body = projectId ? { projectId } : {}
+  return apiPost<{ ok: boolean, statuses: Array<{ name: string, running: boolean, pid?: number, lastError?: string }> }>('/api/v1/system/start', body)
+}
+
+export async function systemStop() {
+  return apiPost<{ ok: boolean }>('/api/v1/system/stop', {})
+}
+
+export async function systemStatus() {
+  return apiGet<Array<{ name: string, pid?: number, running: boolean, lastStdout?: string, lastStderr?: string, lastError?: string, startedAt?: string }>>('/api/v1/system/status')
+}
