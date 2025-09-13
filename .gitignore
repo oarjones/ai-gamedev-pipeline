@@ -126,3 +126,4 @@ commit-msg.txt
 
 # templates
 templates/
+venvs/

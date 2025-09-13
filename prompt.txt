@@ -2,477 +2,85 @@
 API en: http://127.0.0.1:8000
 Docs en: http://127.0.0.1:8000/docs
 
-?[32mINFO?[0m:     Will watch for changes in these directories: ['C:\\Users\\Administrator\\Desktop\\ai-gamedev-pipeline\\gateway']
-?[32mINFO?[0m:     Uvicorn running on ?[1mhttp://127.0.0.1:8000?[0m (Press CTRL+C to quit)
-?[32mINFO?[0m:     Started reloader process [?[36m?[1m8420?[0m] using ?[36m?[1mWatchFiles?[0m
-[Config] Loading from project root: C:\Users\Administrator\Desktop\ai-gamedev-pipeline\config\settings.yaml
+←[32mINFO←[0m:     Will watch for changes in these directories: ['D:\\ai-gamedev-pipeline\\gateway']
+←[32mINFO←[0m:     Uvicorn running on ←[1mhttp://127.0.0.1:8000←[0m (Press CTRL+C to quit)
+←[32mINFO←[0m:     Started reloader process [←[36m←[1m16728←[0m] using ←[36m←[1mWatchFiles←[0m
+[Config] Loading from project root: D:\ai-gamedev-pipeline\config\settings.yaml
 [Config] Loaded processes: ['unity', 'unity_bridge', 'blender', 'mcp_adapter']
-[Config] Unity exe: C:/Program Files/Unity/Editor/Unity.exe
-C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\_internal\_fields.py:198: UserWarning: Field name "schema" in "ToolMeta" shadows an attribute in parent "BaseModel"
+[Config] Unity exe: C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe
+C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\_internal\_fields.py:198: UserWarning: Field name "schema" in "ToolMeta" shadows an attribute in parent "BaseModel"
   warnings.warn(
-?[32mINFO?[0m:     Started server process [?[36m6532?[0m]
-?[32mINFO?[0m:     Waiting for application startup.
+←[32mINFO←[0m:     Started server process [←[36m20744←[0m]
+←[32mINFO←[0m:     Waiting for application startup.
 INFO:app.main:AI Gateway starting up...
 INFO:app.main:Server config: 127.0.0.1:8000
 INFO:app.main:CORS origins: ['http://localhost:5173', 'http://127.0.0.1:5173']
 INFO:app.main:Auth config: require_api_key=True, api_key=dev-loca...
-?[32mINFO?[0m:     Application startup complete.
-?[32mINFO?[0m:     127.0.0.1:59015 - "?[1mOPTIONS /api/v1/projects HTTP/1.1?[0m" ?[32m200 OK?[0m
-ERROR:app.services.projects:Failed to map project 'test-api-project': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...880722), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...880722), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 880718), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 880722), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
+←[32mINFO←[0m:     Application startup complete.
+←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mOPTIONS /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mOPTIONS /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mOPTIONS /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mOPTIONS /api/v1/projects/oscargameproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
+INFO:app.services.projects:[baseline] Ensured Plugins content from template
+INFO:app.services.projects:[baseline] Ensured Editor scripts from template
+INFO:app.services.process_manager:Starting Unity...
+INFO:app.services.process_manager:Unity configuration from settings: {'exe': 'C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe', 'args': [], 'project_path': '', 'timeout': 20}
+INFO:app.services.process_manager:Unity exe path from config: C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe
+INFO:app.services.process_manager:Checking Unity executable at: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
+INFO:app.services.process_manager:Absolute path: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
+INFO:app.services.process_manager:Exists: True
+INFO:app.services.process_manager:Unity project path: projects\oscargameproject\unity_project
+INFO:app.services.process_manager:Unity command built: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oscargameproject\\unity_project']
+INFO:app.services.process_manager:[unity] Starting process with command: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oscargameproject\\unity_project']
+INFO:app.services.process_manager:[unity] Executable path: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
+INFO:app.services.process_manager:[unity] Process started with PID 13476
+INFO:app.services.process_manager:Starting Unity Bridge...
+WARNING:app.services.process_manager:Port 127.0.0.1:8001 is already in use - Unity Bridge might be running already
+INFO:app.services.process_manager:Starting Blender...
+INFO:app.services.process_manager:Blender configuration: {'exe': 'D:/blender/blender.exe', 'args': [], 'timeout': 20}
+INFO:app.services.process_manager:Blender exe path: D:/blender/blender.exe
+INFO:app.services.process_manager:[blender] Starting process with command: ['D:\\blender\\blender.exe']
+INFO:app.services.process_manager:[blender] Executable path: D:\blender\blender.exe
+INFO:app.services.process_manager:[blender] Process started with PID 12928
+INFO:app.services.agent_runner:[AgentRunner] MCP Adapter python: C:\Users\oarjo\AppData\Local\Programs\Python\Python312\python.exe
+←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mPATCH /api/v1/projects/oscargameproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:64481 - "WebSocket /ws/events?projectId=oscargameproject&apiKey=dev-local-key" [accepted]
+INFO:app.ws.events:WS connected to project 'oscargameproject' (room size=1)
+←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mOPTIONS /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     connection open
+INFO:app.routers.agent:[/agent/start] project=oscargameproject provider=gemini_cli agentType=gemini cwd=projects\oscargameproject
+INFO:app.services.unified_agent:[UnifiedAgent] Pre-check: adapter_lock running=False pid=None startedAt=2025-09-13T08:02:21Z lock=C:\Users\oarjo\AppData\Local\Temp\agp_mcp_adapter.lock, unity_bridge=False
+←[32mINFO←[0m:     127.0.0.1:64482 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+WARNING:app.services.unified_agent:[UnifiedAgent] Adapter lock not detected but bridge handshake succeeded; continuing startup
+INFO:app.services.agent_runner:[AgentRunner] MCP Adapter python: C:\Users\oarjo\AppData\Local\Programs\Python\Python312\python.exe
+INFO:app.services.agent_runner:[AgentRunner] Starting provider 'gemini_cli' for project oscargameproject
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Using fallback gemini at C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Starting: cmd.exe /c 'C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd' (cwd=projects\oscargameproject)
+ERROR:app.services.providers.gemini_cli:[GeminiCliProvider] Failed to start:
+ERROR:app.services.agent_runner:[AgentRunner] Provider 'gemini_cli' failed to start:
+ERROR:app.services.unified_agent:[UnifiedAgent] Provider start error: NotImplementedError()
 Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...880722), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...880722), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 880718), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 880722), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'test-api-project-1': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...885725), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...885725), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 885720), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 885725), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...885725), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...885725), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 885720), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 885725), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'test-api-project-f807c1de': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...890632), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...890632), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 890629), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 890632), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...890632), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...890632), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 890629), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 890632), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'active-test-project': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...893677), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...893677), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 893673), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 893677), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...893677), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...893677), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 893673), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 893677), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'testproject': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'testproject1': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-?[32mINFO?[0m:     127.0.0.1:59015 - "?[1mGET /api/v1/projects HTTP/1.1?[0m" ?[32m200 OK?[0m
-ERROR:app.services.projects:Failed to map project 'test-api-project': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...919616), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...919616), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 919611), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 919616), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...919616), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project'...919616), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 919611), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 919616), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'test-api-project-1': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...925613), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...925613), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 925608), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 925613), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...925613), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...925613), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 925608), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 925613), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'test-api-project-f807c1de': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...938338), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...938338), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 938333), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 938338), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...938338), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'test-api-project-...938338), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 938333), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 938338), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'active-test-project': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...948432), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...948432), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 948428), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 948432), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...948432), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'active-test-proje...948432), 'settings': {}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 948428), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9, 12, 5, 44, 40, 948432), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'testproject': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject', 'na...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-ERROR:app.services.projects:Failed to map project 'testproject1': 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-Traceback (most recent call last):
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 531, in list_projects
-    out.append(self._project_db_to_model(p))
-               ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\app\services\projects.py", line 509, in _project_db_to_model
-    return Project(
-        id=project_db.id,
-    ...<5 lines>...
-        settings=settings,
-    )
-  File "C:\Users\Administrator\Desktop\ai-gamedev-pipeline\gateway\.venv\Lib\site-packages\pydantic\main.py", line 253, in __init__
-    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-pydantic_core._pydantic_core.ValidationError: 4 validation errors for Project
-createdAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-updatedAt
-  Field required [type=missing, input_value={'id': 'testproject1', 'n...ult_logs_path': 'logs'}}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.11/v/missing
-created_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-updated_at
-  Extra inputs are not permitted [type=extra_forbidden, input_value=datetime.datetime(2025, 9...o=datetime.timezone.utc), input_type=datetime]
-    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden
-?[32mINFO?[0m:     127.0.0.1:59015 - "?[1mGET /api/v1/projects HTTP/1.1?[0m" ?[32m200 OK?[0m
+  File "D:\ai-gamedev-pipeline\gateway\app\services\unified_agent.py", line 84, in start
+    rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\ai-gamedev-pipeline\gateway\app\services\agent_runner.py", line 225, in start
+    await self._provider.start(session)
+  File "D:\ai-gamedev-pipeline\gateway\app\services\providers\gemini_cli.py", line 137, in start
+    self._state.proc = await asyncio.create_subprocess_exec(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\subprocess.py", line 224, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 1743, in subprocess_exec
+    transport = await self._make_subprocess_transport(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 524, in _make_subprocess_transport
+    raise NotImplementedError
+NotImplementedError
+ERROR:app.routers.agent:[/agent/start] Failed:
+←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mPOST /api/v1/agent/start HTTP/1.1←[0m" ←[91m500 Internal Server Error←[0m

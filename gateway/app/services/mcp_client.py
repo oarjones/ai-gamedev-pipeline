@@ -207,10 +207,13 @@ class MCPClient:
             if name == "unity.get_scene_hierarchy":
                 return await self.get_scene_hierarchy(project_id)
             if name == "blender.export_fbx":
-                return await self.export_fbx(str(args.get("outfile", "unity_project/Assets/Generated/agent_export.fbx")), project_id)
+                # Default output path under per-project unity_project
+                default_out = str(Path("projects") / project_id / "unity_project" / "Assets" / "Generated" / "agent_export.fbx")
+                return await self.export_fbx(str(args.get("outfile", default_out)), project_id)
             if name == "blender.create_primitive":
                 return await self.create_primitive(str(args.get("type", "cube")), float(args.get("size", 1.0)), None, project_id)
             if name == "unity.instantiate_fbx":
+                # Default asset path relative to Unity project
                 return await self.instantiate_prefab(str(args.get("asset", "Assets/Generated/agent_export.fbx")), project_id)
 
             # Fallback: try blender_call with full name if it looks like a Blender command

@@ -4,6 +4,7 @@ import ContextPanel from '@/components/ContextPanel'
 import ToolsPanel from '@/components/ToolsPanel'
 import Timeline from '@/components/Timeline'
 import SelfTestPanel from '@/components/SelfTestPanel'
+import AgentControls from '@/components/AgentControls'
 import PipelineLauncher from '@/components/PipelineLauncher'
 
 export default function Dashboard() {
@@ -25,8 +26,9 @@ export default function Dashboard() {
       {/* Bottom: Timeline spans all */}
       <footer className="col-span-12 grid grid-cols-12 gap-3">
         <div className="col-span-3 card overflow-auto"><PipelineLauncher /></div>
+        <div className="col-span-3 card overflow-auto"><AgentControls /></div>
         <div className="col-span-3 card overflow-auto"><SelfTestPanel /></div>
-        <div className="col-span-6 card overflow-auto"><Timeline /></div>
+        <div className="col-span-3 card overflow-auto"><Timeline /></div>
       </footer>
     </div>
   )

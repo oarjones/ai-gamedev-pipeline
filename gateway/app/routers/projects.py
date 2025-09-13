@@ -120,6 +120,8 @@ async def select_active_project(project_id: str) -> JSONResponse:
     # Start/stop runner according to new selection
     start_ok = True
     start_error: str | None = None
+    # Also ensure local processes (Unity, Unity Bridge, Blender optional)
+    system_status: list[dict] | None = None
     try:
         await unified_agent.stop()
     except Exception:
@@ -127,7 +129,27 @@ async def select_active_project(project_id: str) -> JSONResponse:
     new_proj = project_service.get_project(project_id)
     if new_proj:
         try:
-            await unified_agent.start(Path("projects") / new_proj.id, "gemini")
+            # Ensure baseline Unity files (version, packages, plugins)
+            try:
+                from app.services.projects import project_service as _ps
+                _ps.ensure_unity_baseline(Path("projects") / new_proj.id)
+            except Exception:
+                pass
+            # Start Unity + Bridges before agent to ensure connectivity
+            try:
+                from app.services.process_manager import process_manager
+                system_status = process_manager.start_sequence(new_proj.id)
+            except Exception as _sys_err:
+                # Non-fatal: continue but include error in broadcast
+                system_status = [{"name": "system", "running": False, "error": str(_sys_err)}]
+            # Ensure MCP adapter is up (without starting the agent)
+            try:
+                from app.services.agent_runner import agent_runner
+                import asyncio
+                await agent_runner.ensure_mcp_adapter_public()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            # Do NOT start the agent automatically; manual start from UI
             start_ok = True
         except Exception as e:
             start_ok = False
@@ -139,7 +161,8 @@ async def select_active_project(project_id: str) -> JSONResponse:
             "status": "active-changed",
             "previous": prev.model_dump(by_alias=True) if prev else None,
             "current": new_proj.model_dump(by_alias=True) if new_proj else None,
-            "runner": {"started": start_ok, "error": start_error},
+            "runner": {"started": False, "error": None},
+            "system": system_status,
         }
         env = Envelope(type=EventType.PROJECT, projectId=project_id, payload=payload)
         await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))

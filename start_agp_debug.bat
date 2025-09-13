@@ -19,7 +19,7 @@ START "MCP Unity Bridge" cmd /k "cd /d %REPO_ROOT% && set PYTHONPATH=%REPO_ROOT%
 timeout /t 3 >nul
 
 ECHO [2/4] Lanzando Gateway Backend...
-START "AGP Gateway" cmd /k "cd /d %REPO_ROOT%\gateway && call .venv\Scripts\activate.bat && set PYTHONPATH=%REPO_ROOT% && echo [Gateway Backend] && echo API en: http://127.0.0.1:8000 && echo Docs en: http://127.0.0.1:8000/docs && echo. && uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+START "AGP Gateway" cmd /k "cd /d %REPO_ROOT%\gateway && call .venv\Scripts\activate.bat && set PYTHONPATH=%REPO_ROOT% && set PATH=%REPO_ROOT%\node_modules\.bin;%APPDATA%\npm;%PATH% && echo [Gateway Backend] && echo API en: http://127.0.0.1:8000 && echo Docs en: http://127.0.0.1:8000/docs && echo. && uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
 
 timeout /t 5 >nul
 

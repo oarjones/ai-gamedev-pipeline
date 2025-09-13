@@ -25,7 +25,7 @@ agent:
 gateway:
   processes:
     unity:  
-      exe: "C:/Program Files/Unity/Editor/Unity.exe"
+      exe: "C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe"
       args: []
       project_path: ""
       timeout: 20
@@ -34,10 +34,17 @@ gateway:
       port: 8001
       timeout: 15
     blender:
-      exe: "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe"
+      exe: "D:/blender/blender.exe"
       args: []
       timeout: 20
     # REMOVIDO blender_bridge - no es necesario
     mcp_adapter:
+      python: "D:/ai-gamedev-pipeline/venvs/adapter/Scripts/python.exe"
       script_path: "bridges/mcp_adapter.py"
       timeout: 10
+  config:
+    providers:
+      geminiCli:
+        showConsole: true
+        command: "C:/Users/TUUSUARIO/AppData/Roaming/npm/gemini.cmd"
+

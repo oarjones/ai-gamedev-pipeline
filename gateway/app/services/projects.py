@@ -1,6 +1,7 @@
 """Project management service layer with Unity project support."""
 
 import json
+import os
 import re
 import subprocess
 import shutil
@@ -99,6 +100,37 @@ class ProjectService:
         
         for dir_name in unity_dirs:
             (project_dir / dir_name).mkdir(parents=True, exist_ok=True)
+
+        # Copy essential template content from repo unity_project
+        try:
+            repo_root = Path(__file__).resolve().parents[3]
+            tpl_root = repo_root / "unity_project"
+            # 1) Packages (manifest + lock) to ensure required modules
+            tpl_packages = tpl_root / "Packages"
+            dst_packages = project_dir / "Packages"
+            if tpl_packages.exists():
+                for name in ("manifest.json", "packages-lock.json"):
+                    src = tpl_packages / name
+                    if src.exists():
+                        dst = dst_packages / name
+                        try:
+                            shutil.copy2(src, dst)
+                            logger.info("Copied package file: %s", dst)
+                        except Exception as e:
+                            logger.warning("Failed to copy package file %s: %s", src, e)
+            # 2) Assets/Plugins (e.g., websocket-sharp.dll)
+            tpl_plugins = tpl_root / "Assets" / "Plugins"
+            dst_plugins = project_dir / "Assets" / "Plugins"
+            if tpl_plugins.exists():
+                try:
+                    shutil.copytree(tpl_plugins, dst_plugins, dirsExist_ok=True if hasattr(shutil, 'dirsExist_ok') else True)
+                except TypeError:
+                    # Python <3.8 compatibility fallback
+                    shutil.copytree(tpl_plugins, dst_plugins, dirs_exist_ok=True)
+                except Exception as e:
+                    logger.warning("Failed to copy Plugins from template: %s", e)
+        except Exception as e:
+            logger.warning("Template copy step failed: %s", e)
         
         # Crear un archivo de escena vacío básico
         main_scene = project_dir / "Assets" / "Scenes" / "Main.unity"
@@ -377,6 +409,35 @@ sysinfo.txt
 *.unitypackage
 """
             gitignore.write_text(gitignore_content, encoding="utf-8")
+
+        # Crear script para lanzar el agente Gemini CLI desde la raíz del proyecto
+        try:
+            bat_path = project_dir.parent if (project_dir.name.lower() == "unity_project") else project_dir
+            bat_file = bat_path / "start_gemini_cli.bat"
+            if not bat_file.exists():
+                bat_content = (
+                    "@echo off\r\n"
+                    "setlocal ENABLEEXTENSIONS\r\n"
+                    "cd /d \"%~dp0\"\r\n"
+                    "echo ===========================================\r\n"
+                    "echo    Gemini CLI - Project Workspace Console\r\n"
+                    "echo ===========================================\r\n"
+                    "REM Asegurar rutas de npm (global y local del proyecto)\r\n"
+                    "set \"PATH=%APPDATA%\\npm;%PATH%\"\r\n"
+                    "if exist \"%~dp0node_modules\\.bin\" set \"PATH=%~dp0node_modules\\.bin;%PATH%\"\r\n"
+                    "echo Working dir: %CD%\r\n"
+                    "if \"%GEMINI_API_KEY%\"==\"\" echo [WARN] GEMINI_API_KEY is not set.\r\n"
+                    "echo.\r\n"
+                    "REM Pasa argumentos opcionales al CLI\r\n"
+                    "gemini %*\r\n"
+                    "echo.\r\n"
+                    "echo [Session ended]\r\n"
+                    "pause\r\n"
+                )
+                bat_file.write_text(bat_content, encoding="utf-8")
+                logger.info("Created launcher: %s", bat_file)
+        except Exception as e:
+            logger.warning("Failed to create start_gemini_cli.bat: %s", e)
     
     def _copy_mcp_scripts(self, project_dir: Path) -> None:
         """Copy MCP-related Unity Editor scripts from template into new project.
@@ -391,7 +452,8 @@ sysinfo.txt
         # Resolve repository root from this file location
         repo_root = Path(__file__).resolve().parents[3]
         editor_src_root = repo_root / "unity_project" / "Assets" / "Editor"
-        editor_dst_root = project_dir / "Assets" / "Editor"
+        # Support projects that have 'unity_project' subfolder
+        editor_dst_root = (project_dir / "unity_project" / "Assets" / "Editor") if (project_dir / "unity_project").exists() else (project_dir / "Assets" / "Editor")
 
         def _copy_tree(src: Path, dst: Path) -> None:
             if not src.exists():
@@ -443,6 +505,108 @@ sysinfo.txt
             logger.info("Copied Unity runtime csproj to %s", dst)
         except Exception as e:
             logger.warning("Failed to copy Unity runtime csproj: %s", e)
+
+    def ensure_unity_baseline(self, project_dir: Path) -> None:
+        """Ensure minimal Unity project baseline from template for an existing project.
+
+        - ProjectSettings/ProjectVersion.txt set to 6000.0.15f1 if missing/no version line
+        - Copy Packages/manifest.json and packages-lock.json from template if missing
+        - Copy Assets/Plugins from template (e.g., websocket-sharp.dll) if missing
+        """
+        try:
+            # Version file
+            target_version = "6000.0.15f1"
+            unity_dir = project_dir / "unity_project" if (project_dir / "unity_project").exists() else project_dir
+            pv = unity_dir / "ProjectSettings" / "ProjectVersion.txt"
+            if not pv.exists():
+                pv.parent.mkdir(parents=True, exist_ok=True)
+                pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                logger.info("[baseline] Wrote ProjectVersion.txt with %s", target_version)
+            else:
+                try:
+                    txt = pv.read_text(encoding="utf-8", errors="replace")
+                    if "m_EditorVersion:" not in txt:
+                        pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                        logger.info("[baseline] Updated ProjectVersion.txt with %s", target_version)
+                except Exception:
+                    pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                    logger.info("[baseline] Rewrote ProjectVersion.txt with %s", target_version)
+        except Exception as e:
+            logger.warning("[baseline] Version ensure failed: %s", e)
+
+        try:
+            repo_root = Path(__file__).resolve().parents[3]
+            tpl_root = repo_root / "unity_project"
+            unity_dir = project_dir / "unity_project" if (project_dir / "unity_project").exists() else project_dir
+            # Packages files
+            tpl_packages = tpl_root / "Packages"
+            dst_packages = unity_dir / "Packages"
+            dst_packages.mkdir(parents=True, exist_ok=True)
+            for name in ("manifest.json", "packages-lock.json"):
+                src = tpl_packages / name
+                dst = dst_packages / name
+                if src.exists() and not dst.exists():
+                    try:
+                        shutil.copy2(src, dst)
+                        logger.info("[baseline] Copied package file: %s", dst)
+                    except Exception as e:
+                        logger.warning("[baseline] Copy package file failed %s: %s", src, e)
+            # Ensure manifest contains Newtonsoft JSON package
+            try:
+                mpath = dst_packages / "manifest.json"
+                import json
+                if mpath.exists():
+                    data = json.loads(mpath.read_text(encoding="utf-8"))
+                    deps = data.get("dependencies") or {}
+                    if "com.unity.nuget.newtonsoft-json" not in deps:
+                        deps["com.unity.nuget.newtonsoft-json"] = "3.2.1"
+                        data["dependencies"] = deps
+                        mpath.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                        logger.info("[baseline] Added Newtonsoft JSON package to manifest.json")
+            except Exception as e:
+                logger.warning("[baseline] Failed to ensure Newtonsoft package: %s", e)
+            # Plugins
+            tpl_plugins = tpl_root / "Assets" / "Plugins"
+            dst_plugins = unity_dir / "Assets" / "Plugins"
+            if tpl_plugins.exists():
+                try:
+                    dst_plugins.mkdir(parents=True, exist_ok=True)
+                    # Merge copy
+                    for root, dirs, files in os.walk(tpl_plugins):
+                        rel = Path(root).relative_to(tpl_plugins)
+                        target_dir = dst_plugins / rel
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        for f in files:
+                            srcf = Path(root) / f
+                            dstf = target_dir / f
+                            if not dstf.exists():
+                                shutil.copy2(srcf, dstf)
+                    logger.info("[baseline] Ensured Plugins content from template")
+                except Exception as e:
+                    logger.warning("[baseline] Copy Plugins failed: %s", e)
+            # Editor scripts (MCP + MCPBridge)
+            try:
+                tpl_editor = tpl_root / "Assets" / "Editor"
+                if tpl_editor.exists():
+                    dst_editor = unity_dir / "Assets" / "Editor"
+                    dst_editor.mkdir(parents=True, exist_ok=True)
+                    for sub in ("MCP", "MCPBridge"):
+                        s = tpl_editor / sub
+                        if s.exists():
+                            for root, dirs, files in os.walk(s):
+                                rel = Path(root).relative_to(tpl_editor)
+                                tdir = dst_editor / rel
+                                tdir.mkdir(parents=True, exist_ok=True)
+                                for f in files:
+                                    srcf = Path(root) / f
+                                    dstf = tdir / f
+                                    if not dstf.exists():
+                                        shutil.copy2(srcf, dstf)
+                    logger.info("[baseline] Ensured Editor scripts from template")
+            except Exception as e:
+                logger.warning("[baseline] Copy Editor scripts failed: %s", e)
+        except Exception as e:
+            logger.warning("[baseline] Template copy failed: %s", e)
     
     def _create_project_structure(self, project_id: str, project_name: str, settings: dict = None) -> Path:
         """Create filesystem structure for a new project.
@@ -460,14 +624,34 @@ sysinfo.txt
         # Create main project directory
         project_dir.mkdir(exist_ok=True)
         
-        # Create Unity project structure
-        self._create_unity_project_structure(project_dir)
+        # Create Unity project structure under subfolder 'unity_project'
+        unity_dir = project_dir / "unity_project"
+        unity_dir.mkdir(parents=True, exist_ok=True)
+        self._create_unity_project_structure(unity_dir)
+        # Ensure Unity Editor version to avoid mismatch prompts/reimports
+        try:
+            target_version = "6000.0.15f1"
+            pv = project_dir / "ProjectSettings" / "ProjectVersion.txt"
+            if not pv.exists():
+                pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                logger.info("Wrote ProjectVersion.txt with m_EditorVersion=%s", target_version)
+            else:
+                try:
+                    txt = pv.read_text(encoding="utf-8", errors="replace")
+                    if "m_EditorVersion:" not in txt:
+                        pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                        logger.info("Updated ProjectVersion.txt with m_EditorVersion=%s", target_version)
+                except Exception:
+                    pv.write_text(f"m_EditorVersion: {target_version}\n", encoding="utf-8")
+                    logger.info("Rewrote ProjectVersion.txt with m_EditorVersion=%s (read failed)", target_version)
+        except Exception as e:
+            logger.warning("Failed to ensure ProjectVersion.txt: %s", e)
         
         # Create .agp directory for project metadata
         agp_dir = project_dir / ".agp"
         agp_dir.mkdir(exist_ok=True)
         
-        # Create context and logs directories
+        # Create context and logs directories at project root
         (project_dir / "context").mkdir(exist_ok=True)
         (project_dir / "logs").mkdir(exist_ok=True)
         

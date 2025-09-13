@@ -11,7 +11,14 @@ from typing import Any, Dict, Optional, Tuple, List
 
 # SDK MCP (stdio por defecto) o Dummy en modo test
 _TESTMODE = os.getenv("AGP_ADAPTER_TESTMODE", "0") == "1"
-if _TESTMODE:
+_IMPORT_ERR: str | None = None
+try:
+    if _TESTMODE:
+        raise ImportError("AGP_ADAPTER_TESTMODE=1 (force dummy)")
+    from mcp.server.fastmcp import FastMCP
+    _USING_DUMMY = False
+except Exception as _imp_err:
+    _IMPORT_ERR = str(_imp_err)
     class _DummyMCP:
         def tool(self):
             def deco(fn):
@@ -28,9 +35,6 @@ if _TESTMODE:
                 pass
     FastMCP = None  # type: ignore
     _USING_DUMMY = True
-else:
-    from mcp.server.fastmcp import FastMCP
-    _USING_DUMMY = False
 
 # ---------------------------------------------------------------------
 # Logging SIEMPRE a stderr (stdout queda limpio para el protocolo MCP)
@@ -51,7 +55,7 @@ else:
 # ---------------------------------------------------------------------
 # Instancia MCP o Dummy: el nombre debe coincidir con settings.json (unity_editor)
 # ---------------------------------------------------------------------
-mcp = _DummyMCP() if _TESTMODE else FastMCP("unity_editor")
+mcp = _DummyMCP() if _USING_DUMMY else FastMCP("unity_editor")
 
 # ---------------------------------------------------------------------
 # URL del puente Unity (puedes sobreescribir con la variable de entorno)
@@ -194,8 +198,8 @@ def _acquire_single_instance_or_exit() -> None:
         # Best-effort; continue without lock
         try:
             log.warning("Failed to manage adapter lock; proceeding anyway")
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------
@@ -1287,5 +1291,10 @@ if __name__ == "__main__":
     # mcp.run() usa stdio por defecto.
     # Ejecuta este archivo con 'python -u' y/o PYTHONUNBUFFERED=1 para evitar delays de buffer.
     _acquire_single_instance_or_exit()
-    log.info("Arrancando servidor MCP 'unity_editor'%s. URL puente Unity: %s", " (dummy)" if _TESTMODE else "", MCP_SERVER_URL)
+    try:
+        if _USING_DUMMY:
+            log.warning("Arrancando MCP Adapter en modo DUMMY (mcp.server.fastmcp no disponible): %s", _IMPORT_ERR)
+        log.info("Arrancando servidor MCP 'unity_editor'%s. URL puente Unity: %s", " (dummy)" if _USING_DUMMY else "", MCP_SERVER_URL)
+    except Exception:
+        pass
     mcp.run()

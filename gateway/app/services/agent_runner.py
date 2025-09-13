@@ -17,9 +17,10 @@ import os
 import shlex
 import shutil
 import sys
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 
 import json
 try:
@@ -180,17 +181,7 @@ class AgentRunner:
         if not self._cwd.exists() or not self._cwd.is_dir():
             raise FileNotFoundError(f"Project directory not found: {self._cwd}")
 
-        # Load per-project agent configuration
-        cfg = self._load_project_agent_config(self._cwd)
-        if not cfg.executable:
-            raise RuntimeError("Agent executable not configured. Add 'agent.executable' in .agp/project.json or gateway/config/projects/{id}.yaml")
-        # Update timeouts from config
-        self._default_timeout = float(cfg.default_timeout)
-        self._terminate_grace = float(cfg.terminate_grace)
-
-        # Adapter per project
-        self._adapter = get_adapter(getattr(cfg, "adapter", None))
-        # Ensure MCP adapter if ownership is configured
+        # Ensure MCP adapter if ownership is configured (needed for provider tool-calls)
         await self._ensure_mcp_adapter()
         self._project_id = self._cwd.name
 
@@ -229,10 +220,24 @@ class AgentRunner:
             _ensure_default_providers()
             self._provider = provider_registry.get(provider, session)
             self._provider.onEvent(self._on_provider_event)
-            await self._provider.start(session)
+            logger.info("[AgentRunner] Starting provider '%s' for project %s", provider, self._project_id)
+            try:
+                await self._provider.start(session)
+            except Exception as e:
+                logger.error("[AgentRunner] Provider '%s' failed to start: %s", provider, e)
+                raise
             return self.status()
 
         # Legacy CLI mode
+        # Load per-project agent configuration
+        cfg = self._load_project_agent_config(self._cwd)
+        if not cfg.executable:
+            raise RuntimeError("Agent executable not configured. Add 'agent.executable' in .agp/project.json or gateway/config/projects/{id}.yaml")
+        # Update timeouts from config
+        self._default_timeout = float(cfg.default_timeout)
+        self._terminate_grace = float(cfg.terminate_grace)
+        # Adapter per project
+        self._adapter = get_adapter(getattr(cfg, "adapter", None))
         cmd, env = self._build_from_config(self._cwd, cfg)
         safe_cmd = " ".join(shlex.quote(p) for p in cmd)
         logger.info("Starting agent CLI: %s (cwd=%s)", safe_cmd, str(self._cwd))
@@ -356,6 +361,18 @@ class AgentRunner:
         if self._stderr_task is None or self._stderr_task.done():
             self._stderr_task = asyncio.create_task(self._stderr_reader(), name="agent-stderr-reader")
 
+    def _load_toolshim_config(self) -> None:
+        """Load tool shim limits from centralized config with safe defaults."""
+        try:
+            from app.services.config_service import get_all
+            cfg = get_all(mask_secrets=False) or {}
+            toolshim = ((cfg.get("agents") or {}).get("toolShim") or {})
+            self._tool_max_calls = int(toolshim.get("maxCallsPerTurn", 4))
+            self._tool_timeout_sec = float(toolshim.get("toolTimeoutSeconds", 15))
+        except Exception:
+            self._tool_max_calls = 4
+            self._tool_timeout_sec = 15.0
+
     async def _on_provider_event(self, ev: ProviderEvent) -> None:
         project_id = self._project_id or ""
         corr = self._last_correlation_id
@@ -417,19 +434,71 @@ class AgentRunner:
         env["BLENDER_SERVER_URL"] = blender_ws
 
         # Launch adapter as module
-        python_exe = sys.executable
+        # Prefer configured Python if provided (ensures correct venv for adapter deps)
+        try:
+            raw = _read_settings_yaml()
+            py_cfg = (((raw.get("gateway") or {}).get("processes") or {}).get("mcp_adapter") or {}).get("python")
+            python_exe = str(py_cfg) if py_cfg else sys.executable
+        except Exception:
+            python_exe = sys.executable
+        logger.info("[AgentRunner] MCP Adapter python: %s", python_exe)
         cmd = [python_exe, "-u", "-m", "bridges.mcp_adapter"]
         # Use repo root as cwd
         cwd = Path(__file__).resolve().parents[3]
-        self._adapter_proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(cwd),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        try:
+            self._adapter_proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(cwd),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        except NotImplementedError:
+            # Windows SelectorEventLoop without subprocess support: fallback to Popen
+            p = subprocess.Popen(
+                cmd,
+                cwd=str(cwd),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+
+            class _PopenAdapter:
+                def __init__(self, pop: subprocess.Popen):
+                    self._p = pop
+
+                @property
+                def pid(self) -> int:
+                    return self._p.pid
+
+                @property
+                def returncode(self) -> Optional[int]:
+                    return self._p.poll()
+
+                def terminate(self) -> None:
+                    try:
+                        self._p.terminate()
+                    except Exception:
+                        pass
+
+                def kill(self) -> None:
+                    try:
+                        self._p.kill()
+                    except Exception:
+                        pass
+
+                async def wait(self) -> int:
+                    loop = asyncio.get_running_loop()
+                    return await loop.run_in_executor(None, self._p.wait)
+
+            self._adapter_proc = _PopenAdapter(p)  # type: ignore[assignment]
         self._adapter_owned = True
+
+    # Public helper to allow other services to ensure the MCP adapter
+    async def ensure_mcp_adapter_public(self) -> None:
+        await self._ensure_mcp_adapter()
 
     async def _stop_mcp_adapter_if_owned(self) -> None:
         if not self._adapter_owned:

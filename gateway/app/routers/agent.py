@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
+import logging
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -28,6 +29,7 @@ from app.services.adapter_lock import status as adapter_status
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class SendRequest(BaseModel):
@@ -57,10 +59,13 @@ async def start_agent(payload: dict | None = None, projectId: str | None = None)
         )
     cwd = Path("projects") / project.id
     try:
+        logger.info("[/agent/start] project=%s provider=%s agentType=%s cwd=%s", project.id, provider, agent_type, str(cwd))
         status_obj = await unified_agent.start(cwd, agent_type)
     except FileNotFoundError as e:
+        logger.error("[/agent/start] FileNotFoundError: %s", e)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
+        logger.error("[/agent/start] Failed: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     # Broadcast update event (best-effort)
@@ -88,8 +93,10 @@ async def start_agent(payload: dict | None = None, projectId: str | None = None)
 async def stop_agent() -> JSONResponse:
     """Stop the agent process if running."""
     try:
+        logger.info("[/agent/stop] request received")
         status_obj = await unified_agent.stop()
     except Exception as e:
+        logger.error("[/agent/stop] Failed: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     # Broadcast update event (best-effort)

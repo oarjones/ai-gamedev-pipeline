@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import urllib.request
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,7 @@ class AgentStatus:
 
 class UnifiedAgent:
     def __init__(self) -> None:
+        self._log = logging.getLogger(__name__)
         self._active_type: Optional[str] = None
         self._project_id: Optional[str] = None
         self._cwd: Optional[Path] = None
@@ -48,16 +50,42 @@ class UnifiedAgent:
             # Validate preconditions: either MCP adapter is running, or unity_bridge is up
             st = process_manager.status()
             names = {s.get("name") for s in st if s.get("running")}
-            mcp_ok = bool(adapter_status().get("running"))
+            ad = adapter_status()
+            mcp_ok = bool(ad.get("running"))
             unity_ok = "unity_bridge" in names
-                       
+            # Log current environment and adapter lock details
+            try:
+                from app.services.adapter_lock import lock_path as _lock_path
+                self._log.info(
+                    "[UnifiedAgent] Pre-check: adapter_lock running=%s pid=%s startedAt=%s lock=%s, unity_bridge=%s",
+                    mcp_ok,
+                    ad.get("pid"),
+                    ad.get("startedAt"),
+                    str(_lock_path()),
+                    unity_ok,
+                )
+            except Exception:
+                pass
+
+            if not mcp_ok:
+                # Fallback: attempt a lightweight bridge handshake as health probe
+                probe_ok, probe_err = await self._probe_bridge_health()
+                if not probe_ok:
+                    self._last_error = f"MCP adapter not ready and bridge probe failed: {probe_err or 'unknown error'}"
+                    self._log.error("[UnifiedAgent] Health check failed: %s", self._last_error)
+                    raise RuntimeError(self._last_error)
+                else:
+                    self._log.warning(
+                        "[UnifiedAgent] Adapter lock not detected but bridge handshake succeeded; continuing startup"
+                    )
             
-            if not (mcp_ok):
-                self._last_error = "MCP adapter not ready (require MCP adapter)"
-                raise RuntimeError(self._last_error)
-            
-            # Ensure MCP adapter via AgentRunner, then start CLI
-            rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
+            # Ensure MCP adapter via AgentRunner, then start CLI provider
+            try:
+                rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
+            except Exception as e:
+                self._last_error = f"Failed to start provider: {e!r}"
+                self._log.exception("[UnifiedAgent] Provider start error: %r", e)
+                raise
             self._active_type = "gemini"
             return AgentStatus(agentType=self._active_type, running=rs.running, pid=rs.pid, cwd=rs.cwd, lastError=None)
 
@@ -118,6 +146,38 @@ class UnifiedAgent:
         from app.services.chat import chat_service
         await chat_service.on_agent_output_line(self._project_id or "", content, correlation_id)
         return {"queued": True, "msgId": None}
+
+    async def _probe_bridge_health(self) -> tuple[bool, Optional[str]]:
+        """Try a very lightweight handshake to the Unity Bridge WS used by the MCP adapter.
+
+        This does not exercise the MCP stdio server directly, but verifies the downstream
+        bridge the adapter talks to. Useful when lockfile checks are unreliable.
+        Returns (ok, error).
+        """
+        try:
+            # Build WS URL like MCPClient does to avoid import cycles
+            from app.services.config_service import get_all as _cfg
+            cfg = _cfg(mask_secrets=False) or {}
+            ub_port = int(((cfg.get("bridges") or {}).get("unityBridgePort") or 8001))
+            url = f"ws://127.0.0.1:{ub_port}/ws/gemini_cli_adapter"
+        except Exception as e:
+            return False, f"config error: {e}"
+
+        try:
+            import asyncio
+            import websockets  # type: ignore
+            # Very short connection attempt and immediate close
+            async def _try():
+                ws = await websockets.connect(url)  # type: ignore
+                try:
+                    # Optional: send a noop frame that bridge can ignore
+                    await ws.send("{}")
+                finally:
+                    await ws.close()
+            await asyncio.wait_for(_try(), timeout=1.5)
+            return True, None
+        except Exception as e:
+            return False, str(e)
 
     async def _call_openai(self, text: str) -> str:
         assert self._openai is not None
