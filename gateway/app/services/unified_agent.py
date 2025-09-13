@@ -50,9 +50,12 @@ class UnifiedAgent:
             names = {s.get("name") for s in st if s.get("running")}
             mcp_ok = bool(adapter_status().get("running"))
             unity_ok = "unity_bridge" in names
-            if not (mcp_ok or unity_ok):
-                self._last_error = "Bridges not ready (require MCP adapter or unity_bridge)"
+                       
+            
+            if not (mcp_ok):
+                self._last_error = "MCP adapter not ready (require MCP adapter)"
                 raise RuntimeError(self._last_error)
+            
             # Ensure MCP adapter via AgentRunner, then start CLI
             rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
             self._active_type = "gemini"
