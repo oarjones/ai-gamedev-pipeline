@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -30,7 +31,9 @@ async def chat_send(request: Request, projectId: str, payload: ChatSendRequest) 
     # Ensure agent is running
     from app.services.unified_agent import agent as unified_agent
     if not unified_agent.status().running:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent is not running for this project")
+        #raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent is not running for this project")
+        cwd = Path("projects") / projectId
+        unified_agent.start(cwd, 'gemini')
 
     corr_id = request.headers.get("X-Correlation-Id")
     try:

@@ -100,6 +100,10 @@ export async function sendChat(projectId: string, text: string): Promise<void> {
   }
 }
 
+export async function askOneShot(sessionId: string, question: string): Promise<{ sessionId: string, answer?: string | null, stderr?: string | null }> {
+  return apiPost('/api/v1/agent/ask', { sessionId, question })
+}
+
 export async function getHealth() {
   return apiGet<{ ok: boolean, components: { name: string, running: boolean, endpoint_ok: boolean, detail: string }[] }>('/api/v1/health')
 }

@@ -1,7 +1,7 @@
 import { FormEvent, useRef, useState, useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { useChatStream } from '@/lib/useChatStream'
-import { sendChat, startAgent, getAgentStatus, systemStart } from '@/lib/api'
+import { askOneShot, startAgent, getAgentStatus, systemStart } from '@/lib/api'
 import MessageList from './MessageList'
 
 export default function ChatPane() {
@@ -21,7 +21,8 @@ export default function ChatPane() {
     if (!projectId || !text.trim()) return
     setSending(true)
     try {
-      await sendChat(projectId, text.trim())
+      // One-shot: route via /agent/ask; server will broadcast both user and agent messages
+      await askOneShot(projectId, text.trim())
       setText('')
       inputRef.current?.focus()
     } catch (err) {
@@ -85,28 +86,16 @@ export default function ChatPane() {
     }
   }
 
-  // Start agent when project or agentType changes
+  // Optional: previously ensured agent/bridges; for one-shot not required. Keep disabled.
   useEffect(() => {
-    if (projectId) ensureAgentStarted()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // no-op in one-shot mode
   }, [projectId, agentType])
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-sm">Provider:</span>
-        <span className="badge">Gemini CLI</span>
-        <button className="btn" type="button" onClick={ensureAgentStarted}>
-          <RefreshIcon /> Re/Start
-        </button>
-        <button className="btn btn-secondary" type="button" onClick={startBridges}>
-          Start Bridges
-        </button>
-        {agentStatus && (
-          <span className="text-xs text-muted-foreground">
-            {agentStatus.agentType ?? agentType}: {agentStatus.running ? 'Running' : 'Stopped'} {agentStatus.pid ? `(pid ${agentStatus.pid})` : ''}
-          </span>
-        )}
+        <span className="text-sm">Modo:</span>
+        <span className="badge">One‑Shot</span>
         {bridgesStatus !== 'unknown' && (
           <span className={`text-xs ${bridgesStatus === 'running' ? 'text-green-600' : bridgesStatus === 'error' ? 'text-red-600' : 'text-yellow-600'}`}>
             Bridges: {bridgesStatus}

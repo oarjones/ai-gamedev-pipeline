@@ -37,6 +37,12 @@ class SendRequest(BaseModel):
     text: str = Field(min_length=0, description="Text payload to send to the agent CLI")
 
 
+class AskOneShotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sessionId: str = Field(min_length=1, description="Session identifier used to create/select the working directory")
+    question: str = Field(min_length=1, description="Prompt to send to the provider in one-shot mode")
+
+
 @router.post("/start")
 async def start_agent(payload: dict | None = None, projectId: str | None = None) -> JSONResponse:
     """Start the agent using the specified project and agentType.
@@ -156,5 +162,45 @@ async def send_to_agent(payload: SendRequest, request: Request) -> JSONResponse:
         content={
             "correlationId": correlation_id,
             "output": out,
+        },
+    )
+
+
+@router.post("/ask")
+async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
+    """Execute a single-turn prompt using the gemini_cli provider (one-shot architecture)."""
+    try:
+        # Broadcast user message first so UI shows it immediately
+        try:
+            env_user = Envelope(type=EventType.CHAT, projectId=payload.sessionId, payload={"role": "user", "content": payload.question})
+            await manager.broadcast_project(payload.sessionId, env_user.model_dump_json(by_alias=True))
+        except Exception:
+            pass
+
+        answer, error = unified_agent.ask_one_shot(payload.sessionId, payload.question)
+
+        # Broadcast agent answer if present
+        if answer:
+            try:
+                env_ai = Envelope(type=EventType.CHAT, projectId=payload.sessionId, payload={"role": "agent", "content": answer})
+                await manager.broadcast_project(payload.sessionId, env_ai.model_dump_json(by_alias=True))
+            except Exception:
+                pass
+        # Broadcast error if no answer and error present
+        elif error:
+            try:
+                env_err = Envelope(type=EventType.ERROR, projectId=payload.sessionId, payload={"message": error})
+                await manager.broadcast_project(payload.sessionId, env_err.model_dump_json(by_alias=True))
+            except Exception:
+                pass
+    except Exception as e:
+        logger.exception("[/agent/ask] Failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "sessionId": payload.sessionId,
+            "answer": answer,
+            "stderr": error,  # treat as warning if answer is present
         },
     )

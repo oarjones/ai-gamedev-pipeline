@@ -10,7 +10,9 @@ import sys
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+import re
+import os
 
 from .base import IAgentProvider, SessionCtx, ProviderEvent, EventCallback
 
@@ -91,6 +93,27 @@ class GeminiCliProvider(IAgentProvider):
         self._session = session
         self._state = _State()
         self._cb: Optional[EventCallback] = None
+        # One-shot configuration
+        try:
+            from app.services.config_service import get_all
+            cfg = get_all(mask_secrets=False) or {}
+            provs = (cfg.get("providers") or {})
+            # Support both snake_case (new) and camelCase (legacy)
+            g_new = provs.get("gemini_cli") or {}
+            g_old = provs.get("geminiCli") or {}
+            node_path = g_new.get("node_executable_path") or g_old.get("nodeExecutablePath") or g_old.get("node") or "node"
+            script_path = g_new.get("gemini_script_path") or g_old.get("geminiScriptPath") or g_old.get("script")
+            self.node_path = str(node_path or "node")
+            self.script_path = str(script_path or "")
+            if not self.script_path or not os.path.exists(self.script_path):
+                raise FileNotFoundError(f"Gemini CLI JS script not found at: {self.script_path}")
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            logger.warning("[GeminiCliProvider] Failed to load one-shot config: %s", e)
+            # Defaults allow later fallback discovery in legacy start()/send() flow
+            self.node_path = "node"
+            self.script_path = ""
 
     def onEvent(self, cb: EventCallback) -> None:
         self._cb = cb
@@ -271,6 +294,58 @@ class GeminiCliProvider(IAgentProvider):
             self._state.reader_task = asyncio.create_task(self._stdout_reader(), name="gemini-cli-stdout")
         if self._state.proc.stderr is not None:
             self._state.err_task = asyncio.create_task(self._stderr_reader(), name="gemini-cli-stderr")
+
+    # One-Shot execution path (non-REPL)
+    def run_one_shot(self, full_prompt: str, working_dir: str) -> Tuple[Optional[str], Optional[str]]:
+        """Run Gemini CLI once by invoking node with the CLI entry script.
+
+        Returns (answer_clean, stderr_raw). If stderr has content but answer exists,
+        it's considered a warning; if stderr has content and answer is empty, it's an error.
+        """
+        if not self.script_path or not os.path.exists(self.script_path):
+            return None, f"CLI script not found: {self.script_path}"
+        command = [self.node_path, self.script_path, full_prompt]
+        print(f"[GeminiProvider] Ejecutando One-Shot en CWD: {working_dir}")
+        try:
+            result = subprocess.run(
+                command,
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=120,
+                check=False,
+            )
+            stdout_raw = result.stdout or ""
+            stderr_raw = result.stderr or ""
+            answer_clean = self._clean_output(stdout_raw)
+            if stderr_raw and not answer_clean:
+                logger.error("[GEMINI_STDERR_FATAL] %s", stderr_raw.strip())
+                return None, stderr_raw
+            if stderr_raw and answer_clean:
+                logger.warning("[GEMINI_STDERR_WARN] %s", stderr_raw.strip())
+            return answer_clean, (stderr_raw or None)
+        except subprocess.TimeoutExpired:
+            return None, "Error: Timeout. El CLI tardó demasiado."
+        except Exception as e:
+            return None, f"Error crítico de Python (Subprocess): {str(e)}"
+
+    def _clean_output(self, raw_output: str) -> str:
+        """Remove ANSI escapes and known CLI noise from output."""
+        if not raw_output:
+            return ""
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        processed = ansi_escape.sub("", raw_output)
+        # Remove common noise lines
+        noise_patterns = [
+            r"Tips for getting started:.*",
+            r"Loaded cached credentials\.",
+            r"Authenticated via.*",
+            r"^[-\\|/\\\\\\^]+$",  # spinners and lines
+        ]
+        for pat in noise_patterns:
+            processed = re.sub(pat, "", processed, flags=re.MULTILINE)
+        return processed.strip()
 
     async def stop(self) -> None:
         p = self._state.proc

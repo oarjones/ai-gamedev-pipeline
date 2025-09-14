@@ -4,27 +4,26 @@ Docs en: http://127.0.0.1:8000/docs
 
 ←[32mINFO←[0m:     Will watch for changes in these directories: ['D:\\ai-gamedev-pipeline\\gateway']
 ←[32mINFO←[0m:     Uvicorn running on ←[1mhttp://127.0.0.1:8000←[0m (Press CTRL+C to quit)
-←[32mINFO←[0m:     Started reloader process [←[36m←[1m16728←[0m] using ←[36m←[1mWatchFiles←[0m
+←[32mINFO←[0m:     Started reloader process [←[36m←[1m15000←[0m] using ←[36m←[1mWatchFiles←[0m
 [Config] Loading from project root: D:\ai-gamedev-pipeline\config\settings.yaml
 [Config] Loaded processes: ['unity', 'unity_bridge', 'blender', 'mcp_adapter']
 [Config] Unity exe: C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe
 C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\_internal\_fields.py:198: UserWarning: Field name "schema" in "ToolMeta" shadows an attribute in parent "BaseModel"
   warnings.warn(
-←[32mINFO←[0m:     Started server process [←[36m20744←[0m]
+←[32mINFO←[0m:     Started server process [←[36m6328←[0m]
 ←[32mINFO←[0m:     Waiting for application startup.
 INFO:app.main:AI Gateway starting up...
 INFO:app.main:Server config: 127.0.0.1:8000
 INFO:app.main:CORS origins: ['http://localhost:5173', 'http://127.0.0.1:5173']
 INFO:app.main:Auth config: require_api_key=True, api_key=dev-loca...
 ←[32mINFO←[0m:     Application startup complete.
-←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mOPTIONS /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mOPTIONS /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mOPTIONS /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64462 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64461 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mOPTIONS /api/v1/projects/oscargameproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62115 - "←[1mOPTIONS /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62116 - "←[1mOPTIONS /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62116 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62115 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62116 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62115 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mOPTIONS /api/v1/projects/oskitartestproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
 INFO:app.services.projects:[baseline] Ensured Plugins content from template
 INFO:app.services.projects:[baseline] Ensured Editor scripts from template
 INFO:app.services.process_manager:Starting Unity...
@@ -33,11 +32,11 @@ INFO:app.services.process_manager:Unity exe path from config: C:/Program Files/U
 INFO:app.services.process_manager:Checking Unity executable at: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
 INFO:app.services.process_manager:Absolute path: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
 INFO:app.services.process_manager:Exists: True
-INFO:app.services.process_manager:Unity project path: projects\oscargameproject\unity_project
-INFO:app.services.process_manager:Unity command built: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oscargameproject\\unity_project']
-INFO:app.services.process_manager:[unity] Starting process with command: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oscargameproject\\unity_project']
+INFO:app.services.process_manager:Unity project path: projects\oskitartestproject\unity_project
+INFO:app.services.process_manager:Unity command built: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oskitartestproject\\unity_project']
+INFO:app.services.process_manager:[unity] Starting process with command: ['C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.15f1\\Editor\\Unity.exe', '-projectPath', 'projects\\oskitartestproject\\unity_project']
 INFO:app.services.process_manager:[unity] Executable path: C:\Program Files\Unity\Hub\Editor\6000.0.15f1\Editor\Unity.exe
-INFO:app.services.process_manager:[unity] Process started with PID 13476
+INFO:app.services.process_manager:[unity] Process started with PID 18024
 INFO:app.services.process_manager:Starting Unity Bridge...
 WARNING:app.services.process_manager:Port 127.0.0.1:8001 is already in use - Unity Bridge might be running already
 INFO:app.services.process_manager:Starting Blender...
@@ -45,42 +44,55 @@ INFO:app.services.process_manager:Blender configuration: {'exe': 'D:/blender/ble
 INFO:app.services.process_manager:Blender exe path: D:/blender/blender.exe
 INFO:app.services.process_manager:[blender] Starting process with command: ['D:\\blender\\blender.exe']
 INFO:app.services.process_manager:[blender] Executable path: D:\blender\blender.exe
-INFO:app.services.process_manager:[blender] Process started with PID 12928
-INFO:app.services.agent_runner:[AgentRunner] MCP Adapter python: C:\Users\oarjo\AppData\Local\Programs\Python\Python312\python.exe
-←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mPATCH /api/v1/projects/oscargameproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
-←[32mINFO←[0m:     127.0.0.1:64481 - "WebSocket /ws/events?projectId=oscargameproject&apiKey=dev-local-key" [accepted]
-INFO:app.ws.events:WS connected to project 'oscargameproject' (room size=1)
-←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mOPTIONS /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+INFO:app.services.process_manager:[blender] Process started with PID 7668
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mPATCH /api/v1/projects/oskitartestproject/select HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mOPTIONS /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62128 - "WebSocket /ws/events?projectId=oskitartestproject&apiKey=dev-local-key" [accepted]
+INFO:app.ws.events:WS connected to project 'oskitartestproject' (room size=1)
 ←[32mINFO←[0m:     connection open
-INFO:app.routers.agent:[/agent/start] project=oscargameproject provider=gemini_cli agentType=gemini cwd=projects\oscargameproject
-INFO:app.services.unified_agent:[UnifiedAgent] Pre-check: adapter_lock running=False pid=None startedAt=2025-09-13T08:02:21Z lock=C:\Users\oarjo\AppData\Local\Temp\agp_mcp_adapter.lock, unity_bridge=False
-←[32mINFO←[0m:     127.0.0.1:64482 - "←[1mGET /api/v1/projects HTTP/1.1←[0m" ←[32m200 OK←[0m
-WARNING:app.services.unified_agent:[UnifiedAgent] Adapter lock not detected but bridge handshake succeeded; continuing startup
-INFO:app.services.agent_runner:[AgentRunner] MCP Adapter python: C:\Users\oarjo\AppData\Local\Programs\Python\Python312\python.exe
-INFO:app.services.agent_runner:[AgentRunner] Starting provider 'gemini_cli' for project oscargameproject
+INFO:app.routers.agent:[/agent/start] project=oskitartestproject provider=gemini_cli agentType=gemini cwd=projects\oskitartestproject
+INFO:app.services.unified_agent:[UnifiedAgent] Pre-check: adapter_lock running=True pid=7440 startedAt=2025-09-14T05:17:01Z lock=C:\Users\oarjo\AppData\Local\Temp\agp_mcp_adapter.lock, unity_bridge=False
+INFO:app.services.agent_runner:[AgentRunner] Starting provider 'gemini_cli' for project oskitartestproject
 INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Using fallback gemini at C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd
 INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
-INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Starting: cmd.exe /c 'C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd' (cwd=projects\oscargameproject)
-ERROR:app.services.providers.gemini_cli:[GeminiCliProvider] Failed to start:
-ERROR:app.services.agent_runner:[AgentRunner] Provider 'gemini_cli' failed to start:
-ERROR:app.services.unified_agent:[UnifiedAgent] Provider start error: NotImplementedError()
-Traceback (most recent call last):
-  File "D:\ai-gamedev-pipeline\gateway\app\services\unified_agent.py", line 84, in start
-    rs = await _gemini_runner.start(self._cwd, provider="gemini_cli")
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\ai-gamedev-pipeline\gateway\app\services\agent_runner.py", line 225, in start
-    await self._provider.start(session)
-  File "D:\ai-gamedev-pipeline\gateway\app\services\providers\gemini_cli.py", line 137, in start
-    self._state.proc = await asyncio.create_subprocess_exec(
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\subprocess.py", line 224, in create_subprocess_exec
-    transport, protocol = await loop.subprocess_exec(
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 1743, in subprocess_exec
-    transport = await self._make_subprocess_transport(
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\oarjo\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 524, in _make_subprocess_transport
-    raise NotImplementedError
-NotImplementedError
-ERROR:app.routers.agent:[/agent/start] Failed:
-←[32mINFO←[0m:     127.0.0.1:64470 - "←[1mPOST /api/v1/agent/start HTTP/1.1←[0m" ←[91m500 Internal Server Error←[0m
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Starting: cmd.exe /c 'C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd' (cwd=projects\oskitartestproject)
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] argv: ["cmd.exe", "/c", "C:\\Users\\oarjo\\AppData\\Roaming\\npm\\gemini.cmd"]
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Env: GEMINI_API_KEY=-, PYTHONPATH=D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline , PATH_HAS_NPM=True, showConsole=True
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mPOST /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62120 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62129 - "←[1mOPTIONS /api/v1/chat/send?projectId=oskitartestproject HTTP/1.1←[0m" ←[32m200 OK←[0m
+D:\ai-gamedev-pipeline\gateway\app\routers\chat.py:36: RuntimeWarning: coroutine 'UnifiedAgent.start' was never awaited
+  unified_agent.start(cwd, 'gemini')
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+←[32mINFO←[0m:     127.0.0.1:62129 - "←[1mPOST /api/v1/chat/send?projectId=oskitartestproject HTTP/1.1←[0m" ←[32m200 OK←[0m
+ERROR:app.services.chat:Chat worker error: Provider process is not running
+INFO:app.routers.agent:[/agent/start] project=oskitartestproject provider=gemini_cli agentType=gemini cwd=projects\oskitartestproject
+INFO:app.services.unified_agent:[UnifiedAgent] Pre-check: adapter_lock running=True pid=7440 startedAt=2025-09-14T05:17:01Z lock=C:\Users\oarjo\AppData\Local\Temp\agp_mcp_adapter.lock, unity_bridge=False
+INFO:app.services.agent_runner:[AgentRunner] Starting provider 'gemini_cli' for project oskitartestproject
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Using fallback gemini at C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Starting: cmd.exe /c 'C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd' (cwd=projects\oskitartestproject)
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] argv: ["cmd.exe", "/c", "C:\\Users\\oarjo\\AppData\\Roaming\\npm\\gemini.cmd"]
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Env: GEMINI_API_KEY=-, PYTHONPATH=D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline , PATH_HAS_NPM=True, showConsole=True
+←[32mINFO←[0m:     127.0.0.1:62228 - "←[1mPOST /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62255 - "←[1mPOST /api/v1/chat/send?projectId=oskitartestproject HTTP/1.1←[0m" ←[32m200 OK←[0m
+ERROR:app.services.chat:Chat worker error: '_io.BufferedWriter' object has no attribute 'drain'
+←[32mINFO←[0m:     127.0.0.1:62228 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62268 - "←[1mOPTIONS /api/v1/agent/stop HTTP/1.1←[0m" ←[32m200 OK←[0m
+INFO:app.routers.agent:[/agent/stop] request received
+←[32mINFO←[0m:     127.0.0.1:62268 - "←[1mPOST /api/v1/agent/stop HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62268 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m
+INFO:app.routers.agent:[/agent/start] project=oskitartestproject provider=gemini_cli agentType=gemini cwd=projects\oskitartestproject
+INFO:app.services.unified_agent:[UnifiedAgent] Pre-check: adapter_lock running=True pid=7440 startedAt=2025-09-14T05:17:01Z lock=C:\Users\oarjo\AppData\Local\Temp\agp_mcp_adapter.lock, unity_bridge=False
+INFO:app.services.agent_runner:[AgentRunner] Starting provider 'gemini_cli' for project oskitartestproject
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Using fallback gemini at C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Set PYTHONPATH for subprocess: D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Starting: cmd.exe /c 'C:\Users\oarjo\AppData\Roaming\npm\gemini.cmd' (cwd=projects\oskitartestproject)
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] argv: ["cmd.exe", "/c", "C:\\Users\\oarjo\\AppData\\Roaming\\npm\\gemini.cmd"]
+INFO:app.services.providers.gemini_cli:[GeminiCliProvider] Env: GEMINI_API_KEY=-, PYTHONPATH=D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline;D:\ai-gamedev-pipeline , PATH_HAS_NPM=True, showConsole=True
+←[32mINFO←[0m:     127.0.0.1:62268 - "←[1mPOST /api/v1/agent/start HTTP/1.1←[0m" ←[32m200 OK←[0m
+←[32mINFO←[0m:     127.0.0.1:62268 - "←[1mGET /api/v1/agent/status HTTP/1.1←[0m" ←[32m200 OK←[0m

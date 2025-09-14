@@ -11,7 +11,8 @@ import urllib.request
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+import os
 
 from app.services.agent_runner import agent_runner as _gemini_runner
 from app.services.config_service import get_all
@@ -37,6 +38,16 @@ class UnifiedAgent:
         self._openai: Optional[dict] = None
         self._claude: Optional[dict] = None
         self._last_error: Optional[str] = None
+        # Base dir for one-shot sessions
+        try:
+            cfg = get_all(mask_secrets=False) or {}
+            # Prefer explicit project_dir_base if provided, else fall back
+            self.project_base_dir: str = (
+                str(cfg.get("project_dir_base"))
+                or str((cfg.get("projects") or {}).get("root") or "projects")
+            )
+        except Exception:
+            self.project_base_dir = "projects"
 
     async def start(self, cwd: Path, agent_type: str) -> AgentStatus:
         at = (agent_type or "gemini").lower()
@@ -228,6 +239,32 @@ class UnifiedAgent:
             return str(content[0].get("text") or "")
         return ""
 
+
+    # --- One-Shot API ---
+    def ask_one_shot(self, session_id: str, new_question: str) -> Tuple[Optional[str], Optional[str]]:
+        """Run a single-turn prompt via the gemini_cli provider without starting a REPL.
+
+        Returns (answer, error). If answer is present and error also present, error should be treated as a warning.
+        """
+        try:
+            base = self.project_base_dir or "projects"
+            session_work_dir = os.path.join(base, session_id)
+            os.makedirs(session_work_dir, exist_ok=True)
+            full_prompt = new_question  # TODO: Prepend history & context to create Mega-Prompt
+            from app.services.providers.registry import registry as provider_registry
+            from app.services.providers.base import SessionCtx
+            from app.services.providers.gemini_cli import GeminiCliProvider  # ensure class is loaded
+            session = SessionCtx(projectId=session_id, sessionId=session_id)
+            try:
+                provider = provider_registry.get("gemini_cli", session)
+            except Exception:
+                provider = GeminiCliProvider(session)
+            answer, error = provider.run_one_shot(full_prompt, session_work_dir)  # type: ignore[attr-defined]
+            # TODO: Save question and answer to DB via self.chat_service
+            return answer, error
+        except Exception as e:
+            self._log.exception("ask_one_shot failed: %s", e)
+            return None, str(e)
 
 # Singleton
 agent = UnifiedAgent()
