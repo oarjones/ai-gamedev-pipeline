@@ -170,3 +170,63 @@ async def accept_plan(planId: int):
         return {"status": "accepted", "plan_id": plan.id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{planId}", summary="Update plan tasks order and fields")
+async def update_plan(planId: int, payload: EditPlanRequest):
+    """Update tasks of a plan (reorder and inline edits).
+
+    Accepts payload like:
+    {
+      "update": [
+        {"id": 123, "idx": 0, "title": "...", "description": "...", "priority": 2, "dependencies": ["T-001"]}
+      ]
+    }
+    Only fields present will be updated.
+    """
+    with db.get_session() as session:
+        # Validate plan exists
+        plan = session.get(TaskPlanDB, planId)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        updated = 0
+
+        # Handle updates (order and fields)
+        if payload.update:
+            for upd in payload.update:
+                try:
+                    tid = int(upd.get("id"))
+                except Exception:
+                    continue
+                task = session.get(TaskDB, tid)
+                if not task or task.plan_id != planId:
+                    continue
+
+                if "idx" in upd:
+                    try:
+                        task.idx = int(upd.get("idx"))
+                    except Exception:
+                        pass
+                title = upd.get("title")
+                if isinstance(title, str):
+                    task.title = title
+                desc = upd.get("description")
+                if isinstance(desc, str):
+                    task.description = desc
+                if "priority" in upd:
+                    try:
+                        task.priority = int(upd.get("priority"))
+                    except Exception:
+                        pass
+                if "dependencies" in upd and isinstance(upd.get("dependencies"), list):
+                    try:
+                        task.deps_json = json.dumps(upd.get("dependencies"))
+                    except Exception:
+                        pass
+                updated += 1
+
+        # TODO: handle add/remove if needed by UI in the future
+
+        session.commit()
+        return {"updated": updated, "plan_id": planId}
