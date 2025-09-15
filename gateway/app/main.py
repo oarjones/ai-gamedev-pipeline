@@ -14,7 +14,11 @@ from app.ws.events import websocket_endpoint
 from app.security import require_api_key
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+try:
+    from app.logging_config import setup_logging
+    setup_logging("INFO")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

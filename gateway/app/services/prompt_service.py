@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, Tuple, List
 from pathlib import Path
+import logging
 import yaml
 import json
 import re
@@ -36,6 +37,7 @@ class PromptService:
         self.templates_dir = Path(templates_dir)
         self.templates_cache: Dict[str, PromptTemplate] = {}
         self._load_templates()
+        self._log = logging.getLogger(__name__)
     
     def _load_templates(self):
         """Load all templates from directory."""
@@ -51,7 +53,7 @@ class PromptService:
                         template = PromptTemplate(data)
                         self.templates_cache[template.name] = template
             except Exception as e:
-                print(f"Error loading template {template_file}: {e}")
+                logging.getLogger(__name__).warning("Error loading template %s: %s", template_file, e)
     
     def load_template(self, name: str) -> Optional[PromptTemplate]:
         """Load a specific template."""

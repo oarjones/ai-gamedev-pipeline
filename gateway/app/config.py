@@ -1,6 +1,7 @@
 """Configuration management for AI Gateway."""
 
 from pathlib import Path
+import logging
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -67,6 +68,9 @@ class Settings(BaseSettings):
     processes: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
+logger = logging.getLogger(__name__)
+
+
 def load_settings() -> Settings:
     """Load settings from YAML file and environment variables."""
     
@@ -86,31 +90,34 @@ def load_settings() -> Settings:
     
     # Primero intentar en la raíz del proyecto
     if config_path.exists():
-        print(f"[Config] Loading from project root: {config_path}")
+        logger.info("[Config] Loading from project root: %s", config_path)
         with open(config_path, "r", encoding="utf-8") as f:
             full_config = yaml.safe_load(f) or {}
             # Extract gateway-specific config
             yaml_config = full_config.get("gateway", {})
     # Si no, intentar en gateway/config
     elif local_config_path.exists():
-        print(f"[Config] Loading from gateway local: {local_config_path}")
+        logger.info("[Config] Loading from gateway local: %s", local_config_path)
         with open(local_config_path, "r", encoding="utf-8") as f:
             full_config = yaml.safe_load(f) or {}
             # Extract gateway-specific config
             yaml_config = full_config.get("gateway", {})
     else:
-        print(f"[Config] WARNING: No settings.yaml found at {config_path} or {local_config_path}")
-        print("[Config] Using default configuration")
+        logger.warning("[Config] No settings.yaml found at %s or %s", config_path, local_config_path)
+        logger.info("[Config] Using default configuration")
     
     # Create settings with YAML config as defaults, env vars override
     settings = Settings(**yaml_config)
     
     # Log what was loaded (útil para debug)
     if settings.processes:
-        print(f"[Config] Loaded processes: {list(settings.processes.keys())}")
-        if "unity" in settings.processes:
-            unity_exe = settings.processes["unity"].get("exe")
-            print(f"[Config] Unity exe: {unity_exe}")
+        try:
+            logger.debug("[Config] Loaded processes: %s", list(settings.processes.keys()))
+            if "unity" in settings.processes:
+                unity_exe = settings.processes["unity"].get("exe")
+                logger.debug("[Config] Unity exe: %s", unity_exe)
+        except Exception:
+            pass
     
     return settings
 

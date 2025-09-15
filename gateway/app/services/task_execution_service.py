@@ -8,6 +8,9 @@ from gateway.app.services.context_service import ContextService
 from gateway.app.services.unified_agent import agent as unified_agent
 from gateway.app.ws.events import manager
 from gateway.app.models.core import Envelope, EventType
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TaskExecutionService:
     """Service for intelligent task execution flow."""
@@ -97,7 +100,7 @@ class TaskExecutionService:
                 task_id
             )
         except Exception as e:
-            print(f"Error generating context: {e}")
+            logger.error("Error generating context after task %s: %s", task_id, e)
         
         # Select and start the next task automatically
         next_task = self.get_next_available_task(task.project_id)

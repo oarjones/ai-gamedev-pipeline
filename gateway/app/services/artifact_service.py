@@ -6,6 +6,9 @@ from datetime import datetime
 import imghdr
 
 from gateway.app.db import db, ArtifactDB, TaskDB
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ArtifactService:
     """Service for managing task artifacts."""
@@ -115,7 +118,7 @@ class ArtifactService:
                 )
                 artifacts.append(artifact)
         except Exception as e:
-            print(f"Error capturing screenshot: {e}")
+            logger.error("Error capturing screenshot: %s", e)
         
         try:
             scene_result = mcp_client.get_scene_hierarchy(task.project_id)
@@ -135,7 +138,7 @@ class ArtifactService:
                 )
                 artifacts.append(artifact)
         except Exception as e:
-            print(f"Error capturing scene: {e}")
+            logger.error("Error capturing scene: %s", e)
         
         return artifacts
     
