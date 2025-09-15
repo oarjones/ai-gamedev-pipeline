@@ -10,6 +10,7 @@ from gateway.app.db import db, TaskPlanDB, TaskDB
 from gateway.app.ws.events import manager
 from gateway.app.models.core import Envelope, EventType
 from pathlib import Path
+from gateway.app.models.api_responses import TaskPlanResponse
 
 router = APIRouter()
 plan_service = TaskPlanService()
@@ -28,7 +29,11 @@ class ApplyChangesRequest(BaseModel):
     remove: Optional[List[str]] = None
     update: Optional[List[Dict]] = None
 
-@router.get("", summary="List all plan versions for a project")
+@router.get(
+    "",
+    summary="List plan versions",
+    description="List all plan versions for a project, newest first.",
+)
 async def list_plans(project_id: str = Query(..., alias="projectId")):
     """List all plan versions for a project."""
     with db.get_session() as session:
@@ -52,7 +57,12 @@ async def list_plans(project_id: str = Query(..., alias="projectId")):
             for p in plans
         ]
 
-@router.get("/{planId}", summary="Get complete plan with tasks")
+@router.get(
+    "/{planId}",
+    summary="Get plan details",
+    description="Get a complete plan, including tasks and aggregate stats.",
+    response_model=TaskPlanResponse,
+)
 async def get_plan_details(planId: int):
     """Get complete plan with tasks."""
     with db.get_session() as session:
@@ -98,7 +108,11 @@ async def get_plan_details(planId: int):
             ]
         }
 
-@router.post("/generate", summary="Generate initial plan from project manifest")
+@router.post(
+    "/generate",
+    summary="Generate initial plan",
+    description="Generate a new plan proposal from the project manifest using AI.",
+)
 async def generate_plan(project_id: str = Query(..., alias="projectId")):
     """Generate initial plan from project manifest."""
     # Leer manifest del proyecto
@@ -148,14 +162,22 @@ async def generate_plan(project_id: str = Query(..., alias="projectId")):
     
     return {"status": "generating", "correlation_id": "plan-generation"}
 
-@router.post("/{planId}/refine", summary="Refine existing plan with AI (Not Implemented)")
+@router.post(
+    "/{planId}/refine",
+    summary="Refine existing plan with AI (Not Implemented)",
+    description="Refine an existing plan using AI and create a new version.",
+)
 async def refine_plan(planId: int, request: RefineRequest):
     """Refine existing plan with AI."""
     # Similar a generate pero incluyendo el plan actual
     # Crear nueva versión con los cambios
     pass
 
-@router.patch("/{planId}/accept", summary="Accept plan and activate it")
+@router.patch(
+    "/{planId}/accept",
+    summary="Accept plan and activate it",
+    description="Accepts the plan and marks it as active, superseding previous ones.",
+)
 async def accept_plan(planId: int):
     """Accept plan and activate it."""
     try:
@@ -178,7 +200,11 @@ async def accept_plan(planId: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.patch("/{planId}", summary="Update plan tasks order and fields")
+@router.patch(
+    "/{planId}",
+    summary="Update plan tasks order and fields",
+    description="Update inline fields and order for tasks in a plan (minor edits).",
+)
 async def update_plan(planId: int, payload: EditPlanRequest):
     """Update tasks of a plan (reorder and inline edits).
 
@@ -238,7 +264,11 @@ async def update_plan(planId: int, payload: EditPlanRequest):
         return {"updated": updated, "plan_id": planId}
 
 
-@router.patch("/{planId}/apply-changes", summary="Apply plan changes and create new version")
+@router.patch(
+    "/{planId}/apply-changes",
+    summary="Apply plan changes and create new version",
+    description="Apply add/update/remove operations or a full task list to create a new plan version while preserving progress.",
+)
 async def apply_changes(planId: int, req: ApplyChangesRequest):
     """Apply a set of changes to an existing plan by creating a new version.
 
