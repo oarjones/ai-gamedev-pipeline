@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { listProjects, createProject, deleteProject, selectProject, type Project } from '@/lib/api'
 
@@ -49,7 +50,7 @@ export default function ProjectsPanel() {
   }
 
   async function handleDelete(id: string, name: string) {
-    const confirm = window.confirm(`Eliminar proyecto "${name}"? Esta acciÃ³n no se puede deshacer.`)
+    const confirm = window.confirm(`Eliminar proyecto "${name}"? Esta acción no se puede deshacer.`)
     if (!confirm) return
     try {
       await deleteProject(id)
@@ -91,6 +92,11 @@ export default function ProjectsPanel() {
               {p.name}
               <span className="opacity-60 text-xs ml-2">({p.id})</span>
             </button>
+            <div className="flex items-center gap-1">
+              <Link className="px-2 py-1 text-xs rounded border hover:bg-secondary" to={`/projects/${p.id}/consensus`} title="Consenso">Consenso</Link>
+              <Link className="px-2 py-1 text-xs rounded border hover:bg-secondary" to={`/projects/${p.id}/execution`} title="Ejecución">Ejecución</Link>
+              <Link className="px-2 py-1 text-xs rounded border hover:bg-secondary" to={`/projects/${p.id}/context`} title="Contexto">Contexto</Link>
+            </div>
             <button
               className="px-2 py-1 text-xs rounded border text-red-600 hover:bg-red-50"
               onClick={() => handleDelete(p.id, p.name)}
@@ -107,5 +113,4 @@ export default function ProjectsPanel() {
     </div>
   )
 }
-
 

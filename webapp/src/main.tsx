@@ -11,6 +11,8 @@ import ProjectWizard from './routes/ProjectWizard'
 import Tasks from './routes/Tasks'
 import Consensus from './routes/Consensus'
 import Context from './routes/Context'
+import PlanConsensus from './components/PlanConsensus'
+const TaskExecution = React.lazy(() => import('./components/TaskExecution'))
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -27,6 +29,14 @@ const router = createBrowserRouter([
       { path: 'tasks', element: <Tasks /> },
       { path: 'consensus', element: <Consensus /> },
       { path: 'context', element: <Context /> },
+      // Project-scoped routes
+      { path: 'projects/:projectId/consensus', element: <PlanConsensus /> },
+      { path: 'projects/:projectId/execution', element: (
+          <React.Suspense fallback={<div>Cargando ejecución…</div>}>
+            <TaskExecution />
+          </React.Suspense>
+        ) },
+      { path: 'projects/:projectId/context', element: <Context /> },
     ],
   },
 ])

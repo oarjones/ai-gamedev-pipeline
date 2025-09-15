@@ -5,8 +5,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { Task, TaskPlan } from '../types';
+import { useParams } from 'react-router-dom';
 
-export function PlanConsensus({ projectId }: { projectId: string }) {
+export function PlanConsensus({ projectId: propProjectId }: { projectId?: string }) {
+  const params = useParams();
+  const projectId = propProjectId ?? (params.projectId as string);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [tasks, setTasks] = useState<(Task & { priority?: number })[]>([]);
   const [showRefineModal, setShowRefineModal] = useState(false);
@@ -359,4 +362,3 @@ function RefineModal({
 }
 
 export default PlanConsensus;
-
