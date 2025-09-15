@@ -9,17 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class EventType(str, Enum):
-    """Event types for WebSocket communication.
-    
-    Examples:
-        - chat: Chat messages between user and AI
-        - action: User actions in the interface  
-        - update: System state updates
-        - scene: Scene/environment changes
-        - timeline: Timeline/sequence events
-        - log: System logging events
-        - error: Error notifications
-    """
+    """Event types for WebSocket communication."""
     CHAT = "chat"
     ACTION = "action" 
     UPDATE = "update"
@@ -28,6 +18,26 @@ class EventType(str, Enum):
     LOG = "log"
     ERROR = "error"
     PROJECT = "project"
+
+    # Plan events
+    PLAN_GENERATED = "plan.generated"
+    PLAN_REFINED = "plan.refined"
+    PLAN_ACCEPTED = "plan.accepted"
+    PLAN_EDITED = "plan.edited"
+    
+    # Task events
+    TASK_STARTED = "task.started"
+    TASK_PROGRESS = "task.progress"
+    TASK_BLOCKED = "task.blocked"
+    TASK_COMPLETED = "task.completed"
+    
+    # Context events
+    CONTEXT_UPDATED = "context.updated"
+    CONTEXT_GENERATED = "context.generated"
+    
+    # Artifact events
+    ARTIFACT_CREATED = "artifact.created"
+    ARTIFACT_VALIDATED = "artifact.validated"
 
 
 class Envelope(BaseModel):

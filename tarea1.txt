@@ -1,0 +1,183 @@
+Tarea 1: Extensión de Base de Datos - Sistema de Planes Versionados
+Objetivo: Extender el esquema existente en gateway/app/db.py para soportar planes versionados y contextos.
+Prompt para el agente IA:
+Necesito que extiendas el archivo existente gateway/app/db.py con las siguientes modificaciones:
+
+IMPORTANTE: 
+- NO crear un nuevo archivo, modificar el existente
+- Mantener todas las clases y métodos actuales
+- La base de datos debe seguir en "data/gateway.db" (NO gateway/data/gateway.db)
+- Usar el mismo estilo de código (SQLModel con Field)
+
+1. Añadir nueva tabla TaskPlanDB después de las tablas existentes:
+```python
+class TaskPlanDB(SQLModel, table=True):
+    """Versioned task plans for projects."""
+    
+    __tablename__ = "task_plans"
+    
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, description="Project ID")
+    version: int = Field(description="Plan version number")
+    status: str = Field(default="proposed", description="proposed|accepted|superseded")
+    summary: str | None = Field(default=None, description="Plan summary")
+    created_by: str = Field(default="ai", description="ai|user|system")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+Añadir nueva tabla ContextDB:
+
+pythonclass ContextDB(SQLModel, table=True):
+    """Versioned context for projects and tasks."""
+    
+    __tablename__ = "contexts"
+    
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, description="Project ID")
+    scope: str = Field(description="global|task")
+    task_id: int | None = Field(default=None, description="Task ID if scope=task")
+    content: str = Field(description="JSON context content")
+    created_by: str = Field(default="system", description="ai|user|system")
+    source: str | None = Field(default=None, description="template-default|ai-generate|manual-edit")
+    version: int = Field(default=1, description="Context version")
+    is_active: bool = Field(default=False, description="Is this the active context")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+Extender ProjectDB existente (añadir campos, no reemplazar):
+
+python# En la clase ProjectDB existente, añadir estos campos:
+active_context_id: int | None = Field(default=None, description="Active context ID")
+active_plan_id: int | None = Field(default=None, description="Active plan ID")
+current_task_id: int | None = Field(default=None, description="Current task ID")
+status: str = Field(default="draft", description="draft|consensus|active|completed")
+
+Extender TaskDB existente (añadir campos, no reemplazar los actuales):
+
+python# En la clase TaskDB existente, añadir estos campos nuevos:
+plan_id: int | None = Field(default=None, index=True, description="Plan ID")
+idx: int = Field(default=0, description="Order index in plan")
+code: str | None = Field(default=None, description="Stable code like T-001")
+mcp_tools: str | None = Field(default=None, description="JSON array of suggested MCP tools")
+deliverables: str | None = Field(default=None, description="JSON array of deliverables")
+estimates: str | None = Field(default=None, description="JSON estimates {story_points, time_hours}")
+priority: int = Field(default=1, description="Task priority")
+started_at: datetime | None = Field(default=None)
+completed_at: datetime | None = Field(default=None)
+
+Extender ArtifactDB existente:
+
+python# En la clase ArtifactDB, añadir:
+task_id: int | None = Field(default=None, index=True, description="Associated task ID")
+category: str | None = Field(default=None, description="code|asset|document|screenshot")
+validation_status: str = Field(default="pending", description="pending|valid|invalid")
+size_bytes: int | None = Field(default=None)
+
+En la clase DatabaseManager, añadir métodos para las nuevas tablas:
+
+python# Añadir estos métodos a DatabaseManager:
+
+def get_active_plan(self, project_id: str) -> Optional[TaskPlanDB]:
+    """Get active plan for project."""
+    with self.get_session() as session:
+        project = session.get(ProjectDB, project_id)
+        if project and project.active_plan_id:
+            return session.get(TaskPlanDB, project.active_plan_id)
+        return None
+
+def create_task_plan(self, plan: TaskPlanDB) -> TaskPlanDB:
+    """Create new task plan."""
+    with self.get_session() as session:
+        session.add(plan)
+        session.commit()
+        session.refresh(plan)
+        return plan
+
+def get_active_context(self, project_id: str, scope: str = "global") -> Optional[ContextDB]:
+    """Get active context for project."""
+    with self.get_session() as session:
+        stmt = (
+            select(ContextDB)
+            .where(ContextDB.project_id == project_id)
+            .where(ContextDB.scope == scope)
+            .where(ContextDB.is_active == True)
+        )
+        return session.exec(stmt).first()
+
+def create_context(self, context: ContextDB) -> ContextDB:
+    """Create new context version."""
+    with self.get_session() as session:
+        # Deactivate previous contexts of same scope
+        stmt = (
+            select(ContextDB)
+            .where(ContextDB.project_id == context.project_id)
+            .where(ContextDB.scope == context.scope)
+            .where(ContextDB.is_active == True)
+        )
+        for old_ctx in session.exec(stmt):
+            old_ctx.is_active = False
+            session.add(old_ctx)
+        
+        context.is_active = True
+        session.add(context)
+        session.commit()
+        session.refresh(context)
+        return context
+
+Crear script de migración gateway/migrations/001_extend_schema.py:
+
+python"""
+Script para aplicar cambios a la BD existente sin perder datos.
+Ejecutar con: python gateway/migrations/001_extend_schema.py
+"""
+import sqlite3
+from pathlib import Path
+
+db_path = Path("data/gateway.db")
+
+if db_path.exists():
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    
+    # Verificar si las nuevas tablas ya existen
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='task_plans'")
+    if not cursor.fetchone():
+        # Crear nuevas tablas...
+        print("Creando tabla task_plans...")
+        # ... SQL CREATE TABLE
+    
+    # Añadir columnas nuevas a tablas existentes si no existen
+    cursor.execute("PRAGMA table_info(projects)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'status' not in columns:
+        cursor.execute("ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'draft'")
+        print("Añadida columna status a projects")
+    
+    # ... más ALTER TABLE para otros campos
+    
+    conn.commit()
+    conn.close()
+    print("Migración completada")
+IMPORTANTE: Después de añadir las nuevas tablas y campos, verificar que:
+
+La aplicación sigue arrancando correctamente
+Los endpoints existentes siguen funcionando
+No hay conflictos con el código existente
+
+
+*Contexto General de la Arquitectura
+Estamos construyendo un sistema de gestión de desarrollo de videojuegos asistido por IA que:
+Gestiona proyectos con planes de tareas versionados
+Mantiene contexto evolutivo (global y por tarea)
+Coordina agentes IA con herramientas MCP
+Permite consenso usuario-IA en la planificación
+Genera y actualiza contexto automáticamente
+
+*Buenas Prácticas para la Implementación
+Principios SOLID: Cada componente con responsabilidad única
+Idempotencia: Operaciones repetibles sin efectos secundarios
+Versionado Semántico: Cambios compatibles hacia atrás
+Transacciones Atómicas: Todo o nada en operaciones críticas
+Logging Estructurado: Trazabilidad completa con correlation IDs
+Eventos: WebSocket para actualizaciones en tiempo real
+Tests Unitarios: Mínimo 80% cobertura en lógica de negocio
+Documentación API: OpenAPI actualizado con cada cambio

@@ -9,6 +9,8 @@ import Dependencies from './routes/Dependencies'
 import Sessions from './routes/Sessions'
 import ProjectWizard from './routes/ProjectWizard'
 import Tasks from './routes/Tasks'
+import Consensus from './routes/Consensus'
+import Context from './routes/Context'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -23,6 +25,8 @@ const router = createBrowserRouter([
       { path: 'sessions', element: <Sessions /> },
       { path: 'wizard', element: <ProjectWizard /> },
       { path: 'tasks', element: <Tasks /> },
+      { path: 'consensus', element: <Consensus /> },
+      { path: 'context', element: <Context /> },
     ],
   },
 ])

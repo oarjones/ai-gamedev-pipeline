@@ -1,0 +1,106 @@
+Tarea 9: WebSocket Events Extendidos
+
+**Objetivo**: Mejorar el sistema de eventos WebSocket existente.
+
+**Prompt para el agente IA**:
+Extiende gateway/app/models/core.py para añadir nuevos tipos de eventos:
+python# En el enum EventType existente, añadir:
+class EventType(str, Enum):
+    # Existentes
+    CHAT = "chat"
+    ACTION = "action"
+    UPDATE = "update"
+    SCENE = "scene"
+    TIMELINE = "timeline"
+    LOG = "log"
+    ERROR = "error"
+    
+    # NUEVOS tipos de eventos
+    PLAN_GENERATED = "plan.generated"
+    PLAN_REFINED = "plan.refined"
+    PLAN_ACCEPTED = "plan.accepted"
+    PLAN_EDITED = "plan.edited"
+    
+    TASK_STARTED = "task.started"
+    TASK_PROGRESS = "task.progress"
+    TASK_BLOCKED = "task.blocked"
+    TASK_COMPLETED = "task.completed"
+    
+    CONTEXT_UPDATED = "context.updated"
+    CONTEXT_GENERATED = "context.generated"
+    
+    ARTIFACT_CREATED = "artifact.created"
+    ARTIFACT_VALIDATED = "artifact.validated"
+Actualizar gateway/app/ws/events.py para manejar nuevos eventos:
+python# Añadir sistema de suscripción por proyecto/tarea
+class EnhancedConnectionManager(ConnectionManager):
+    """Extended WebSocket manager with subscriptions."""
+    
+    def __init__(self):
+        super().__init__()
+        self.project_subscriptions: Dict[str, Set[WebSocket]] = {}
+        self.task_subscriptions: Dict[int, Set[WebSocket]] = {}
+    
+    async def subscribe_to_project(self, websocket: WebSocket, project_id: str):
+        """Subscribe websocket to project events."""
+        if project_id not in self.project_subscriptions:
+            self.project_subscriptions[project_id] = set()
+        self.project_subscriptions[project_id].add(websocket)
+    
+    async def subscribe_to_task(self, websocket: WebSocket, task_id: int):
+        """Subscribe websocket to task events."""
+        if task_id not in self.task_subscriptions:
+            self.task_subscriptions[task_id] = set()
+        self.task_subscriptions[task_id].add(websocket)
+    
+    async def broadcast_project(self, project_id: str, message: str):
+        """Broadcast to all clients subscribed to a project."""
+        if project_id in self.project_subscriptions:
+            dead_clients = []
+            for ws in self.project_subscriptions[project_id]:
+                try:
+                    await ws.send_text(message)
+                except:
+                    dead_clients.append(ws)
+            
+            # Limpiar clientes muertos
+            for ws in dead_clients:
+                self.project_subscriptions[project_id].discard(ws)
+    
+    async def broadcast_task(self, task_id: int, message: str):
+        """Broadcast to all clients subscribed to a task."""
+        if task_id in self.task_subscriptions:
+            dead_clients = []
+            for ws in self.task_subscriptions[task_id]:
+                try:
+                    await ws.send_text(message)
+                except:
+                    dead_clients.append(ws)
+            
+            for ws in dead_clients:
+                self.task_subscriptions[task_id].discard(ws)
+
+# Reemplazar manager global
+manager = EnhancedConnectionManager()
+Persistir eventos importantes en BD para replay.
+
+
+
+*Contexto General de la Arquitectura
+Estamos construyendo un sistema de gestión de desarrollo de videojuegos asistido por IA que:
+Gestiona proyectos con planes de tareas versionados
+Mantiene contexto evolutivo (global y por tarea)
+Coordina agentes IA con herramientas MCP
+Permite consenso usuario-IA en la planificación
+Genera y actualiza contexto automáticamente
+
+*Buenas Prácticas para la Implementación
+Base de Datos: Usar siempre `data/gateway.db`
+Principios SOLID: Cada componente con responsabilidad única
+Idempotencia: Operaciones repetibles sin efectos secundarios
+Versionado Semántico: Cambios compatibles hacia atrás
+Transacciones Atómicas: Todo o nada en operaciones críticas
+Logging Estructurado: Trazabilidad completa con correlation IDs
+Eventos: WebSocket para actualizaciones en tiempo real
+Tests Unitarios: Mínimo 80% cobertura en lógica de negocio
+Documentación API: OpenAPI actualizado con cada cambio

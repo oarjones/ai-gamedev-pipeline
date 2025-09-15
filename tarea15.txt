@@ -1,0 +1,53 @@
+Tarea 15: Documentación y Onboarding
+
+**Objetivo**: Documentación completa del sistema.
+
+**Prompt para el agente IA**:
+Crear documentación completa en docs/:
+
+docs/architecture/context-tasks-system.md:
+
+markdown# Arquitectura del Sistema de Contexto y Tareas
+
+## Visión General
+
+El sistema gestiona el desarrollo de videojuegos mediante:
+- **Planes versionados**: Control de cambios en la planificación
+- **Contexto evolutivo**: Estado del proyecto actualizado automáticamente
+- **Ejecución inteligente**: Selección y verificación de tareas con IA
+
+## Componentes Principales
+
+### 1. Sistema de Planes (TaskPlanService)
+
+Gestiona versiones del plan de desarrollo:
+- Estados: proposed → accepted → superseded
+- Versionado automático
+- Sincronización BD ↔ archivos JSON
+
+### 2. Sistema de Contexto (ContextService)
+
+Mantiene el estado narrativo del proyecto:
+- **Contexto Global**: Estado general, decisiones, riesgos
+- **Contexto por Tarea**: Información específica de cada tarea
+- Generación automática al completar tareas
+
+### 3. Flujo de Ejecución (TaskExecutionService)
+
+Orquesta la ejecución de tareas:
+- Selección inteligente basada en dependencias
+- Integración con agente IA
+- Verificación de criterios de aceptación
+
+## Flujo de Trabajo
+```mermaid
+graph LR
+    A[Crear Proyecto] --> B[Generar Plan v1]
+    B --> C{Consenso}
+    C -->|Refinar| B
+    C -->|Aceptar| D[Ejecutar Tareas]
+    D --> E[Completar Tarea]
+    E --> F[Actualizar Contexto]
+    F --> G{¿Más tareas?}
+    G -->|Sí| D
+    G -->|No| H[Proyecto Completado]

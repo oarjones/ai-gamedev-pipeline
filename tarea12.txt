@@ -1,0 +1,260 @@
+Tarea 12: Dashboard UI - Vista de Consenso
+
+**Objetivo**: Interfaz React para negociar planes.
+
+**Prompt para el agente IA**:
+Implementa componente en webapp/src/components/PlanConsensus.tsx:
+typescriptimport React, { useState, useEffect } from 'react';
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove } from '@dnd-kit/sortable';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiGet, apiPost, apiPatch } from '../lib/api';
+import { Task, TaskPlan } from '../types';
+
+export function PlanConsensus({ projectId }: { projectId: string }) {
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [showRefineModal, setShowRefineModal] = useState(false);
+  const [refineInstructions, setRefineInstructions] = useState('');
+  const queryClient = useQueryClient();
+
+  // Cargar versiones del plan
+  const { data: plans } = useQuery({
+    queryKey: ['plans', projectId],
+    queryFn: () => apiGet(`/api/v1/plans?projectId=${projectId}`)
+  });
+
+  // Cargar detalles del plan seleccionado
+  const { data: planDetails } = useQuery({
+    queryKey: ['plan', selectedVersion],
+    queryFn: () => selectedVersion ? apiGet(`/api/v1/plans/${selectedVersion}`) : null,
+    enabled: !!selectedVersion
+  });
+
+  useEffect(() => {
+    if (planDetails?.tasks) {
+      setTasks(planDetails.tasks);
+    }
+  }, [planDetails]);
+
+  // Mutación para aceptar plan
+  const acceptPlan = useMutation({
+    mutationFn: (planId: number) => apiPatch(`/api/v1/plans/${planId}/accept`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['plans']);
+      // Navegar a vista de ejecución
+      window.location.href = `/projects/${projectId}/execution`;
+    }
+  });
+
+  // Mutación para refinar plan
+  const refinePlan = useMutation({
+    mutationFn: ({ planId, instructions }: { planId: number, instructions: string }) =>
+      apiPost(`/api/v1/plans/${planId}/refine`, { instructions }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['plans']);
+      setShowRefineModal(false);
+    }
+  });
+
+  // Manejo de drag & drop
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const oldIndex = tasks.findIndex(t => t.id === active.id);
+      const newIndex = tasks.findIndex(t => t.id === over?.id);
+      setTasks(arrayMove(tasks, oldIndex, newIndex));
+    }
+  };
+
+  // Añadir tarea
+  const addTask = () => {
+    const newTask: Task = {
+      id: `temp-${Date.now()}`,
+      code: `T-${tasks.length + 1:03d}`,
+      title: 'Nueva tarea',
+      description: '',
+      dependencies: [],
+      status: 'pending'
+    };
+    setTasks([...tasks, newTask]);
+  };
+
+  // Eliminar tarea
+  const removeTask = (taskId: string) => {
+    setTasks(tasks.filter(t => t.id !== taskId));
+  };
+
+  return (
+    <div className="grid grid-cols-12 gap-4 h-full">
+      {/* Panel izquierdo: Plan actual */}
+      <div className="col-span-8 bg-white rounded-lg shadow p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Plan de Desarrollo</h2>
+          <div className="flex gap-2">
+            <select 
+              className="border rounded px-3 py-1"
+              value={selectedVersion || ''}
+              onChange={(e) => setSelectedVersion(Number(e.target.value))}
+            >
+              <option value="">Seleccionar versión...</option>
+              {plans?.map((plan: any) => (
+                <option key={plan.id} value={plan.id}>
+                  v{plan.version} - {plan.status}
+                </option>
+              ))}
+            </select>
+            <button 
+              className="btn btn-secondary"
+              onClick={addTask}
+            >
+              + Añadir Tarea
+            </button>
+          </div>
+        </div>
+
+        {/* Lista de tareas con drag & drop */}
+        <DndContext onDragEnd={handleDragEnd}>
+          <SortableContext items={tasks.map(t => t.id)}>
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onRemove={() => removeTask(task.id)}
+                  onEdit={(updates) => {
+                    setTasks(tasks.map(t => 
+                      t.id === task.id ? { ...t, ...updates } : t
+                    ))
+                  }}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {/* Estadísticas del plan */}
+        {planDetails && (
+          <div className="mt-6 p-4 bg-gray-50 rounded">
+            <h3 className="font-medium mb-2">Estadísticas</h3>
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div>Total: {planDetails.stats.total}</div>
+              <div>Completadas: {planDetails.stats.completed}</div>
+              <div>Bloqueadas: {planDetails.stats.blocked}</div>
+              <div>Progreso: {planDetails.stats.progress.toFixed(1)}%</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Panel derecho: Acciones y refinamiento */}
+      <div className="col-span-4">
+        {/* Chat con IA */}
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <h3 className="font-medium mb-3">Refinar con IA</h3>
+          <textarea
+            className="w-full border rounded p-2 h-32"
+            placeholder="Describe los cambios que quieres hacer al plan..."
+            value={refineInstructions}
+            onChange={(e) => setRefineInstructions(e.target.value)}
+          />
+          <button
+            className="btn btn-primary w-full mt-2"
+            onClick={() => refinePlan.mutate({ 
+              planId: selectedVersion!, 
+              instructions: refineInstructions 
+            })}
+            disabled={!selectedVersion || !refineInstructions}
+          >
+            Refinar Plan con IA
+          </button>
+        </div>
+
+        {/* Acciones finales */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-medium mb-3">Acciones</h3>
+          <button
+            className="btn btn-success w-full mb-2"
+            onClick={() => {
+              if (selectedVersion && confirm('¿Aceptar este plan y comenzar la ejecución?')) {
+                acceptPlan.mutate(selectedVersion);
+              }
+            }}
+            disabled={!selectedVersion}
+          >
+            ✓ Aceptar Plan
+          </button>
+          <button className="btn btn-secondary w-full">
+            Guardar Cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente para cada tarea
+function TaskCard({ task, onRemove, onEdit }: any) {
+  const [isEditing, setIsEditing] = useState(false);
+  
+  return (
+    <div className="border rounded p-3 bg-white hover:shadow cursor-move">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-blue-100 px-2 py-1 rounded">
+              {task.code}
+            </span>
+            {isEditing ? (
+              <input
+                className="flex-1 border-b"
+                value={task.title}
+                onChange={(e) => onEdit({ title: e.target.value })}
+                onBlur={() => setIsEditing(false)}
+              />
+            ) : (
+              <h4 
+                className="font-medium cursor-text"
+                onClick={() => setIsEditing(true)}
+              >
+                {task.title}
+              </h4>
+            )}
+          </div>
+          {task.dependencies.length > 0 && (
+            <div className="text-xs text-gray-500 mt-1">
+              Depende de: {task.dependencies.join(', ')}
+            </div>
+          )}
+        </div>
+        <button
+          className="text-red-500 hover:text-red-700"
+          onClick={onRemove}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+*Contexto General de la Arquitectura
+Estamos construyendo un sistema de gestión de desarrollo de videojuegos asistido por IA que:
+Gestiona proyectos con planes de tareas versionados
+Mantiene contexto evolutivo (global y por tarea)
+Coordina agentes IA con herramientas MCP
+Permite consenso usuario-IA en la planificación
+Genera y actualiza contexto automáticamente
+
+*Buenas Prácticas para la Implementación
+Base de Datos: Usar siempre `data/gateway.db`
+Principios SOLID: Cada componente con responsabilidad única
+Idempotencia: Operaciones repetibles sin efectos secundarios
+Versionado Semántico: Cambios compatibles hacia atrás
+Transacciones Atómicas: Todo o nada en operaciones críticas
+Logging Estructurado: Trazabilidad completa con correlation IDs
+Eventos: WebSocket para actualizaciones en tiempo real
+Tests Unitarios: Mínimo 80% cobertura en lógica de negocio
+Documentación API: OpenAPI actualizado con cada cambio

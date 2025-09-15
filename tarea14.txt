@@ -1,0 +1,172 @@
+Tarea 14: Sistema de Templates de Proyecto
+
+**Objetivo**: Templates por género de juego.
+
+**Prompt para el agente IA**:
+Crea gateway/app/services/template_service.py y templates:
+
+Crear estructura:
+
+gateway/templates/
+├── platformer_2d.yaml
+├── puzzle.yaml
+├── fps.yaml
+├── rpg.yaml
+└── racing.yaml
+
+Ejemplo de template (platformer_2d.yaml):
+
+yamlid: platformer-2d
+name: "Platformer 2D"
+description: "Juego de plataformas 2D con físicas y niveles"
+category: "action"
+difficulty: "intermediate"
+
+project_settings:
+  unity_version: "2022.3"
+  render_pipeline: "URP"
+  platform: "PC, Mobile"
+  
+required_packages:
+  - com.unity.2d.sprite
+  - com.unity.2d.tilemap
+  - com.unity.inputsystem
+  - com.unity.cinemachine
+
+default_context:
+  summary: "Desarrollo de juego de plataformas 2D con mecánicas de salto y movimiento fluido"
+  decisions:
+    - "Usar Unity 2D con Universal Render Pipeline"
+    - "Sistema de física 2D para movimiento del personaje"
+    - "Tilemap para diseño de niveles"
+    - "Input System para controles multiplataforma"
+  open_questions:
+    - "¿Estilo visual pixel art o vectorial?"
+    - "¿Cuántos niveles en la primera versión?"
+    - "¿Mecánicas especiales (doble salto, dash)?"
+
+suggested_tasks:
+  - code: "T-001"
+    title: "Configurar proyecto Unity 2D"
+    description: "Crear proyecto con URP, importar paquetes necesarios"
+    mcp_tools: ["unity"]
+    deliverables: ["Project configurado", "Estructura de carpetas"]
+    estimates: 
+      story_points: 2
+      time_hours: 1
+    priority: 1
+    
+  - code: "T-002"
+    title: "Implementar controlador de personaje"
+    description: "Character controller 2D con movimiento y salto"
+    dependencies: ["T-001"]
+    mcp_tools: ["unity"]
+    deliverables: ["Scripts de movimiento", "Prefab del jugador"]
+    acceptance_criteria: "Personaje se mueve suavemente y salta con física realista"
+    estimates:
+      story_points: 5
+      time_hours: 4
+    priority: 1
+    
+  - code: "T-003"
+    title: "Sistema de tilemap para niveles"
+    description: "Configurar tilemap y crear tiles básicos"
+    dependencies: ["T-001"]
+    mcp_tools: ["unity", "blender"]
+    deliverables: ["Tileset", "Nivel de prueba"]
+    estimates:
+      story_points: 3
+      time_hours: 3
+    priority: 2
+
+  # ... más tareas
+
+prompts:
+  character_controller: |
+    Implementa un character controller 2D en Unity con:
+    - Movimiento horizontal suave
+    - Salto con altura variable según duración del botón
+    - Detección de suelo (ground check)
+    - Coyote time y jump buffering
+    Usa el nuevo Input System.
+
+Servicio (completar el que ya empezaste):
+
+python# Añadir métodos para gestión de templates
+
+def list_templates(self) -> List[Dict[str, Any]]:
+    """List all available templates."""
+    templates = []
+    for template_file in self.templates_dir.glob("*.yaml"):
+        try:
+            with open(template_file) as f:
+                data = yaml.safe_load(f)
+                templates.append({
+                    "id": data.get("id"),
+                    "name": data.get("name"),
+                    "description": data.get("description"),
+                    "category": data.get("category"),
+                    "difficulty": data.get("difficulty")
+                })
+        except:
+            continue
+    return templates
+
+def create_project_from_template(self, template_id: str, project_name: str) -> str:
+    """Create new project from template."""
+    template_file = self.templates_dir / f"{template_id}.yaml"
+    if not template_file.exists():
+        raise ValueError(f"Template {template_id} not found")
+    
+    with open(template_file) as f:
+        template = yaml.safe_load(f)
+    
+    # Crear proyecto
+    from app.services.projects import project_service
+    project = project_service.create_project({
+        "name": project_name,
+        "description": template.get("description"),
+        "settings": template.get("project_settings", {})
+    })
+    
+    # Crear contexto inicial
+    from app.services.context_service import context_service
+    context_service.create_context(
+        project.id,
+        template.get("default_context"),
+        scope="global",
+        created_by="template"
+    )
+    
+    # Crear plan inicial con tareas sugeridas
+    from app.services.task_plan_service import task_plan_service
+    task_plan_service.create_plan(
+        project.id,
+        template.get("suggested_tasks", []),
+        created_by="template"
+    )
+    
+    return project.id
+
+Router gateway/app/routers/templates.py
+
+
+
+*Contexto General de la Arquitectura
+Estamos construyendo un sistema de gestión de desarrollo de videojuegos asistido por IA que:
+Gestiona proyectos con planes de tareas versionados
+Mantiene contexto evolutivo (global y por tarea)
+Coordina agentes IA con herramientas MCP
+Permite consenso usuario-IA en la planificación
+Genera y actualiza contexto automáticamente
+
+*Buenas Prácticas para la Implementación
+Base de Datos: Usar siempre `data/gateway.db`
+Principios SOLID: Cada componente con responsabilidad única
+Idempotencia: Operaciones repetibles sin efectos secundarios
+Versionado Semántico: Cambios compatibles hacia atrás
+Transacciones Atómicas: Todo o nada en operaciones críticas
+Logging Estructurado: Trazabilidad completa con correlation IDs
+Eventos: WebSocket para actualizaciones en tiempo real
+Tests Unitarios: Mínimo 80% cobertura en lógica de negocio
+Documentación API: OpenAPI actualizado con cada cambio

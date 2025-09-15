@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Optional, List
-
 from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel import Field
 from datetime import datetime
@@ -10,19 +9,23 @@ from datetime import datetime
 
 class ProjectDB(SQLModel, table=True):
     """Database model for projects."""
-    
     __tablename__ = "projects"
+    __table_args__ = {"extend_existing": True}
     
     id: str = Field(primary_key=True, description="Unique project identifier")
     name: str = Field(description="Human-readable project name") 
     path: str = Field(description="Relative path to project directory")
     active: bool = Field(default=False, description="Whether this project is currently active")
+    active_context_id: int | None = Field(default=None, description="Active context ID")
+    active_plan_id: int | None = Field(default=None, description="Active plan ID")
+    current_task_id: int | None = Field(default=None, description="Current task ID")
+    status: str = Field(default="draft", description="draft|consensus|active|completed")
 
 
 class ChatMessageDB(SQLModel, table=True):
     """Database model for chat messages."""
-
     __tablename__ = "chat_messages"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     msg_id: str = Field(index=True, description="Unique message identifier (UUID4)")
@@ -34,8 +37,8 @@ class ChatMessageDB(SQLModel, table=True):
 
 class TimelineEventDB(SQLModel, table=True):
     """Timeline of orchestrated action steps."""
-
     __tablename__ = "timeline_events"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     project_id: str = Field(index=True, description="Project ID")
@@ -51,8 +54,8 @@ class TimelineEventDB(SQLModel, table=True):
 
 class SessionDB(SQLModel, table=True):
     """Agent session per project/provider with optional summary."""
-
     __tablename__ = "sessions"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     project_id: str = Field(index=True, description="Project ID")
@@ -64,8 +67,8 @@ class SessionDB(SQLModel, table=True):
 
 class AgentMessageDB(SQLModel, table=True):
     """Stored conversation messages for sessions."""
-
     __tablename__ = "agent_messages"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     session_id: int = Field(index=True)
@@ -79,21 +82,25 @@ class AgentMessageDB(SQLModel, table=True):
 
 class ArtifactDB(SQLModel, table=True):
     """References to generated artifacts tied to a session."""
-
     __tablename__ = "artifacts"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
-    session_id: int = Field(index=True)
+    session_id: Optional[int] = Field(default=None, index=True)
     type: str = Field(description="Kind of artifact (fbx,image,etc)")
     path: str = Field(description="Filesystem path")
     meta_json: str | None = Field(default=None)
     ts: datetime = Field(default_factory=datetime.utcnow)
+    task_id: int | None = Field(default=None, index=True, description="Associated task ID")
+    category: str | None = Field(default=None, description="code|asset|document|screenshot")
+    validation_status: str = Field(default="pending", description="pending|valid|invalid")
+    size_bytes: int | None = Field(default=None)
 
 
 class TaskDB(SQLModel, table=True):
     """Project task persisted from plan_of_record or UI."""
-
     __tablename__ = "tasks"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     project_id: str = Field(index=True)
@@ -104,6 +111,58 @@ class TaskDB(SQLModel, table=True):
     status: str = Field(default="pending")  # pending|in_progress|done
     deps_json: str | None = Field(default=None)
     evidence_json: str | None = Field(default=None)
+    plan_id: int | None = Field(default=None, index=True, description="Plan ID")
+    idx: int = Field(default=0, description="Order index in plan")
+    code: str | None = Field(default=None, description="Stable code like T-001")
+    mcp_tools: str | None = Field(default=None, description="JSON array of suggested MCP tools")
+    deliverables: str | None = Field(default=None, description="JSON array of deliverables")
+    estimates: str | None = Field(default=None, description="JSON estimates {story_points, time_hours}")
+    priority: int = Field(default=1, description="Task priority")
+    started_at: datetime | None = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
+
+
+class TaskPlanDB(SQLModel, table=True):
+    """Versioned task plans for projects."""
+    __tablename__ = "task_plans"
+    __table_args__ = {"extend_existing": True}
+    
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, description="Project ID")
+    version: int = Field(description="Plan version number")
+    status: str = Field(default="proposed", description="proposed|accepted|superseded")
+    summary: str | None = Field(default=None, description="Plan summary")
+    created_by: str = Field(default="ai", description="ai|user|system")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ContextDB(SQLModel, table=True):
+    """Versioned context for projects and tasks."""
+    __tablename__ = "contexts"
+    __table_args__ = {"extend_existing": True}
+    
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, description="Project ID")
+    scope: str = Field(description="global|task")
+    task_id: int | None = Field(default=None, description="Task ID if scope=task")
+    content: str = Field(description="JSON context content")
+    created_by: str = Field(default="system", description="ai|user|system")
+    source: str | None = Field(default=None, description="template-default|ai-generate|manual-edit")
+    version: int = Field(default=1, description="Context version")
+    is_active: bool = Field(default=False, description="Is this the active context")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EventLogDB(SQLModel, table=True):
+    """Persisted event log for replay and audit."""
+    __tablename__ = "event_log"
+    __table_args__ = {"extend_existing": True}
+
+    id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True)
+    event_type: str = Field(index=True)
+    payload_json: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class DatabaseManager:
@@ -373,6 +432,60 @@ class DatabaseManager:
                 return True
             return False
 
+    def get_active_plan(self, project_id: str) -> Optional["TaskPlanDB"]:
+        """Get active plan for project."""
+        with self.get_session() as session:
+            project = session.get(ProjectDB, project_id)
+            if project and project.active_plan_id:
+                return session.get(TaskPlanDB, project.active_plan_id)
+            return None
+
+    def create_task_plan(self, plan: "TaskPlanDB") -> "TaskPlanDB":
+        """Create new task plan."""
+        with self.get_session() as session:
+            session.add(plan)
+            session.commit()
+            session.refresh(plan)
+            return plan
+
+    def get_active_context(self, project_id: str, scope: str = "global") -> Optional["ContextDB"]:
+        """Get active context for project."""
+        with self.get_session() as session:
+            stmt = (
+                select(ContextDB)
+                .where(ContextDB.project_id == project_id)
+                .where(ContextDB.scope == scope)
+                .where(ContextDB.is_active == True)
+            )
+            return session.exec(stmt).first()
+
+    def create_context(self, context: "ContextDB") -> "ContextDB":
+        """Create new context version."""
+        with self.get_session() as session:
+            # Deactivate previous contexts of same scope
+            stmt = (
+                select(ContextDB)
+                .where(ContextDB.project_id == context.project_id)
+                .where(ContextDB.scope == context.scope)
+                .where(ContextDB.is_active == True)
+            )
+            for old_ctx in session.exec(stmt):
+                old_ctx.is_active = False
+                session.add(old_ctx)
+            
+            context.is_active = True
+            session.add(context)
+            session.commit()
+            session.refresh(context)
+            return context
+
+    def add_event_log(self, event: "EventLogDB") -> "EventLogDB":
+        """Add an event to the persistent log."""
+        with self.get_session() as session:
+            session.add(event)
+            session.commit()
+            session.refresh(event)
+            return event
 
 # Global database manager instance
 db = DatabaseManager()

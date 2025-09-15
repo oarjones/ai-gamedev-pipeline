@@ -50,6 +50,24 @@ export default function App() {
             >
               Tasks
             </Link>
+            <Link
+              className={linkCls(loc.pathname.startsWith('/consensus'), !hasProject)}
+              to="/consensus"
+              onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Consensus')}
+              aria-disabled={!hasProject}
+              title={hasProject ? 'Consensus' : 'Selecciona un proyecto primero'}
+            >
+              Consensus
+            </Link>
+            <Link
+              className={linkCls(loc.pathname.startsWith('/context'), !hasProject)}
+              to="/context"
+              onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Context')}
+              aria-disabled={!hasProject}
+              title={hasProject ? 'Context' : 'Selecciona un proyecto primero'}
+            >
+              Context
+            </Link>
           </nav>
         </div>
       </header>

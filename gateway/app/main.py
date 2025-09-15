@@ -203,6 +203,36 @@ app.include_router(
     dependencies=_auth_deps
 )
 
+# Plans (from Tarea 5)
+from app.routers import plans as plans_router
+
+app.include_router(
+    plans_router.router,
+    prefix="/api/v1/plans",
+    tags=["plans"],
+    dependencies=_auth_deps
+)
+
+# Artifacts (from Tarea 7)
+from app.routers import artifacts as artifacts_router
+
+app.include_router(
+    artifacts_router.router,
+    prefix="/api/v1", # Using root prefix for task-nested routes
+    tags=["artifacts"],
+    dependencies=_auth_deps
+)
+
+# Context (from Tarea 13)
+from app.routers import context as context_router
+
+app.include_router(
+    context_router.router,
+    prefix="/api/v1",
+    tags=["context"],
+    dependencies=_auth_deps
+)
+
 
 # Dummy endpoint to include Envelope model in OpenAPI schema
 @app.post("/api/v1/events", tags=["contracts"], dependencies=_auth_deps)
