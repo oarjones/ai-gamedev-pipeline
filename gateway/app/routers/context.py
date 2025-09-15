@@ -50,13 +50,12 @@ async def get_context_history(
 @router.post("/context/generate", summary="Trigger automatic context generation")
 async def generate_context(
     project_id: str = Query(..., alias="projectId"),
-    last_task_id: int | None = None
+    task_id: int | None = Query(default=None, description="Completed task ID to base the context on")
 ):
-    # This is a simplified version. A real implementation might need more info.
-    if not last_task_id:
-        raise HTTPException(status_code=400, detail="last_task_id is required for generation")
+    if not task_id:
+        raise HTTPException(status_code=400, detail="task_id is required for generation")
     try:
-        new_context = context_service.generate_context_after_task(project_id, last_task_id)
+        new_context = context_service.generate_context_after_task(project_id, task_id)
         return new_context
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
