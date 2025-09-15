@@ -26,6 +26,10 @@ from app.ws.events import manager
 from app.models import Envelope, EventType
 from app.services.projects import project_service
 from app.services.adapter_lock import status as adapter_status
+from app.services.context_service import context_service
+from app.db import db
+import json
+import hashlib
 
 
 router = APIRouter()
@@ -170,6 +174,10 @@ async def send_to_agent(payload: SendRequest, request: Request) -> JSONResponse:
 async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
     """Execute a single-turn prompt using the gemini_cli provider (one-shot architecture)."""
     try:
+        # Build enriched prompt with project/task context
+        project_id = payload.sessionId
+        enriched = _build_enriched_prompt(project_id, payload.question)
+
         # Broadcast user message first so UI shows it immediately
         try:
             env_user = Envelope(type=EventType.CHAT, projectId=payload.sessionId, payload={"role": "user", "content": payload.question})
@@ -177,7 +185,8 @@ async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
         except Exception:
             pass
 
-        answer, error = unified_agent.ask_one_shot(payload.sessionId, payload.question)
+        # Send enriched prompt to the agent
+        answer, error = unified_agent.ask_one_shot(payload.sessionId, enriched)
 
         # Broadcast agent answer if present
         if answer:
@@ -204,3 +213,129 @@ async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
             "stderr": error,  # treat as warning if answer is present
         },
     )
+
+
+# --- Context injection helpers ---
+_PROMPT_CACHE: dict[str, dict] = {}
+
+
+def _to_json_s(obj: object, max_len: int) -> str:
+    try:
+        s = json.dumps(obj, ensure_ascii=False, indent=2)
+    except Exception:
+        s = str(obj)
+    if len(s) > max_len:
+        return s[: max_len - 20] + "\n... [truncated]"
+    return s
+
+
+def _hash_obj(obj: object) -> str:
+    try:
+        data = json.dumps(obj, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        data = str(obj)
+    return hashlib.sha1(data.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _build_enriched_prompt(project_id: str, user_question: str) -> str:
+    # Defaults
+    global_ctx: dict | None = None
+    task_ctx: dict | None = None
+    task_meta: dict | None = None
+
+    try:
+        proj = project_service.get_project(project_id)
+        if proj is None:
+            logger.info("[/agent/ask] project '%s' not found; sending raw question", project_id)
+            return user_question
+
+        # Contexts
+        try:
+            global_ctx = context_service.get_active_context(project_id, 'global')
+        except Exception as e:
+            logger.warning("[/agent/ask] failed to load global context: %s", e)
+
+        current_task_id = getattr(proj, "current_task_id", None)
+        if current_task_id:
+            try:
+                t = db.get_task(int(current_task_id))
+                if t:
+                    task_meta = {
+                        "codigo": t.code or t.task_id,
+                        "titulo": t.title,
+                        "descripcion": t.description,
+                        "criterios_aceptacion": t.acceptance,
+                        "estado": t.status,
+                    }
+            except Exception as e:
+                logger.warning("[/agent/ask] failed to load current task meta: %s", e)
+            try:
+                task_ctx = context_service.get_active_context(project_id, 'task', task_id=int(current_task_id))
+            except Exception as e:
+                logger.warning("[/agent/ask] failed to load task context: %s", e)
+
+        # Caching key
+        key = "|".join(
+            [
+                project_id,
+                _hash_obj(global_ctx or {}),
+                _hash_obj(task_ctx or {}),
+                _hash_obj(task_meta or {}),
+            ]
+        )
+        cached = _PROMPT_CACHE.get(project_id)
+        if cached and cached.get("key") == key:
+            prefix = cached.get("prefix") or ""
+            logger.debug("[/agent/ask] using cached prompt prefix for project=%s", project_id)
+        else:
+            # Budgets for context length
+            max_global = 3500
+            max_task_ctx = 2500
+            g_json = _to_json_s(global_ctx or {}, max_global) if global_ctx else "{}"
+            t_json = _to_json_s(task_ctx or {}, max_task_ctx) if task_ctx else "{}"
+            task_block = ""
+            if task_meta:
+                try:
+                    task_block = (
+                        f"codigo: {task_meta.get('codigo') or ''}\n"
+                        f"titulo: {task_meta.get('titulo') or ''}\n"
+                        f"descripcion: {task_meta.get('descripcion') or ''}\n"
+                        f"criterios: {task_meta.get('criterios_aceptacion') or ''}\n"
+                    )
+                except Exception:
+                    task_block = ""
+
+            prefix = (
+                "=== CONTEXTO GLOBAL DEL PROYECTO ===\n"
+                f"{g_json}\n\n"
+                "=== TAREA ACTUAL ===\n"
+                f"{task_block if task_block else '(no hay tarea activa)'}\n\n"
+                "=== CONTEXTO DE LA TAREA ===\n"
+                f"{t_json if task_ctx else '(sin contexto de tarea activo)'}\n\n"
+            )
+            _PROMPT_CACHE[project_id] = {"key": key, "prefix": prefix}
+
+        # Metrics/logging
+        try:
+            glen = len(json.dumps(global_ctx or {})) if global_ctx else 0
+            tlen = len(json.dumps(task_ctx or {})) if task_ctx else 0
+            logger.info(
+                "[/agent/ask] injecting context: global_bytes=%s task_bytes=%s task_meta=%s",
+                glen,
+                tlen,
+                bool(task_meta),
+            )
+        except Exception:
+            pass
+
+        # Final prompt
+        final = (
+            prefix
+            + "=== PREGUNTA DEL USUARIO ===\n"
+            + user_question
+            + "\n\nPor favor responde considerando todo el contexto anterior."
+        )
+        return final
+    except Exception as e:
+        logger.warning("[/agent/ask] context injection failed; falling back to raw question: %s", e)
+        return user_question
