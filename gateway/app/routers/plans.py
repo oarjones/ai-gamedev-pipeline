@@ -22,6 +22,12 @@ class EditPlanRequest(BaseModel):
     remove: Optional[List[str]] = None
     update: Optional[List[Dict]] = None
 
+class ApplyChangesRequest(BaseModel):
+    tasks: Optional[List[Dict]] = None
+    add: Optional[List[Dict]] = None
+    remove: Optional[List[str]] = None
+    update: Optional[List[Dict]] = None
+
 @router.get("", summary="List all plan versions for a project")
 async def list_plans(project_id: str = Query(..., alias="projectId")):
     """List all plan versions for a project."""
@@ -230,3 +236,71 @@ async def update_plan(planId: int, payload: EditPlanRequest):
 
         session.commit()
         return {"updated": updated, "plan_id": planId}
+
+
+@router.patch("/{planId}/apply-changes", summary="Apply plan changes and create new version")
+async def apply_changes(planId: int, req: ApplyChangesRequest):
+    """Apply a set of changes to an existing plan by creating a new version.
+
+    Accepts either a full tasks array via `tasks`, or a partial set of operations
+    (add/remove/update) applied to the current plan to construct the new tasks list.
+    """
+    # Build new tasks list
+    if req.tasks is not None:
+        new_tasks = list(req.tasks)
+    else:
+        # Load current plan tasks
+        from sqlmodel import select
+        with db.get_session() as session:
+            stmt = select(TaskDB).where(TaskDB.plan_id == planId).order_by(TaskDB.idx)
+            curr = session.exec(stmt).all()
+        by_code = { (t.code or t.task_id): {
+            "code": t.code or t.task_id,
+            "title": t.title,
+            "description": t.description,
+            "dependencies": (json.loads(t.deps_json or "[]")),
+            "mcp_tools": (json.loads(t.mcp_tools or "[]")),
+            "deliverables": (json.loads(t.deliverables or "[]")),
+            "estimates": (json.loads(t.estimates or "{}")),
+            "priority": t.priority,
+        } for t in curr }
+
+        # apply updates
+        if req.update:
+            for u in req.update:
+                c = str(u.get("code") or "").strip()
+                if not c or c not in by_code:
+                    continue
+                by_code[c].update({k: v for k, v in u.items() if k != "code"})
+        # apply removes
+        if req.remove:
+            for c in req.remove:
+                by_code.pop(c, None)
+        # apply adds (append at end)
+        if req.add:
+            for a in req.add:
+                if not isinstance(a, dict):
+                    continue
+                code = str(a.get("code") or "").strip()
+                if code and code in by_code:
+                    continue
+                by_code[code or f"T-{len(by_code)+1:03d}"] = a
+        new_tasks = list(by_code.values())
+
+    try:
+        res = plan_service.apply_plan_changes(planId, new_tasks)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Emit WebSocket event
+    try:
+        envelope = Envelope(
+            type=EventType.UPDATE,
+            project_id=res.get("project_id"),
+            payload={"event": "plan.changed", "old": planId, "new": res.get("new_plan_id"), "diff": res.get("diff")}
+        )
+        await manager.broadcast_project(res.get("project_id"), envelope.model_dump_json())
+    except Exception:
+        pass
+
+    return res

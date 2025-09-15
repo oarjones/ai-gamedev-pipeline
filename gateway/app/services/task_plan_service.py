@@ -170,6 +170,154 @@ class TaskPlanService:
                     return True
         return False
 
+    def apply_plan_changes(self, old_plan_id: int, new_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Apply a set of task changes to an existing plan by creating a new version.
+
+        - Preserves status for completed tasks (done) with timestamps/evidence.
+        - Marks removed tasks as 'dropped'.
+        - Validates dependencies and rejects on cycles or broken deps.
+        - Returns a diff summary and the new plan id/version.
+        """
+        from sqlmodel import select
+        # Load old plan and project
+        with self.db.get_session() as session:
+            old_plan = session.get(TaskPlanDB, old_plan_id)
+            if not old_plan:
+                raise ValueError(f"Plan {old_plan_id} not found")
+            project = session.get(ProjectDB, old_plan.project_id)
+            if not project:
+                raise ValueError("Associated project not found")
+
+        # Validate/repair incoming tasks
+        repaired, warnings = self._validate_and_repair(new_tasks)
+        if self._has_circular_dependencies(repaired):
+            raise ValueError("Plan changes rejected: circular dependencies detected")
+
+        # Build maps
+        with self.db.get_session() as session:
+            stmt = select(TaskDB).where(TaskDB.plan_id == old_plan_id).order_by(TaskDB.idx)
+            old_rows = session.exec(stmt).all()
+        old_by_code = { (r.code or r.task_id): r for r in old_rows }
+        new_by_code = { t['code']: t for t in repaired }
+
+        # Determine diff
+        old_codes = set(old_by_code.keys())
+        new_codes = set(new_by_code.keys())
+        added = sorted(new_codes - old_codes)
+        removed = sorted(old_codes - new_codes)
+        modified: List[str] = []
+        for c in sorted(old_codes & new_codes):
+            o = old_by_code[c]
+            n = new_by_code[c]
+            # Compare relevant fields
+            if any([
+                (o.title or '') != (n.get('title') or ''),
+                (o.description or '') != (n.get('description') or ''),
+                (o.priority or 1) != int(n.get('priority') or 1),
+                json.loads(o.deps_json or '[]') != (n.get('dependencies') or []),
+            ]):
+                modified.append(c)
+
+        # Validate dependencies exist and do not point to removed/dropped tasks
+        for c, t in new_by_code.items():
+            for dep in t.get('dependencies') or []:
+                if dep not in new_codes:
+                    raise ValueError(f"Broken dependency: {c} depends on missing {dep}")
+
+        # Create new plan version and tasks in a transaction
+        with self.db.get_session() as session:
+            # determine next version
+            from sqlmodel import func as _func
+            max_v = session.exec(select(_func.max(TaskPlanDB.version)).where(TaskPlanDB.project_id == old_plan.project_id)).first() or 0
+            new_plan = TaskPlanDB(
+                project_id=old_plan.project_id,
+                version=int(max_v) + 1,
+                status="proposed",
+                summary=f"Applied changes to plan {old_plan_id}",
+                created_by="user",
+                created_at=datetime.utcnow(),
+            )
+            session.add(new_plan)
+            session.commit(); session.refresh(new_plan)
+
+            # Insert tasks (preserve done status)
+            for idx, code in enumerate([t['code'] for t in repaired]):
+                t = new_by_code[code]
+                prev = old_by_code.get(code)
+                status = 'pending'
+                started_at = None
+                completed_at = None
+                evidence_json = None
+                if prev and prev.status == 'done':
+                    status = 'done'
+                    started_at = prev.started_at
+                    completed_at = prev.completed_at
+                    evidence_json = prev.evidence_json
+                row = TaskDB(
+                    project_id=new_plan.project_id,
+                    plan_id=new_plan.id,
+                    idx=idx,
+                    code=code,
+                    task_id=code,
+                    title=t.get('title') or (prev.title if prev else f"Task {code}"),
+                    description=t.get('description') or (prev.description if prev else ''),
+                    acceptance='\n'.join(t.get('acceptance_criteria') or (prev.acceptance.split('\n') if prev and prev.acceptance else [])),
+                    status=status,
+                    deps_json=json.dumps(t.get('dependencies') or []),
+                    mcp_tools=json.dumps(t.get('mcp_tools') or []),
+                    deliverables=json.dumps(t.get('deliverables') or []),
+                    estimates=json.dumps(t.get('estimates') or {}),
+                    priority=int(t.get('priority') or (prev.priority if prev else 1)),
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    evidence_json=evidence_json,
+                )
+                session.add(row)
+
+            # Add dropped tasks from old plan
+            drop_start_idx = len(repaired)
+            for i, code in enumerate(removed):
+                prev = old_by_code[code]
+                row = TaskDB(
+                    project_id=new_plan.project_id,
+                    plan_id=new_plan.id,
+                    idx=drop_start_idx + i,
+                    code=code,
+                    task_id=code,
+                    title=prev.title,
+                    description=prev.description,
+                    acceptance=prev.acceptance,
+                    status='dropped',
+                    deps_json=prev.deps_json,
+                    mcp_tools=prev.mcp_tools,
+                    deliverables=prev.deliverables,
+                    estimates=prev.estimates,
+                    priority=prev.priority,
+                    started_at=prev.started_at,
+                    completed_at=prev.completed_at,
+                    evidence_json=prev.evidence_json,
+                )
+                session.add(row)
+
+            session.commit()
+            session.refresh(new_plan)
+
+        # Export snapshot for new plan
+        self._export_plan_to_json(old_plan.project_id, new_plan)
+
+        return {
+            "project_id": old_plan.project_id,
+            "old_plan_id": old_plan_id,
+            "new_plan_id": new_plan.id,
+            "version": new_plan.version,
+            "diff": {
+                "added": added,
+                "removed": removed,
+                "modified": modified,
+                "warnings": warnings,
+            },
+        }
+
     def _validate_and_repair(self, tasks_json: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[str]]:
         """Validate tasks using Pydantic schemas, attempting auto-repair for minor issues.
 
