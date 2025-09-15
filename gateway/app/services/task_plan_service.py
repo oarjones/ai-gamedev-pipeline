@@ -1,6 +1,6 @@
 """Service for managing versioned task plans."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import json
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +9,11 @@ from sqlmodel import select, func
 
 from gateway.app.db import db, TaskPlanDB, TaskDB, ProjectDB
 from gateway.app.models.core import Project
+from gateway.app.models.schemas import TaskPlanSchema, TaskSchema
+import re
+import logging
+
+log = logging.getLogger(__name__)
 
 class TaskPlanService:
     """Service for managing versioned task plans."""
@@ -17,7 +22,14 @@ class TaskPlanService:
         self.db = db  # Use the global db instance
     
     def create_plan(self, project_id: str, tasks_json: List[Dict], created_by: str = 'ai') -> TaskPlanDB:
-        """Create new plan version with tasks."""
+        """Create new plan version with tasks.
+
+        Validates and repairs incoming tasks before persisting. Rejects on critical errors.
+        """
+        # Validate/repair
+        repaired_tasks, warnings = self._validate_and_repair(tasks_json)
+        if self._has_circular_dependencies(repaired_tasks):
+            raise ValueError("Plan rejected: circular dependencies detected")
         # 1. Get the current highest version
         with self.db.get_session() as session:
             stmt = select(func.max(TaskPlanDB.version)).where(TaskPlanDB.project_id == project_id)
@@ -35,7 +47,7 @@ class TaskPlanService:
         plan = self.db.create_task_plan(plan)
         
         # 3. Create associated tasks
-        for idx, task_data in enumerate(tasks_json):
+        for idx, task_data in enumerate(repaired_tasks):
             task = TaskDB(
                 project_id=project_id,
                 plan_id=plan.id,
@@ -44,7 +56,7 @@ class TaskPlanService:
                 task_id=task_data.get('code', f'T-{idx+1:03d}'),  # Maintain compatibility
                 title=task_data.get('title', 'Untitled'),
                 description=task_data.get('description', ''),
-                acceptance=task_data.get('acceptance_criteria', ''),
+                acceptance='\n'.join(task_data.get('acceptance_criteria') or []),
                 status='pending',
                 deps_json=json.dumps(task_data.get('dependencies', [])),
                 mcp_tools=json.dumps(task_data.get('mcp_tools', [])),
@@ -157,6 +169,81 @@ class TaskPlanService:
                 if visit(task_code):
                     return True
         return False
+
+    def _validate_and_repair(self, tasks_json: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """Validate tasks using Pydantic schemas, attempting auto-repair for minor issues.
+
+        Returns (repaired_tasks, warnings). Raises ValueError for critical errors.
+        """
+        warnings: List[str] = []
+        tasks: List[Dict[str, Any]] = []
+
+        # 1) Normalize inputs and ensure dicts
+        norm: List[Dict[str, Any]] = []
+        for i, t in enumerate(tasks_json):
+            if not isinstance(t, dict):
+                raise ValueError(f"Task at index {i} is not an object")
+            norm.append(dict(t))
+
+        # 2) Assign/repair codes and titles
+        def mk_code(n: int) -> str:
+            return f"T-{n:03d}"
+        code_set = set()
+        for i, t in enumerate(norm, start=1):
+            raw_code = str(t.get('code') or '').strip()
+            code = raw_code if re.match(r'^T-\d{3}$', raw_code) else mk_code(i)
+            # ensure unique
+            while code in code_set:
+                i += 1
+                code = mk_code(i)
+            code_set.add(code)
+            t['code'] = code
+            # Title default and clamp
+            title = str(t.get('title') or '').strip() or f"Task {code}"
+            if len(title) < 3:
+                title = (title + '...') if title else f"Task {code}"
+            t['title'] = title[:200]
+            # acceptance_criteria as list
+            acc = t.get('acceptance_criteria')
+            if acc is None:
+                t['acceptance_criteria'] = []
+            elif isinstance(acc, str):
+                t['acceptance_criteria'] = [acc]
+            # Optional fields defaults
+            t['description'] = t.get('description') or ''
+            t['dependencies'] = list(dict.fromkeys([str(x) for x in (t.get('dependencies') or []) if x]))
+            t['mcp_tools'] = list(t.get('mcp_tools') or [])
+            t['deliverables'] = list(t.get('deliverables') or [])
+            t['estimates'] = dict(t.get('estimates') or {})
+            try:
+                pr = int(t.get('priority') or 1)
+                if pr < 1 or pr > 5:
+                    warnings.append(f"Task {code}: priority out of range -> set to 1")
+                    pr = 1
+            except Exception:
+                warnings.append(f"Task {code}: invalid priority -> set to 1")
+                pr = 1
+            t['priority'] = pr
+
+        # 3) Normalize dependencies to known codes and drop self-refs
+        code_list = list(code_set)
+        for t in norm:
+            deps = []
+            for d in t.get('dependencies') or []:
+                if d == t['code']:
+                    continue
+                if d in code_set:
+                    deps.append(d)
+            t['dependencies'] = list(dict.fromkeys(deps))
+
+        # 4) Pydantic validation (strict)
+        try:
+            _ = [TaskSchema(**t) for t in norm]
+        except Exception as e:
+            # Capture first error for user
+            raise ValueError(f"Plan validation failed: {e}")
+
+        return norm, warnings
 
 # Global instance of the service
 task_plan_service = TaskPlanService()
