@@ -28,11 +28,18 @@
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# IDE específicos
+.idea/
+*.swp
+*.swo
+*~
+
 # Herramientas AI / IDE
 .claude/
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .venv/
@@ -46,13 +53,25 @@ build/
 dist/
 *.egg-info/
 
+# Logs temporales
+logs/*.log
+*.log
+
 # Node.js / Frontend
 node_modules/
 webapp/dist/
 npm-debug.log*
 
+# TypeScript cache
+webapp/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Datos Locales (No versionar BBDD locales)
 #gateway/data/gateway.db
+
+# Archivos de sesión
+gateway/data/sessions/
+gateway/data/*.db-journal
 
 # Proyectos locales generados por el dashboard (no versionar contenido)
 projects/
@@ -60,6 +79,10 @@ projects/
 
 # (Compat) por si alguna herramienta usa este path
 gateway/projects/
+
+# Archivos de configuración local
+.env.local
+config/settings.local.yaml
 
 # Sistema Operativo
 .DS_Store
