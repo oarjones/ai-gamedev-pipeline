@@ -23,13 +23,13 @@ class EditPlanRequest(BaseModel):
     update: Optional[List[Dict]] = None
 
 @router.get("", summary="List all plan versions for a project")
-async def list_plans(projectId: str):
+async def list_plans(project_id: str = Query(..., alias="projectId")):
     """List all plan versions for a project."""
     with db.get_session() as session:
         from sqlmodel import select
         
         stmt = select(TaskPlanDB).where(
-            TaskPlanDB.project_id == projectId
+            TaskPlanDB.project_id == project_id
         ).order_by(TaskPlanDB.version.desc())
         
         plans = session.exec(stmt).all()
@@ -93,10 +93,10 @@ async def get_plan_details(planId: int):
         }
 
 @router.post("/generate", summary="Generate initial plan from project manifest")
-async def generate_plan(projectId: str):
+async def generate_plan(project_id: str = Query(..., alias="projectId")):
     """Generate initial plan from project manifest."""
     # Leer manifest del proyecto
-    manifest_path = Path(f"projects/{projectId}/.agp/project_manifest.yaml")
+    manifest_path = Path(f"projects/{project_id}/.agp/project_manifest.yaml")
     if not manifest_path.exists():
         # Si no hay manifest, usar uno básico
         manifest = {"type": "generic", "description": "Proyecto de desarrollo"}
@@ -136,7 +136,7 @@ async def generate_plan(projectId: str):
     """
     
     # Llamar al agente
-    cwd = Path("projects") / projectId
+    cwd = Path("projects") / project_id
     await unified_agent.start(cwd, 'gemini')
     await unified_agent.send(prompt, correlation_id="plan-generation")
     

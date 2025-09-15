@@ -6,7 +6,7 @@ import json
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.db import db, TaskDB
 from app.services.unified_agent import agent as unified_agent
@@ -21,8 +21,8 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_tasks(projectId: str) -> List[Dict[str, Any]]:
-    rows = db.list_tasks(projectId)
+async def list_tasks(project_id: str = Query(..., alias="projectId")) -> List[Dict[str, Any]]:
+    rows = db.list_tasks(project_id)
     return [
         {
             "id": t.id,
@@ -40,8 +40,8 @@ async def list_tasks(projectId: str) -> List[Dict[str, Any]]:
 
 
 @router.post("/import")
-async def import_tasks(projectId: str) -> Dict[str, Any]:
-    por = Path("projects") / projectId / "plan_of_record.yaml"
+async def import_tasks(project_id: str = Query(..., alias="projectId")) -> Dict[str, Any]:
+    por = Path("projects") / project_id / "plan_of_record.yaml"
     if not por.exists():
         raise HTTPException(status_code=404, detail="plan_of_record.yaml not found")
     try:
@@ -53,10 +53,10 @@ async def import_tasks(projectId: str) -> Dict[str, Any]:
     for item in tasks:
         try:
             tid = str(item.get("id") or "").strip() or f"T-{created+1:03d}"
-            if db.find_task_by_task_id(projectId, tid):
+            if db.find_task_by_task_id(project_id, tid):
                 continue
             t = TaskDB(
-                project_id=projectId,
+                project_id=project_id,
                 task_id=tid,
                 title=str(item.get("title") or "Untitled"),
                 description=str(item.get("desc") or ""),

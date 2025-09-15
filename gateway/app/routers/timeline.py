@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 
 from app.services.timeline import timeline_service
@@ -15,12 +15,12 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_timeline(projectId: str, limit: Optional[int] = 100) -> JSONResponse:
-    project = project_service.get_project(projectId)
+async def list_timeline(project_id: str = Query(..., alias="projectId"), limit: Optional[int] = 100) -> JSONResponse:
+    project = project_service.get_project(project_id)
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{projectId}' not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found")
 
-    items = await timeline_service.list(projectId, limit=int(limit or 100))
+    items = await timeline_service.list(project_id, limit=int(limit or 100))
     return JSONResponse(status_code=status.HTTP_200_OK, content={"items": items})
 
 
