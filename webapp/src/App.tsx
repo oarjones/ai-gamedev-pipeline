@@ -10,6 +10,11 @@ export default function App() {
     e.preventDefault()
     pushToast(`Selecciona un proyecto para abrir "${label}"`)
   }
+  const consensusHref = hasProject ? `/projects/${projectId}/consensus` : '/consensus'
+  const contextHref = hasProject ? `/projects/${projectId}/context` : '/context'
+  const isConsensus = loc.pathname.includes('/consensus')
+  const isContext = loc.pathname.includes('/context')
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b sticky top-0 z-10 bg-background/80 backdrop-blur">
@@ -51,8 +56,8 @@ export default function App() {
               Tasks
             </Link>
             <Link
-              className={linkCls(loc.pathname.startsWith('/consensus'), !hasProject)}
-              to="/consensus"
+              className={linkCls(isConsensus, !hasProject)}
+              to={consensusHref}
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Consensus')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Consensus' : 'Selecciona un proyecto primero'}
@@ -60,8 +65,8 @@ export default function App() {
               Consensus
             </Link>
             <Link
-              className={linkCls(loc.pathname.startsWith('/context'), !hasProject)}
-              to="/context"
+              className={linkCls(isContext, !hasProject)}
+              to={contextHref}
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Context')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Context' : 'Selecciona un proyecto primero'}
