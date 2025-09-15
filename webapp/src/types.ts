@@ -5,6 +5,7 @@ export interface Task {
     description: string;
     dependencies: string[];
     status: 'pending' | 'in_progress' | 'done' | 'blocked';
+    priority?: number;
 }
 
 export interface TaskPlan {
