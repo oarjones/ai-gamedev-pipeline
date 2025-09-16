@@ -47,20 +47,20 @@ class TestEnvelope:
         """Test Envelope serializes to JSON correctly."""
         envelope = Envelope(
             type=EventType.ERROR,
-            projectId="proj-123",  # Use alias directly
+            project_id="proj-123",  # Use alias directly
             payload={"error": "Something went wrong", "code": 500}
         )
         
         # Test model_dump with alias
         data = envelope.model_dump(by_alias=True)
-        assert "projectId" in data
-        assert data["projectId"] == "proj-123"
+        assert "project_id" in data
+        assert data["project_id"] == "proj-123"
         assert data["type"] == "error"
         
         # Test JSON serialization
         json_str = envelope.model_dump_json(by_alias=True)
         parsed = json.loads(json_str)
-        assert parsed["projectId"] == "proj-123"
+        assert parsed["project_id"] == "proj-123"
         assert parsed["type"] == "error"
         assert parsed["payload"]["error"] == "Something went wrong"
     
@@ -69,7 +69,7 @@ class TestEnvelope:
         data = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "type": "action",
-            "projectId": "proj-456",
+            "project_id": "proj-456",
             "payload": {"action": "click", "target": "button"},
             "timestamp": "2024-01-01T12:00:00Z"
         }
@@ -168,7 +168,7 @@ class TestModelsIntegration:
         """Test Envelope containing project-related event."""
         envelope = Envelope(
             type=EventType.UPDATE,
-            projectId="proj-789",  # Use alias directly
+            project_id="proj-789",  # Use alias directly
             payload={
                 "project": {
                     "id": "proj-789",

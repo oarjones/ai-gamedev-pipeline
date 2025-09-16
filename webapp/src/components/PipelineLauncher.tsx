@@ -5,17 +5,17 @@ import { pipelineStart, pipelineCancel } from '@/lib/api'
 type Step = { name: string, ok: boolean, detail?: string }
 
 export default function PipelineLauncher() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const [open, setOpen] = useState(false)
   const [running, setRunning] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const onStart = async () => {
-    if (!projectId) { setError('Selecciona un proyecto'); return }
+    if (!project_id) { setError('Selecciona un proyecto'); return }
     setRunning(true); setError(null); setSteps(null)
     try {
-      const res = await pipelineStart(projectId)
+      const res = await pipelineStart(project_id)
       setSteps(res.steps)
     } catch (e: any) {
       setError(String(e?.message ?? e))
@@ -42,10 +42,10 @@ export default function PipelineLauncher() {
               <button className="btn" onClick={() => setOpen(false)}><CloseIcon /> Close</button>
             </div>
             <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">Proyecto: <span className="font-mono">{projectId ?? '-'}</span></div>
+              <div className="text-sm text-muted-foreground">Proyecto: <span className="font-mono">{project_id ?? '-'}</span></div>
               {error && <div className="text-sm text-red-600">{error}</div>}
               <div className="flex gap-2">
-                <button className="btn btn-primary" onClick={onStart} disabled={!projectId || running}>
+                <button className="btn btn-primary" onClick={onStart} disabled={!project_id || running}>
                   {running ? <span className="spinner" /> : <PlayIcon />} Run
                 </button>
                 <button className="btn" onClick={onCancel} disabled={!running}><StopIcon /> Cancel</button>

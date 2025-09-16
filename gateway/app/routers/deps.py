@@ -15,7 +15,7 @@ router = APIRouter()
 @router.post("/venv/create")
 async def venv_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     path = str(payload.get("path") or "").strip()
-    project_id = str(payload.get("projectId") or "system")
+    project_id = str(payload.get("project_id") or "system")
     if not path:
         raise HTTPException(status_code=400, detail="path is required")
     try:
@@ -33,7 +33,7 @@ async def deps_install(payload: Dict[str, Any]) -> Dict[str, Any]:
     venv_path = str(payload.get("venvPath") or "").strip()
     req_path = payload.get("requirementsPath")
     packages = payload.get("packages")
-    project_id = str(payload.get("projectId") or "system")
+    project_id = str(payload.get("project_id") or "system")
     if not venv_path:
         raise HTTPException(status_code=400, detail="venvPath is required")
     if not req_path and not packages:

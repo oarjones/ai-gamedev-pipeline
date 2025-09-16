@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/appStore'
 const GATEWAY_WS = import.meta.env.VITE_WS_URL as string | undefined
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined
 
-type SubOpts = { projectId: string | null, onMessage: (data: unknown) => void }
+type SubOpts = { project_id: string | null, onMessage: (data: unknown) => void }
 
 class WSClient {
   private ws: WebSocket | null = null
@@ -11,19 +11,19 @@ class WSClient {
   private subs = new Set<(data: unknown) => void>()
   private backoff = 200
 
-  subscribe({ projectId, onMessage }: SubOpts): () => void {
+  subscribe({ project_id, onMessage }: SubOpts): () => void {
     this.subs.add(onMessage)
-    if (projectId && projectId !== this.currentProject) {
-      this.connect(projectId)
+    if (project_id && project_id !== this.currentProject) {
+      this.connect(project_id)
     }
     return () => { this.subs.delete(onMessage) }
   }
 
-  private connect(projectId: string) {
+  private connect(project_id: string) {
     if (!GATEWAY_WS) return
-    this.currentProject = projectId
+    this.currentProject = project_id
     const url = new URL(GATEWAY_WS)
-    url.searchParams.set('projectId', projectId)
+    url.searchParams.set('project_id', project_id)
     if (API_KEY) url.searchParams.set('apiKey', API_KEY)
 
     this.ws?.close()

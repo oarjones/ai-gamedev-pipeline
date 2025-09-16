@@ -16,12 +16,12 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_sessions(projectId: str, limit: int = Query(20, ge=1, le=200)) -> list[dict]:
-    rows = db.list_sessions(projectId, limit=limit)
+async def list_sessions(project_id: str, limit: int = Query(20, ge=1, le=200)) -> list[dict]:
+    rows = db.list_sessions(project_id, limit=limit)
     return [
         {
             "id": s.id,
-            "projectId": s.project_id,
+            "project_id": s.project_id,
             "provider": s.provider,
             "startedAt": s.started_at.isoformat() + "Z",
             "endedAt": s.ended_at.isoformat() + "Z" if s.ended_at else None,
@@ -40,7 +40,7 @@ async def get_session(session_id: int, recent: int = Query(10, ge=1, le=100)) ->
     arts = db.list_artifacts(session_id, limit=20)
     return {
         "id": s.id,
-        "projectId": s.project_id,
+        "project_id": s.project_id,
         "provider": s.provider,
         "startedAt": s.started_at.isoformat() + "Z",
         "endedAt": s.ended_at.isoformat() + "Z" if s.ended_at else None,

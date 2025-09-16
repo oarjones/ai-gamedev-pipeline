@@ -5,14 +5,14 @@ import { useAppStore } from '@/store/appStore'
 type Item = { id: string; ts: string; type: string; text: string }
 
 export default function Timeline() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const [items, setItems] = useState<Item[]>([])
   const listRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => { setItems([]) }, [projectId])
+  useEffect(() => { setItems([]) }, [project_id])
 
   useEffect(() => {
-    const unsub = wsClient.subscribe({ projectId, onMessage: (ev) => {
+    const unsub = wsClient.subscribe({ project_id, onMessage: (ev) => {
       const e = ev as any
       const type = e?.type as string | undefined
       if (!type) return
@@ -38,7 +38,7 @@ export default function Timeline() {
       setItems(prev => [...prev.slice(-199), item])
     }})
     return () => unsub()
-  }, [projectId])
+  }, [project_id])
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })

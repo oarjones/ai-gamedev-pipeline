@@ -20,7 +20,7 @@ class CreateContextRequest(BaseModel):
     responses={200: {"description": "Active context returned"}, 404: {"description": "Context not found"}},
 )
 async def get_active_context(
-    project_id: str = Query(..., alias="projectId"),
+    project_id: str = Query(..., alias="project_id"),
     scope: str = 'global'
 ):
     context = context_service.get_active_context(project_id=project_id, scope=scope)
@@ -36,7 +36,7 @@ async def get_active_context(
 )
 async def create_context(
     request: CreateContextRequest,
-    project_id: str = Query(..., alias="projectId"),
+    project_id: str = Query(..., alias="project_id"),
 ):
     try:
         new_context = context_service.create_context(
@@ -56,7 +56,7 @@ async def create_context(
     description="Returns recent versions of context for the given scope.",
 )
 async def get_context_history(
-    project_id: str = Query(..., alias="projectId"),
+    project_id: str = Query(..., alias="project_id"),
     scope: str = 'global'
 ):
     history = context_service.list_context_history(project_id=project_id, scope=scope)
@@ -74,7 +74,7 @@ async def get_context_history(
     },
 )
 async def generate_context(
-    project_id: str = Query(..., alias="projectId"),
+    project_id: str = Query(..., alias="project_id"),
     task_id: int | None = Query(default=None, description="Completed task ID to base the context on")
 ):
     if not task_id:

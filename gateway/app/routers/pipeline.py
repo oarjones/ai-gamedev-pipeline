@@ -27,7 +27,7 @@ def _venv_python_path(venv_path: Path) -> Path:
 
 def _broadcast(project_id: Optional[str], payload: Dict[str, Any]) -> None:
     try:
-        env = Envelope(type=EventType.UPDATE, projectId=project_id or "", payload={"source": "pipeline", **payload})
+        env = Envelope(type=EventType.UPDATE, project_id=project_id or "", payload={"source": "pipeline", **payload})
         # Fire-and-forget
         import asyncio
         asyncio.create_task(manager.broadcast_project(project_id or "", env.model_dump_json(by_alias=True)))
@@ -37,10 +37,10 @@ def _broadcast(project_id: Optional[str], payload: Dict[str, Any]) -> None:
 
 @router.post("/pipeline/start")
 async def pipeline_start(payload: Dict[str, Any]) -> Dict[str, Any]:
-    project_id = str(payload.get("projectId") or "").strip()
+    project_id = str(payload.get("project_id") or "").strip()
     agent_type = (payload.get("agentType") or "").strip().lower() or None
     if not project_id:
-        raise HTTPException(status_code=400, detail="projectId is required")
+        raise HTTPException(status_code=400, detail="project_id is required")
 
     steps: List[Dict[str, Any]] = []
     def step(name: str, ok: bool, detail: str = "") -> None:

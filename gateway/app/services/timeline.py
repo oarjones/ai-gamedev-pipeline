@@ -2,7 +2,7 @@
 
 Represents timeline entries in a normalized API shape:
 - id: int
-- projectId: str
+- project_id: str
 - type: str (e.g., 'step', 'event:<kind>')
 - payload: dict
 - ts: ISO-8601 timestamp
@@ -56,7 +56,7 @@ class TimelineService:
         ts = (ev.finished_at or ev.started_at or datetime.utcnow()).isoformat() + "Z"
         return {
             "id": ev.id,
-            "projectId": ev.project_id,
+            "project_id": ev.project_id,
             "type": ev_type_api,
             "payload": payload,
             "ts": ts,
@@ -95,7 +95,7 @@ class TimelineService:
         # WS broadcast
         env = Envelope(
             type=EventType.TIMELINE,
-            projectId=project_id,
+            project_id=project_id,
             payload={
                 "index": item["id"],
                 "tool": item["type"],
@@ -184,7 +184,7 @@ class TimelineService:
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "correlationId": ev.correlation_id,
             }
-            env = Envelope(type=EventType.TIMELINE, projectId=ev.project_id, payload=payload, correlationId=ev.correlation_id)
+            env = Envelope(type=EventType.TIMELINE, project_id=ev.project_id, payload=payload, correlationId=ev.correlation_id)
             await manager.broadcast_project(ev.project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
         except Exception as e:
             logger.error("Failed to broadcast timeline revert status: %s", e)

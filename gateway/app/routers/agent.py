@@ -1,7 +1,7 @@
 """Unified Agent runner endpoints.
 
 Endpoints:
-- POST /api/v1/agent/start?projectId=...
+- POST /api/v1/agent/start?project_id=...
 - POST /api/v1/agent/stop
 - GET  /api/v1/agent/status
 - POST /api/v1/agent/send
@@ -48,18 +48,18 @@ class AskOneShotRequest(BaseModel):
 
 
 @router.post("/start")
-async def start_agent(payload: dict | None = None, projectId: str | None = None) -> JSONResponse:
+async def start_agent(payload: dict | None = None, project_id: str | None = None) -> JSONResponse:
     """Start the agent using the specified project and agentType.
 
-    Accepts either JSON body { projectId, agentType } or legacy query param projectId.
+    Accepts either JSON body { project_id, agentType } or legacy query param project_id.
     """
     payload = payload or {}
-    pid = projectId or payload.get("projectId")
+    pid = project_id or payload.get("project_id")
     provider = (payload.get("provider") or "gemini_cli").lower()
     # Map provider to agent_type for current implementation
     agent_type = "gemini" if provider == "gemini_cli" else (payload.get("agentType") or "gemini").lower()
     if not pid:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="projectId is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="project_id is required")
     # Validate project exists via registry and derive the folder
     project = project_service.get_project(pid)
     if not project:
@@ -80,7 +80,7 @@ async def start_agent(payload: dict | None = None, projectId: str | None = None)
 
     # Broadcast update event (best-effort)
     try:
-        env = Envelope(type=EventType.UPDATE, projectId=project.id, payload={"source": "agent", "event": "started", "agentType": status_obj.agentType})
+        env = Envelope(type=EventType.UPDATE, project_id=project.id, payload={"source": "agent", "event": "started", "agentType": status_obj.agentType})
         await manager.broadcast_project(project.id, env.model_dump_json(by_alias=True))
     except Exception:
         pass
@@ -111,8 +111,8 @@ async def stop_agent() -> JSONResponse:
 
     # Broadcast update event (best-effort)
     try:
-        # We don't know projectId; omit or use last known via status if needed
-        env = Envelope(type=EventType.UPDATE, projectId=None, payload={"source": "agent", "event": "stopped"})
+        # We don't know project_id; omit or use last known via status if needed
+        env = Envelope(type=EventType.UPDATE, project_id=None, payload={"source": "agent", "event": "stopped"})
         # No room to broadcast if no project; ignore
     except Exception:
         pass
@@ -180,7 +180,7 @@ async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
 
         # Broadcast user message first so UI shows it immediately
         try:
-            env_user = Envelope(type=EventType.CHAT, projectId=payload.sessionId, payload={"role": "user", "content": payload.question})
+            env_user = Envelope(type=EventType.CHAT, project_id=payload.sessionId, payload={"role": "user", "content": payload.question})
             await manager.broadcast_project(payload.sessionId, env_user.model_dump_json(by_alias=True))
         except Exception:
             pass
@@ -191,14 +191,14 @@ async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
         # Broadcast agent answer if present
         if answer:
             try:
-                env_ai = Envelope(type=EventType.CHAT, projectId=payload.sessionId, payload={"role": "agent", "content": answer})
+                env_ai = Envelope(type=EventType.CHAT, project_id=payload.sessionId, payload={"role": "agent", "content": answer})
                 await manager.broadcast_project(payload.sessionId, env_ai.model_dump_json(by_alias=True))
             except Exception:
                 pass
         # Broadcast error if no answer and error present
         elif error:
             try:
-                env_err = Envelope(type=EventType.ERROR, projectId=payload.sessionId, payload={"message": error})
+                env_err = Envelope(type=EventType.ERROR, project_id=payload.sessionId, payload={"message": error})
                 await manager.broadcast_project(payload.sessionId, env_err.model_dump_json(by_alias=True))
             except Exception:
                 pass

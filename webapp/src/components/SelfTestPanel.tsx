@@ -3,7 +3,7 @@ import { getHealth, runSelfTest } from '@/lib/api'
 import { useAppStore } from '@/store/appStore'
 
 export default function SelfTestPanel() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const [loading, setLoading] = useState(false)
   const [health, setHealth] = useState<null | { ok: boolean, components: { name: string, running: boolean, endpoint_ok: boolean, detail: string }[] }>(null)
   const [report, setReport] = useState<null | { passed: boolean, steps: { name: string, ok: boolean, detail?: string }[] }>(null)
@@ -14,7 +14,7 @@ export default function SelfTestPanel() {
   }
   const onSelfTest = async () => {
     setLoading(true)
-    try { setReport(await runSelfTest(projectId || undefined)) } catch (e) { console.error(e) } finally { setLoading(false) }
+    try { setReport(await runSelfTest(project_id || undefined)) } catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
   return (

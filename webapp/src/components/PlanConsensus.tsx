@@ -7,9 +7,15 @@ import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { Task, TaskPlan } from '../types';
 import { useParams } from 'react-router-dom';
 
-export function PlanConsensus({ projectId: propProjectId }: { projectId?: string }) {
+interface PlanSummary {
+  id: number;
+  version: number;
+  status: string;
+}
+
+export function PlanConsensus({ project_id: propProjectId }: { project_id?: string }) {
   const params = useParams();
-  const projectId = propProjectId ?? (params.projectId as string);
+  const project_id = propProjectId ?? (params.project_id as string);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [tasks, setTasks] = useState<(Task & { priority?: number })[]>([]);
   const [showRefineModal, setShowRefineModal] = useState(false);
@@ -17,9 +23,10 @@ export function PlanConsensus({ projectId: propProjectId }: { projectId?: string
   const queryClient = useQueryClient();
 
   // Cargar versiones del plan
-  const { data: plans } = useQuery({
-    queryKey: ['plans', projectId],
-    queryFn: () => apiGet(`/api/v1/plans?projectId=${projectId}`)
+  const { data: plans } = useQuery<PlanSummary[]>({
+    queryKey: ['plans', project_id],
+    queryFn: () => apiGet(`/api/v1/plans?project_id=${project_id}`),
+    select: (data) => (Array.isArray(data) ? data : [])
   });
 
   // Cargar detalles del plan seleccionado
@@ -43,7 +50,7 @@ export function PlanConsensus({ projectId: propProjectId }: { projectId?: string
     mutationFn: (planId: number) => apiPatch(`/api/v1/plans/${planId}/accept`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
-      window.location.href = `/projects/${projectId}/execution`;
+      window.location.href = `/projects/${project_id}/execution`;
     }
   });
 
@@ -143,7 +150,7 @@ export function PlanConsensus({ projectId: propProjectId }: { projectId?: string
               onChange={(e) => setSelectedVersion(e.target.value ? Number(e.target.value) : null)}
             >
               <option value="">Seleccionar versión...</option>
-              {plans?.map((plan: any) => (
+              {plans?.map((plan) => (
                 <option key={plan.id} value={plan.id}>
                   v{plan.version} - {plan.status}
                 </option>

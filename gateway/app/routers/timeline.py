@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_timeline(project_id: str = Query(..., alias="projectId"), limit: Optional[int] = 100) -> JSONResponse:
+async def list_timeline(project_id: str = Query(..., alias="project_id"), limit: Optional[int] = 100) -> JSONResponse:
     project = project_service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found")

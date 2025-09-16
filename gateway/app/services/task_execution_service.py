@@ -216,7 +216,7 @@ class TaskExecutionService:
         
         envelope = Envelope(
             type=EventType.UPDATE,
-            project_id=task.project_id, # Proactively corrected from projectId
+            project_id=task.project_id, # Proactively corrected from project_id
             payload=payload
         )
         

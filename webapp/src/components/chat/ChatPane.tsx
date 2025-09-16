@@ -5,8 +5,8 @@ import { askOneShot, startAgent, getAgentStatus, systemStart } from '@/lib/api'
 import MessageList from './MessageList'
 
 export default function ChatPane() {
-  const projectId = useAppStore(s => s.projectId)
-  const { messages, bottomRef } = useChatStream(projectId)
+  const project_id = useAppStore(s => s.project_id)
+  const { messages, bottomRef } = useChatStream(project_id)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [agentType] = useState<'gemini'>('gemini')
@@ -18,11 +18,11 @@ export default function ChatPane() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!projectId || !text.trim()) return
+    if (!project_id || !text.trim()) return
     setSending(true)
     try {
       // One-shot: route via /agent/ask; server will broadcast both user and agent messages
-      await askOneShot(projectId, text.trim())
+      await askOneShot(project_id, text.trim())
       setText('')
       inputRef.current?.focus()
     } catch (err) {
@@ -38,7 +38,7 @@ export default function ChatPane() {
     try {
       setBridgesStatus('starting')
       useAppStore.getState().pushToast('Iniciando bridges...')
-      await systemStart(projectId ?? undefined)
+      await systemStart(project_id ?? undefined)
       setBridgesStatus('running')
       useAppStore.getState().pushToast('Bridges iniciados')
       return true
@@ -51,11 +51,11 @@ export default function ChatPane() {
   }
 
   async function ensureAgentStarted() {
-    if (!projectId) return
+    if (!project_id) return
     
     try {
       // Primero intentar iniciar el agente
-      await startAgent(projectId, agentType)
+      await startAgent(project_id, agentType)
       const st = await getAgentStatus()
       setAgentStatus(st)
     } catch (e: any) {
@@ -70,7 +70,7 @@ export default function ChatPane() {
           // Esperar un momento para que los bridges se estabilicen
           setTimeout(async () => {
             try {
-              await startAgent(projectId, agentType)
+              await startAgent(project_id, agentType)
               const st = await getAgentStatus()
               setAgentStatus(st)
               useAppStore.getState().pushToast('Agente iniciado exitosamente')
@@ -89,7 +89,7 @@ export default function ChatPane() {
   // Optional: previously ensured agent/bridges; for one-shot not required. Keep disabled.
   useEffect(() => {
     // no-op in one-shot mode
-  }, [projectId, agentType])
+  }, [project_id, agentType])
 
   return (
     <div className="flex flex-col h-full">
@@ -115,15 +115,15 @@ export default function ChatPane() {
           ref={inputRef}
           type="text"
           className="flex-1 input"
-          placeholder={projectId ? `Enviar mensaje a ${agentType}...` : "Selecciona un proyecto"}
+          placeholder={project_id ? `Enviar mensaje a ${agentType}...` : "Selecciona un proyecto"}
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, MAX_LEN))}
-          disabled={sending || !projectId}
+          disabled={sending || !project_id}
         />
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={sending || !text.trim() || !projectId}
+          disabled={sending || !text.trim() || !project_id}
         >
           {sending ? 'Enviando...' : 'Enviar'}
         </button>

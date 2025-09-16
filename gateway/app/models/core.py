@@ -52,7 +52,7 @@ class Envelope(BaseModel):
         {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "type": "chat",
-            "projectId": "proj-456",
+            "project_id": "proj-456",
             "payload": {
                 "message": "Hello, world!",
                 "sender": "user"
@@ -66,7 +66,7 @@ class Envelope(BaseModel):
         {
             "id": "123e4567-e89b-12d3-a456-426614174001", 
             "type": "error",
-            "projectId": null,
+            "project_id": null,
             "payload": {
                 "error": "Connection failed",
                 "code": 500
@@ -83,7 +83,7 @@ class Envelope(BaseModel):
                 {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "type": "chat",
-                    "projectId": "proj-456", 
+                    "project_id": "proj-456", 
                     "payload": {
                         "message": "Hello, world!",
                         "sender": "user"
@@ -103,7 +103,7 @@ class Envelope(BaseModel):
     )
     project_id: Optional[str] = Field(
         default=None,
-        alias="projectId",
+        alias="project_id",
         description="ID of the project this event relates to"
     )
     payload: Dict[str, Any] = Field(

@@ -254,7 +254,7 @@ class UnifiedAgent:
             from app.services.providers.registry import registry as provider_registry
             from app.services.providers.base import SessionCtx
             from app.services.providers.gemini_cli import GeminiCliProvider  # ensure class is loaded
-            session = SessionCtx(projectId=session_id, sessionId=session_id)
+            session = SessionCtx(project_id=session_id, sessionId=session_id)
             try:
                 provider = provider_registry.get("gemini_cli", session)
             except Exception:

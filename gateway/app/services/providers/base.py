@@ -7,7 +7,7 @@ from typing import Any, Callable, Coroutine, Optional, Protocol
 
 @dataclass
 class SessionCtx:
-    projectId: str
+    project_id: str
     sessionId: str
     contextPack: Optional[dict] = None
     toolCatalog: Optional[dict] = None

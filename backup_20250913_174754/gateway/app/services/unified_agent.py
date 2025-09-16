@@ -201,7 +201,7 @@ class SimpleAgentService:
             
             env = Envelope(
                 type=EventType.CHAT,
-                projectId=self.project_id,
+                project_id=self.project_id,
                 payload={
                     "role": "user",
                     "content": text,

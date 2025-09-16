@@ -14,7 +14,7 @@ from app.services.providers.base import SessionCtx
 def main() -> int:
     workdir = os.path.join(repo_root, 'projects', '_oneshot_test')
     os.makedirs(workdir, exist_ok=True)
-    provider = GeminiCliProvider(SessionCtx(projectId='proj', sessionId='sess'))
+    provider = GeminiCliProvider(SessionCtx(project_id='proj', sessionId='sess'))
     answer, error = provider.run_one_shot('Di hola en una palabra.', workdir)
     print('--- ONE-SHOT RESULT ---')
     print('ANSWER:\n', answer)

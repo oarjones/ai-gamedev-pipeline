@@ -5,15 +5,15 @@ import { useAppStore } from '@/store/appStore'
 type LogLine = { ts: string, level: string, source?: string, message: string }
 
 export default function Logs() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const [lines, setLines] = useState<LogLine[]>([])
   const boxRef = useRef<HTMLDivElement | null>(null)
   const [autoScroll, setAutoScroll] = useState(true)
 
-  useEffect(() => { setLines([]) }, [projectId])
+  useEffect(() => { setLines([]) }, [project_id])
 
   useEffect(() => {
-    const unsub = wsClient.subscribe({ projectId, onMessage: (ev) => {
+    const unsub = wsClient.subscribe({ project_id, onMessage: (ev) => {
       const e = ev as any
       if (e?.type !== 'log') return
       const p = e?.payload || {}
@@ -21,7 +21,7 @@ export default function Logs() {
       setLines(prev => [...prev.slice(-999), line])
     }})
     return () => unsub()
-  }, [projectId])
+  }, [project_id])
 
   useEffect(() => {
     if (autoScroll) boxRef.current?.scrollTo({ top: boxRef.current.scrollHeight })

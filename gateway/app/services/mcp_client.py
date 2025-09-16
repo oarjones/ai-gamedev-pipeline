@@ -236,7 +236,7 @@ class MCPClient:
                 from app.ws.events import manager
                 from app.models import Envelope, EventType
                 payload = {"level": "error", "message": f"run_tool failed: {name}: {e}"}
-                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload, correlationId=correlation_id)
+                env = Envelope(type=EventType.LOG, project_id=project_id, payload=payload, correlationId=correlation_id)
                 await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
             except Exception:
                 pass

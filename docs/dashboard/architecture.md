@@ -8,7 +8,7 @@ title: Arquitectura del Dashboard (Gateway)
 flowchart LR
   subgraph UI[Web UI (React/Vite)]
     A[HTTP: REST]
-    B[WS: /ws/events?projectId]
+    B[WS: /ws/events?project_id]
   end
 
   A -->|/api/v1/*| GW[(AI Gateway FastAPI)]
@@ -46,7 +46,7 @@ flowchart LR
 ```
 
 Notas clave:
-- WS usa salas por `projectId` y un Envelope unificado (`type`, `projectId`, `payload`, `correlationId`, `timestamp`).
+- WS usa salas por `project_id` y un Envelope unificado (`type`, `project_id`, `payload`, `correlationId`, `timestamp`).
 - `AgentRunner` gestiona el provider (Gemini CLI), arranca el MCP Adapter con lockfile único y orquesta el shim de function-calling.
 - `ProviderRegistry` permite añadir futuros providers sin cambiar el Runner.
 - `SessionsService` persiste sesiones, mensajes y artefactos; construye Context Packs para reanudar.

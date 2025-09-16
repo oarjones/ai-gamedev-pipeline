@@ -215,7 +215,7 @@ class AgentRunner:
                 except Exception:
                     self._session_id = None
                     context_pack = None
-            session = SessionCtx(projectId=self._project_id, sessionId=_gen_session_id(), toolCatalog=catalog, contextPack=context_pack)
+            session = SessionCtx(project_id=self._project_id, sessionId=_gen_session_id(), toolCatalog=catalog, contextPack=context_pack)
             # Late register default provider
             _ensure_default_providers()
             self._provider = provider_registry.get(provider, session)
@@ -397,7 +397,7 @@ class AgentRunner:
                 from app.ws.events import manager
                 from app.models import Envelope, EventType
                 payload = {"level": "error", "message": ev.payload.get("message", "")}
-                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload, correlationId=corr)
+                env = Envelope(type=EventType.LOG, project_id=project_id, payload=payload, correlationId=corr)
                 await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
         except Exception:
             pass
@@ -583,7 +583,7 @@ def _read_settings_yaml() -> dict:
                 from app.ws.events import manager
                 from app.models import Envelope, EventType
                 payload = {"level": "error", "message": text}
-                env = Envelope(type=EventType.LOG, projectId=project_id, payload=payload, correlationId=corr)
+                env = Envelope(type=EventType.LOG, project_id=project_id, payload=payload, correlationId=corr)
                 await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                 return
 
@@ -601,12 +601,12 @@ def _read_settings_yaml() -> dict:
                     from app.ws.events import manager
                     from app.models import Envelope, EventType
                     payload = {"subtype": "tool", "data": ev.payload, "correlationId": corr}
-                    env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=corr)
+                    env = Envelope(type=EventType.ACTION, project_id=project_id, payload=payload, correlationId=corr)
                     await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                 elif ev.kind == "event":
                     from app.ws.events import manager
                     from app.models import Envelope, EventType
-                    env = Envelope(type=EventType.UPDATE, projectId=project_id, payload=ev.payload, correlationId=corr)
+                    env = Envelope(type=EventType.UPDATE, project_id=project_id, payload=ev.payload, correlationId=corr)
                     await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
                 else:
                     from app.services.chat import chat_service
@@ -805,7 +805,7 @@ def _ensure_default_providers() -> None:
         pass
     # Avoid duplicate registration
     try:
-        registry.get("__probe__", SessionCtx(projectId="_", sessionId="_"))
+        registry.get("__probe__", SessionCtx(project_id="_", sessionId="_"))
     except Exception:
         pass
     # Always (re)register

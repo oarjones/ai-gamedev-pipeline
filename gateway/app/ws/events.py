@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
-    """Manages WebSocket connections segmented by projectId rooms."""
+    """Manages WebSocket connections segmented by project_id rooms."""
 
     def __init__(self) -> None:
-        # projectId -> set of websockets
+        # project_id -> set of websockets
         self.rooms: Dict[str, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, project_id: str) -> None:
@@ -125,9 +125,9 @@ manager = EnhancedConnectionManager()
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for per-project event streaming.
 
-    Requires query param ?projectId=...; otherwise rejects the connection.
+    Requires query param ?project_id=...; otherwise rejects the connection.
     """
-    project_id = websocket.query_params.get("projectId")
+    project_id = websocket.query_params.get("project_id")
     api_key = websocket.headers.get("X-API-Key") or websocket.query_params.get("apiKey")
     try:
         from gateway.app.config import settings as _settings
@@ -140,9 +140,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except Exception:
         pass
     if not project_id:
-        # Reject clients without projectId for now
+        # Reject clients without project_id for now
         await websocket.accept()
-        await websocket.send_text(json.dumps({"type": "error", "message": "projectId required"}))
+        await websocket.send_text(json.dumps({"type": "error", "message": "project_id required"}))
         await websocket.close()
         return
 

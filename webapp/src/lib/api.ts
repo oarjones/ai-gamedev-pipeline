@@ -71,8 +71,8 @@ export function updateConfig(partial: Partial<GatewayConfig>) {
   return apiPost<GatewayConfig>('/api/v1/config', partial)
 }
 
-export async function startAgent(projectId: string, agentType: 'gemini'|'openai'|'claude') {
-  return apiPost('/api/v1/agent/start', { projectId, agentType })
+export async function startAgent(project_id: string, agentType: 'gemini'|'openai'|'claude') {
+  return apiPost('/api/v1/agent/start', { project_id, agentType })
 }
 
 export async function stopAgent() {
@@ -83,9 +83,9 @@ export async function getAgentStatus() {
   return apiGet<{ running: boolean, pid?: number, cwd?: string, agentType?: string, lastError?: string }>('/api/v1/agent/status')
 }
 
-export async function sendChat(projectId: string, text: string): Promise<void> {
+export async function sendChat(project_id: string, text: string): Promise<void> {
   const url = new URL('/api/v1/chat/send', BASE)
-  url.searchParams.set('projectId', projectId)
+  url.searchParams.set('project_id', project_id)
   const res = await fetch(url.toString(), {
     method: 'POST',
     headers: {
@@ -108,12 +108,12 @@ export async function getHealth() {
   return apiGet<{ ok: boolean, components: { name: string, running: boolean, endpoint_ok: boolean, detail: string }[] }>('/api/v1/health')
 }
 
-export async function runSelfTest(projectId?: string) {
-  return apiPost<{ passed: boolean, steps: { name: string, ok: boolean, detail?: string }[] }>('/api/v1/health/selftest', projectId ? { projectId } : {})
+export async function runSelfTest(project_id?: string) {
+  return apiPost<{ passed: boolean, steps: { name: string, ok: boolean, detail?: string }[] }>('/api/v1/health/selftest', project_id ? { project_id } : {})
 }
 
-export async function pipelineStart(projectId: string, agentType?: 'gemini'|'openai'|'claude') {
-  return apiPost<{ ok: boolean, steps: { name: string, ok: boolean, detail?: string }[], health: any, selftest: any }>('/api/v1/pipeline/start', agentType ? { projectId, agentType } : { projectId })
+export async function pipelineStart(project_id: string, agentType?: 'gemini'|'openai'|'claude') {
+  return apiPost<{ ok: boolean, steps: { name: string, ok: boolean, detail?: string }[], health: any, selftest: any }>('/api/v1/pipeline/start', agentType ? { project_id, agentType } : { project_id })
 }
 
 export async function pipelineCancel() {
@@ -121,17 +121,17 @@ export async function pipelineCancel() {
 }
 
 // Sessions API
-export type SessionItem = { id: number, projectId: string, provider: string, startedAt: string, endedAt?: string | null, hasSummary: boolean }
+export type SessionItem = { id: number, project_id: string, provider: string, startedAt: string, endedAt?: string | null, hasSummary: boolean }
 
-export function listSessions(projectId: string, limit = 20) {
+export function listSessions(project_id: string, limit = 20) {
   const url = new URL('/api/v1/sessions', BASE)
-  url.searchParams.set('projectId', projectId)
+  url.searchParams.set('project_id', project_id)
   url.searchParams.set('limit', String(limit))
   return apiGet<SessionItem[]>(url.pathname + url.search)
 }
 
 export function getSessionDetail(sessionId: number, recent = 10) {
-  return apiGet<{ id: number, projectId: string, provider: string, startedAt: string, endedAt?: string | null, summary?: string | null, recentMessages: { role: string, content: string, tool?: string, ts: string }[], artifacts: { type: string, path: string, ts: string }[] }>(`/api/v1/sessions/${sessionId}?recent=${recent}`)
+  return apiGet<{ id: number, project_id: string, provider: string, startedAt: string, endedAt?: string | null, summary?: string | null, recentMessages: { role: string, content: string, tool?: string, ts: string }[], artifacts: { type: string, path: string, ts: string }[] }>(`/api/v1/sessions/${sessionId}?recent=${recent}`)
 }
 
 export function resumeSession(sessionId: number) {
@@ -139,8 +139,8 @@ export function resumeSession(sessionId: number) {
 }
 
 
-export async function systemStart(projectId?: string) {
-  const body = projectId ? { projectId } : {}
+export async function systemStart(project_id?: string) {
+  const body = project_id ? { project_id } : {}
   return apiPost<{ ok: boolean, statuses: Array<{ name: string, running: boolean, pid?: number, lastError?: string }> }>('/api/v1/system/start', body)
 }
 
@@ -167,24 +167,24 @@ export async function listProjects() {
   return apiGet<Project[]>('/api/v1/projects')
 }
 
-export async function getProject(projectId: string) {
-  return apiGet<Project>(`/api/v1/projects/${projectId}`)
+export async function getProject(project_id: string) {
+  return apiGet<Project>(`/api/v1/projects/${project_id}`)
 }
 
 export async function createProject(payload: { name: string; description?: string; settings?: Record<string, any> }) {
   return apiPost<Project>('/api/v1/projects', payload)
 }
 
-export async function selectProject(projectId: string) {
-  return apiPatch<{ message: string }>(`/api/v1/projects/${projectId}/select`, {})
+export async function selectProject(project_id: string) {
+  return apiPatch<{ message: string }>(`/api/v1/projects/${project_id}/select`, {})
 }
 
 export async function getActiveProject() {
   return apiGet<Project | null>('/api/v1/projects/active/current')
 }
 
-export async function deleteProject(projectId: string, purge = true) {
-  const url = new URL(`/api/v1/projects/${projectId}`, BASE)
+export async function deleteProject(project_id: string, purge = true) {
+  const url = new URL(`/api/v1/projects/${project_id}`, BASE)
   if (purge) url.searchParams.set('purge', 'true')
   const res = await fetch(url.toString(), {
     method: 'DELETE',
@@ -192,7 +192,7 @@ export async function deleteProject(projectId: string, purge = true) {
   })
   if (!res.ok) {
     const msg = await res.text().catch(() => '')
-    throw new Error(`DELETE /api/v1/projects/${projectId} ${res.status}: ${msg}`)
+    throw new Error(`DELETE /api/v1/projects/${project_id} ${res.status}: ${msg}`)
   }
   return res.json() as Promise<{ message: string }>
 }

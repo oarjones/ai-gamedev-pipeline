@@ -34,7 +34,7 @@ class ApplyChangesRequest(BaseModel):
     summary="List plan versions",
     description="List all plan versions for a project, newest first.",
 )
-async def list_plans(project_id: str = Query(..., alias="projectId")):
+async def list_plans(project_id: str = Query(..., alias="project_id")):
     """List all plan versions for a project."""
     with db.get_session() as session:
         from sqlmodel import select
@@ -113,7 +113,7 @@ async def get_plan_details(planId: int):
     summary="Generate initial plan",
     description="Generate a new plan proposal from the project manifest using AI.",
 )
-async def generate_plan(project_id: str = Query(..., alias="projectId")):
+async def generate_plan(project_id: str = Query(..., alias="project_id")):
     """Generate initial plan from project manifest."""
     # Leer manifest del proyecto
     manifest_path = Path(f"projects/{project_id}/.agp/project_manifest.yaml")

@@ -21,13 +21,13 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_tasks(project_id: str = Query(..., alias="projectId")) -> List[Dict[str, Any]]:
+async def list_tasks(project_id: str = Query(..., alias="project_id")) -> List[Dict[str, Any]]:
     rows = db.list_tasks(project_id)
     return [
         {
             "id": t.id,
             "taskId": t.task_id,
-            "projectId": t.project_id,
+            "project_id": t.project_id,
             "title": t.title,
             "description": t.description,
             "acceptance": t.acceptance,
@@ -40,7 +40,7 @@ async def list_tasks(project_id: str = Query(..., alias="projectId")) -> List[Di
 
 
 @router.post("/import")
-async def import_tasks(project_id: str = Query(..., alias="projectId")) -> Dict[str, Any]:
+async def import_tasks(project_id: str = Query(..., alias="project_id")) -> Dict[str, Any]:
     por = Path("projects") / project_id / "plan_of_record.yaml"
     if not por.exists():
         raise HTTPException(status_code=404, detail="plan_of_record.yaml not found")

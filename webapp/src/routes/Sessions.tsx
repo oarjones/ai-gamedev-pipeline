@@ -3,7 +3,7 @@ import { listSessions, resumeSession, type SessionItem, getSessionDetail } from 
 import { useAppStore } from '@/store/appStore'
 
 export default function Sessions() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const pushToast = useAppStore(s => s.pushToast)
   const [items, setItems] = useState<SessionItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -11,10 +11,10 @@ export default function Sessions() {
   const [detail, setDetail] = useState<any | null>(null)
 
   useEffect(() => {
-    if (!projectId) return
+    if (!project_id) return
     setLoading(true)
-    listSessions(projectId).then(setItems).catch(e => pushToast(String(e))).finally(() => setLoading(false))
-  }, [projectId])
+    listSessions(project_id).then(setItems).catch(e => pushToast(String(e))).finally(() => setLoading(false))
+  }, [project_id])
 
   async function onResume(id: number) {
     try {
@@ -44,7 +44,7 @@ function PlayIcon(){
     }
   }
 
-  if (!projectId) return <div className="card">Select a project to view sessions.</div>
+  if (!project_id) return <div className="card">Select a project to view sessions.</div>
 
   return (
     <div className="grid grid-cols-12 gap-4">

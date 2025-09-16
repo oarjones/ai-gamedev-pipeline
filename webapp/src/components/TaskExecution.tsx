@@ -13,12 +13,12 @@ type TaskItem = {
 }
 
 export default function TaskExecution() {
-  const { projectId } = useParams()
+  const { project_id } = useParams()
   const queryClient = useQueryClient()
   const { data: tasks = [] as TaskItem[] } = useQuery({
-    queryKey: ['tasks', projectId],
-    queryFn: () => apiGet<TaskItem[]>(`/api/v1/tasks?projectId=${projectId}`),
-    enabled: !!projectId,
+    queryKey: ['tasks', project_id],
+    queryFn: () => apiGet<TaskItem[]>(`/api/v1/tasks?project_id=${project_id}`),
+    enabled: !!project_id,
   })
 
   const firstPending = useMemo(() => tasks.findIndex(t => t.status !== 'done'), [tasks])
@@ -40,16 +40,16 @@ export default function TaskExecution() {
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['tasks', project_id] })
       setIdx(i => Math.min(i + 1, Math.max(0, tasks.length - 1)))
     }
   })
 
   const onAsk = async () => {
-    if (!projectId || !question) return
+    if (!project_id || !question) return
     setLoadingAsk(true)
     try {
-      const res = await askOneShot(projectId, question)
+      const res = await askOneShot(project_id, question)
       setAnswer(res.answer || res.stderr || '')
     } catch (e: any) {
       setAnswer(e?.message ?? String(e))
@@ -63,13 +63,13 @@ export default function TaskExecution() {
       {/* Breadcrumbs / Header */}
       <div className="flex items-center justify-between">
         <nav className="text-sm text-gray-600">
-          <Link to={`/projects/${projectId}/consensus`} className="hover:underline">Consenso</Link>
+          <Link to={`/projects/${project_id}/consensus`} className="hover:underline">Consenso</Link>
           <span className="mx-2">/</span>
-          <Link to={`/projects/${projectId}/context`} className="hover:underline">Contexto</Link>
+          <Link to={`/projects/${project_id}/context`} className="hover:underline">Contexto</Link>
           <span className="mx-2">/</span>
           <span className="font-medium text-gray-800">Ejecución</span>
         </nav>
-        <div className="text-sm opacity-70">Proyecto: {projectId}</div>
+        <div className="text-sm opacity-70">Proyecto: {project_id}</div>
       </div>
 
       {/* Body */}

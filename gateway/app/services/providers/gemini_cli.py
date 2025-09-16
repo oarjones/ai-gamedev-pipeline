@@ -138,7 +138,7 @@ class GeminiCliProvider(IAgentProvider):
                     f"Gemini CLI not found: '{exe}'. Configure gateway.config.providers.geminiCli.command or add to PATH."
                 )
         # Working dir set to project folder if exists
-        cwd = Path("projects") / session.projectId
+        cwd = Path("projects") / session.project_id
         if not cwd.exists():
             cwd = Path.cwd()
         env = os.environ.copy()

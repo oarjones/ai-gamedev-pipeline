@@ -6,7 +6,7 @@ import { wsClient } from '@/lib/ws'
 type CheckItem = { name: string; installed: boolean; version?: string }
 
 export default function Dependencies() {
-  const { projectId } = useAppStore()
+  const { project_id } = useAppStore()
   const [venvPath, setVenvPath] = useState('venvs/agp')
   const [requirementsPath, setRequirementsPath] = useState('mcp_unity_bridge/requirements.txt')
   const [packages, setPackages] = useState<string>('')
@@ -17,15 +17,15 @@ export default function Dependencies() {
   const logsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!projectId) return
-    const unsub = wsClient.subscribe({ projectId, onMessage: (data) => {
+    if (!project_id) return
+    const unsub = wsClient.subscribe({ project_id, onMessage: (data) => {
       const ev = data as any
       if (ev?.type === 'log' && ev?.payload?.source === 'deps') {
         setLogs(prev => [...prev, `[${ev.payload.step}] ${ev.payload.line}`].slice(-500))
       }
     }})
     return () => unsub()
-  }, [projectId])
+  }, [project_id])
 
   useEffect(() => {
     logsRef.current?.scrollTo({ top: logsRef.current.scrollHeight })
@@ -34,7 +34,7 @@ export default function Dependencies() {
   const onCreateVenv = async () => {
     setCreating(true)
     try {
-      await apiPost('/api/v1/venv/create', { path: venvPath, projectId })
+      await apiPost('/api/v1/venv/create', { path: venvPath, project_id })
     } catch (e) { console.error(e) }
     finally { setCreating(false) }
   }
@@ -42,7 +42,7 @@ export default function Dependencies() {
   const onInstallReqs = async () => {
     setInstalling(true)
     try {
-      await apiPost('/api/v1/deps/install', { venvPath, requirementsPath, projectId })
+      await apiPost('/api/v1/deps/install', { venvPath, requirementsPath, project_id })
     } catch (e) { console.error(e) }
     finally { setInstalling(false) }
   }
@@ -52,7 +52,7 @@ export default function Dependencies() {
     if (!list.length) return
     setInstalling(true)
     try {
-      await apiPost('/api/v1/deps/install', { venvPath, packages: list, projectId })
+      await apiPost('/api/v1/deps/install', { venvPath, packages: list, project_id })
     } catch (e) { console.error(e) }
     finally { setInstalling(false) }
   }

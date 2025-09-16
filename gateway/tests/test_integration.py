@@ -10,7 +10,7 @@ def test_plan_generation_flow(client, sample_project):
     # The generate endpoint is async and calls the agent, so we mock the agent
     with patch('gateway.app.routers.plans.unified_agent', new_callable=AsyncMock) as mock_agent:
         # 1. Generate plan
-        response = client.post(f"/api/v1/plans/generate?projectId={sample_project.id}")
+        response = client.post(f"/api/v1/plans/generate?project_id={sample_project.id}")
         assert response.status_code == 200
         mock_agent.send.assert_called_once()
     
@@ -20,7 +20,7 @@ def test_plan_generation_flow(client, sample_project):
     from gateway.app.services.task_plan_service import task_plan_service
     task_plan_service.create_plan(sample_project.id, tasks_json=[])
 
-    response = client.get(f"/api/v1/plans?projectId={sample_project.id}")
+    response = client.get(f"/api/v1/plans?project_id={sample_project.id}")
     assert response.status_code == 200
     plans = response.json()
     assert len(plans) > 0

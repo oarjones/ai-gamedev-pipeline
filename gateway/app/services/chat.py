@@ -73,7 +73,7 @@ class ChatService:
         return [
             {
                 "msgId": r.msg_id,
-                "projectId": r.project_id,
+                "project_id": r.project_id,
                 "role": r.role,
                 "content": r.content,
                 "createdAt": r.created_at.isoformat() + "Z",
@@ -96,7 +96,7 @@ class ChatService:
     async def _broadcast_chat(self, project_id: str, role: str, content: str, msg_id: str, correlation_id: Optional[str]) -> None:
         env = Envelope(
             type=EventType.CHAT,
-            projectId=project_id,
+            project_id=project_id,
             payload={
                 "role": role,
                 "content": content,

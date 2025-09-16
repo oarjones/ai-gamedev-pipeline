@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/appStore'
 import { getAgentStatus, startAgent, stopAgent } from '@/lib/api'
 
 export default function AgentControls(){
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const pushToast = useAppStore(s => s.pushToast)
   const [status, setStatus] = useState<{running:boolean, agentType?: string, pid?: number, lastError?: string}>({ running: false })
   const [busy, setBusy] = useState(false)
@@ -15,10 +15,10 @@ export default function AgentControls(){
   useEffect(() => { refresh() }, [])
 
   async function onStart(){
-    if (!projectId){ pushToast('Selecciona un proyecto'); return }
+    if (!project_id){ pushToast('Selecciona un proyecto'); return }
     setBusy(true)
     try {
-      await startAgent(projectId, 'gemini')
+      await startAgent(project_id, 'gemini')
       await refresh()
     } catch(e:any){
       pushToast(`No se pudo arrancar el agente: ${e?.message ?? e}`)

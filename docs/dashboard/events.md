@@ -6,11 +6,11 @@ title: Eventos (Envelope y Rooms)
 
 Los eventos del Gateway se envían por WebSocket segmentados por proyecto.
 
-- Endpoint: `/ws/events?projectId=<id>` (obligatorio)
+- Endpoint: `/ws/events?project_id=<id>` (obligatorio)
 - Formato Envelope:
   - `id: string (uuid)`
   - `type: chat | action | update | scene | timeline | log | error | project`
-  - `projectId: string`
+  - `project_id: string`
   - `payload: object` (dependiente del tipo)
   - `correlationId?: string`
   - `timestamp: ISO-8601`

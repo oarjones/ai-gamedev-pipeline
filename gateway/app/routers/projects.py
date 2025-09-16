@@ -164,7 +164,7 @@ async def select_active_project(project_id: str) -> JSONResponse:
             "runner": {"started": False, "error": None},
             "system": system_status,
         }
-        env = Envelope(type=EventType.PROJECT, projectId=project_id, payload=payload)
+        env = Envelope(type=EventType.PROJECT, project_id=project_id, payload=payload)
         await manager.broadcast_project(project_id, env.model_dump_json(by_alias=True))
         # Also notify previous room if different
         if prev and prev.id != project_id:

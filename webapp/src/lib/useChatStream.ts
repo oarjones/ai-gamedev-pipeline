@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 const Envelope = z.object({
   type: z.string(),
-  projectId: z.string().nullable().optional(),
+  project_id: z.string().nullable().optional(),
   payload: z.unknown(),
   correlationId: z.string().optional(),
   timestamp: z.string().optional(),
@@ -31,7 +31,7 @@ export type ChatMessage = {
   ts?: string
 }
 
-export function useChatStream(projectId: string | null) {
+export function useChatStream(project_id: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
@@ -39,10 +39,10 @@ export function useChatStream(projectId: string | null) {
   useEffect(() => {
     // reset on project change
     setMessages([])
-  }, [projectId])
+  }, [project_id])
 
   useEffect(() => {
-    const unsub = wsClient.subscribe({ projectId, onMessage: (ev) => {
+    const unsub = wsClient.subscribe({ project_id, onMessage: (ev) => {
       const parsed = Envelope.safeParse(ev)
       if (!parsed.success) return
       const { type, payload } = parsed.data
@@ -73,7 +73,7 @@ export function useChatStream(projectId: string | null) {
       }
     }})
     return () => unsub()
-  }, [projectId])
+  }, [project_id])
 
   // Auto-scroll if already at bottom
   useEffect(() => {

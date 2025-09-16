@@ -18,8 +18,8 @@ router = APIRouter()
 
 @router.post("/system/start")
 async def system_start(payload: Dict[str, Any]) -> Dict[str, Any]:
-    project_id: Optional[str] = payload.get("projectId")
-    # If projectId not provided, try active project
+    project_id: Optional[str] = payload.get("project_id")
+    # If project_id not provided, try active project
     if not project_id:
         active = project_service.get_active_project()
         project_id = active.id if active else None
@@ -27,7 +27,7 @@ async def system_start(payload: Dict[str, Any]) -> Dict[str, Any]:
         statuses = process_manager.start_sequence(project_id)
         # Broadcast update
         try:
-            env = Envelope(type=EventType.UPDATE, projectId=project_id or "", payload={"source": "system", "event": "started", "statuses": statuses})
+            env = Envelope(type=EventType.UPDATE, project_id=project_id or "", payload={"source": "system", "event": "started", "statuses": statuses})
             await manager.broadcast_project(project_id or "", env.model_dump_json(by_alias=True))
         except Exception:
             pass
@@ -45,8 +45,8 @@ async def system_stop(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
     try:
         process_manager.stopAll()
         try:
-            env = Envelope(type=EventType.UPDATE, projectId=payload.get("projectId") if payload else None, payload={"source": "system", "event": "stopped"})
-            await manager.broadcast_project((payload or {}).get("projectId") or "", env.model_dump_json(by_alias=True))
+            env = Envelope(type=EventType.UPDATE, project_id=payload.get("project_id") if payload else None, payload={"source": "system", "event": "stopped"})
+            await manager.broadcast_project((payload or {}).get("project_id") or "", env.model_dump_json(by_alias=True))
         except Exception:
             pass
         return {"ok": True}

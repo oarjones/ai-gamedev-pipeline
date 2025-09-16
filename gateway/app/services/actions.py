@@ -141,7 +141,7 @@ class ToolsRegistry:
         # For now templateId is not used to change behavior; reserved for future
         _ = args.get("templateId")
         proj = project_service.create_project(CreateProject(name=name))
-        return {"projectId": proj.id, "name": proj.name}
+        return {"project_id": proj.id, "name": proj.name}
 
     async def _unity_get_scene_hierarchy(self, project_id: str, args: dict) -> dict:
         from app.services.mcp_client import mcp_client
@@ -243,7 +243,7 @@ class ActionOrchestrator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "correlationId": correlation_id,
         }
-        env = Envelope(type=EventType.TIMELINE, projectId=project_id, payload=payload, correlationId=correlation_id)
+        env = Envelope(type=EventType.TIMELINE, project_id=project_id, payload=payload, correlationId=correlation_id)
         await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_tool(self, project_id: str, index: int, tool: str, args: dict, correlation_id: Optional[str]) -> None:
@@ -254,7 +254,7 @@ class ActionOrchestrator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "correlationId": correlation_id,
         }
-        env = Envelope(type=EventType.ACTION, projectId=project_id, payload=payload, correlationId=correlation_id)
+        env = Envelope(type=EventType.ACTION, project_id=project_id, payload=payload, correlationId=correlation_id)
         await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_update(self, project_id: str, tool: str, result: dict, correlation_id: Optional[str]) -> None:
@@ -264,12 +264,12 @@ class ActionOrchestrator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "correlationId": correlation_id,
         }
-        env = Envelope(type=EventType.UPDATE, projectId=project_id, payload=payload, correlationId=correlation_id)
+        env = Envelope(type=EventType.UPDATE, project_id=project_id, payload=payload, correlationId=correlation_id)
         await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
     async def _broadcast_error(self, project_id: str, message: str, correlation_id: Optional[str]) -> None:
         payload = {"error": message, "timestamp": datetime.utcnow().isoformat() + "Z", "correlationId": correlation_id}
-        env = Envelope(type=EventType.ERROR, projectId=project_id, payload=payload, correlationId=correlation_id)
+        env = Envelope(type=EventType.ERROR, project_id=project_id, payload=payload, correlationId=correlation_id)
         await manager.broadcast_project(project_id, json.dumps(env.model_dump(by_alias=True, mode="json")))
 
 

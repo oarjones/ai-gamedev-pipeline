@@ -358,7 +358,7 @@ class GeminiChatIntegration:
             # Errores van como eventos de log
             env = Envelope(
                 type=EventType.LOG,
-                projectId=self.project_id,
+                project_id=self.project_id,
                 payload={
                     "level": "error",
                     "message": text
@@ -389,7 +389,7 @@ class GeminiChatIntegration:
             # Enviar por WebSocket
             env = Envelope(
                 type=EventType.CHAT,
-                projectId=self.project_id,
+                project_id=self.project_id,
                 payload={
                     "role": "agent",
                     "content": text,

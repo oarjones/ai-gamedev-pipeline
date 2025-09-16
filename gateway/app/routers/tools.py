@@ -29,11 +29,11 @@ class ExecuteRequest(BaseModel):
 
 
 @router.post("/actions/execute")
-async def execute_action(request: Request, projectId: str, payload: ExecuteRequest) -> JSONResponse:
+async def execute_action(request: Request, project_id: str, payload: ExecuteRequest) -> JSONResponse:
     # Validate project
-    project = project_service.get_project(projectId)
+    project = project_service.get_project(project_id)
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{projectId}' not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found")
 
     # Validate tool and input
     try:
@@ -53,7 +53,7 @@ async def execute_action(request: Request, projectId: str, payload: ExecuteReque
         pass
     # Delegate to orchestrator as a single-step plan
     try:
-        res = await action_orchestrator.run_plan(projectId, [{"tool": payload.toolId, "args": payload.input}], correlation_id=corr_id)
+        res = await action_orchestrator.run_plan(project_id, [{"tool": payload.toolId, "args": payload.input}], correlation_id=corr_id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
