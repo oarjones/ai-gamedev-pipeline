@@ -3,7 +3,7 @@ import { create } from 'zustand'
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 interface AppStore {
-  projectId: string | null
+  project_id: string | null
   setProjectId: (id: string) => void
   connection: { state: ConnectionState; lastError?: string }
   setConnection: (s: ConnectionState, e?: string) => void
@@ -13,8 +13,8 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  projectId: null,
-  setProjectId: (id) => set({ projectId: id }),
+  project_id: null,
+  setProjectId: (id) => set({ project_id: id }),
   connection: { state: 'disconnected' },
   setConnection: (state, lastError) => set({ connection: { state, lastError } }),
   ui: { toasts: [] },

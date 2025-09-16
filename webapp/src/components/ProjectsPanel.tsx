@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
-import { listProjects, createProject, deleteProject, selectProject, type Project } from '@/lib/api'
+import { listProjects, deleteProject, selectProject, type Project } from '@/lib/api'
+import { CreateProjectWizard } from './CreateProjectWizard'
 
 export default function ProjectsPanel() {
-  const projectId = useAppStore((s) => s.projectId)
+  const project_id = useAppStore((s) => s.project_id)
   const setProjectId = useAppStore((s) => s.setProjectId)
   const pushToast = useAppStore((s) => s.pushToast)
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
+  const [showCreateWizard, setShowCreateWizard] = useState(false)
 
   async function refresh() {
     setLoading(true)
@@ -37,16 +39,13 @@ export default function ProjectsPanel() {
     }
   }
 
-  async function handleCreate() {
-    const name = window.prompt('Nombre del nuevo proyecto:')?.trim()
-    if (!name) return
-    try {
-      const proj = await createProject({ name })
-      await handleSelect(proj.id)
-      pushToast(`Proyecto creado: ${proj.name}`)
-    } catch (e: any) {
-      pushToast(`No se pudo crear: ${e.message ?? e}`)
-    }
+  function handleCreate() {
+    setShowCreateWizard(true)
+  }
+
+  function handleWizardClose() {
+    setShowCreateWizard(false)
+    refresh() // Refresh project list after wizard closes
   }
 
   async function handleDelete(id: string, name: string) {
@@ -57,7 +56,7 @@ export default function ProjectsPanel() {
       pushToast(`Proyecto eliminado: ${name}`)
       await refresh()
       // If deleted project was selected, pick another if available
-      if (projectId === id) {
+      if (project_id === id) {
         const remaining = projects.filter((p) => p.id !== id)
         if (remaining.length > 0) {
           await handleSelect(remaining[0].id)
@@ -69,23 +68,24 @@ export default function ProjectsPanel() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <div className="font-medium">Proyectos</div>
-        <button
-          className="px-2 py-1 text-sm rounded border hover:bg-secondary"
-          onClick={handleCreate}
-          disabled={loading}
-          title="Crear proyecto"
-        >
-          + Nuevo
-        </button>
-      </div>
+    <>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-medium">Proyectos</div>
+          <button
+            className="px-2 py-1 text-sm rounded border hover:bg-secondary"
+            onClick={handleCreate}
+            disabled={loading}
+            title="Crear proyecto"
+          >
+            + Nuevo
+          </button>
+        </div>
       <div className="space-y-2">
         {projects.map((p) => (
           <div key={p.id} className="flex items-center gap-2">
             <button
-              className={`flex-1 text-left px-2 py-1 rounded border ${projectId === p.id ? 'bg-secondary' : ''}`}
+              className={`flex-1 text-left px-2 py-1 rounded border ${project_id === p.id ? 'bg-secondary' : ''}`}
               onClick={() => handleSelect(p.id)}
               title={p.description ?? ''}
             >
@@ -110,7 +110,11 @@ export default function ProjectsPanel() {
           <div className="text-sm opacity-70">No hay proyectos. Crea uno nuevo.</div>
         )}
       </div>
-    </div>
+      </div>
+      {showCreateWizard && (
+        <CreateProjectWizard onClose={handleWizardClose} />
+      )}
+    </>
   )
 }
 

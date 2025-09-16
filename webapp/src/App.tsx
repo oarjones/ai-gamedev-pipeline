@@ -1,19 +1,26 @@
-import { Link, Outlet, useLocation } from 'react-router-dom'
-import { useAppStore } from '@/store/appStore' 
+import { Outlet, useLocation } from 'react-router-dom'
+import { useAppStore } from '@/store/appStore'
 
 export default function App() {
-  const loc = useLocation()
-  const projectId = useAppStore(s => s.projectId)
-  const hasProject = !!projectId
+  const location = useLocation()
+
+  // For the new dashboard, render directly without wrapper
+  if (location.pathname === '/') {
+    return <Outlet />
+  }
+
+  // For other routes, use the original layout
+  const project_id = useAppStore(s => s.project_id)
+  const hasProject = !!project_id
   const pushToast = useAppStore(s => s.pushToast)
   const onDisabledClick = (e: React.MouseEvent, label: string) => {
     e.preventDefault()
     pushToast(`Selecciona un proyecto para abrir "${label}"`)
   }
-  const consensusHref = hasProject ? `/projects/${projectId}/consensus` : '/consensus'
-  const contextHref = hasProject ? `/projects/${projectId}/context` : '/context'
-  const isConsensus = loc.pathname.includes('/consensus')
-  const isContext = loc.pathname.includes('/context')
+  const consensusHref = hasProject ? `/projects/${project_id}/consensus` : '/consensus'
+  const contextHref = hasProject ? `/projects/${project_id}/context` : '/context'
+  const isConsensus = location.pathname.includes('/consensus')
+  const isContext = location.pathname.includes('/context')
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -23,56 +30,57 @@ export default function App() {
             <LogoIcon /> AI GameDev Dashboard
           </h1>
           <nav className="flex gap-1 text-sm">
-            <Link className={linkCls(loc.pathname === '/')} to="/">Dashboard</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/logs'))} to="/logs">Logs</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/settings'))} to="/settings">Settings</Link>
-            <Link className={linkCls(loc.pathname.startsWith('/dependencies'))} to="/dependencies">Dependencies</Link>
+            <a className={linkCls(false)} href="/">New Dashboard</a>
+            <a className={linkCls(location.pathname === '/old-dashboard')} href="/old-dashboard">Old Dashboard</a>
+            <a className={linkCls(location.pathname.startsWith('/logs'))} href="/logs">Logs</a>
+            <a className={linkCls(location.pathname.startsWith('/settings'))} href="/settings">Settings</a>
+            <a className={linkCls(location.pathname.startsWith('/dependencies'))} href="/dependencies">Dependencies</a>
             {/* Project-scoped tabs: disable until a project is selected */}
-            <Link
-              className={linkCls(loc.pathname.startsWith('/sessions'), !hasProject)}
-              to="/sessions"
+            <a
+              className={linkCls(location.pathname.startsWith('/sessions'), !hasProject)}
+              href="/sessions"
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Sessions')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Sessions' : 'Selecciona un proyecto primero'}
             >
               Sessions
-            </Link>
-            <Link
-              className={linkCls(loc.pathname.startsWith('/wizard'), !hasProject)}
-              to="/wizard"
+            </a>
+            <a
+              className={linkCls(location.pathname.startsWith('/wizard'), !hasProject)}
+              href="/wizard"
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Wizard')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Wizard' : 'Selecciona un proyecto primero'}
             >
               Wizard
-            </Link>
-            <Link
-              className={linkCls(loc.pathname.startsWith('/tasks'), !hasProject)}
-              to="/tasks"
+            </a>
+            <a
+              className={linkCls(location.pathname.startsWith('/tasks'), !hasProject)}
+              href="/tasks"
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Tasks')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Tasks' : 'Selecciona un proyecto primero'}
             >
               Tasks
-            </Link>
-            <Link
+            </a>
+            <a
               className={linkCls(isConsensus, !hasProject)}
-              to={consensusHref}
+              href={consensusHref}
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Consensus')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Consensus' : 'Selecciona un proyecto primero'}
             >
               Consensus
-            </Link>
-            <Link
+            </a>
+            <a
               className={linkCls(isContext, !hasProject)}
-              to={contextHref}
+              href={contextHref}
               onClick={hasProject ? undefined : (e) => onDisabledClick(e, 'Context')}
               aria-disabled={!hasProject}
               title={hasProject ? 'Context' : 'Selecciona un proyecto primero'}
             >
               Context
-            </Link>
+            </a>
           </nav>
         </div>
       </header>

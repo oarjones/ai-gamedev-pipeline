@@ -17,24 +17,24 @@ type Manifest = {
 }
 
 export default function ProjectWizard() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const pushToast = useAppStore(s => s.pushToast)
   const [mf, setMf] = useState<Manifest>({ pitch: '', genre: '', mechanics: '', visual_style: '' })
   const [loading, setLoading] = useState(false)
   const [planText, setPlanText] = useState('')
 
   useEffect(() => {
-    if (!projectId) return
+    if (!project_id) return
     setLoading(true)
-    apiGet(`/api/v1/projects/${projectId}/manifest`).then((d) => setMf({ ...mf, ...d })).catch(()=>{}).finally(()=>setLoading(false))
+    apiGet(`/api/v1/projects/${project_id}/manifest`).then((d: any) => setMf({ ...mf, ...d })).catch(()=>{}).finally(()=>setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [project_id])
 
   async function saveManifest() {
-    if (!projectId) { pushToast('Select a project first'); return }
+    if (!project_id) { pushToast('Select a project first'); return }
     try {
       setLoading(true)
-      await apiPost(`/api/v1/projects/${projectId}/manifest`, mf)
+      await apiPost(`/api/v1/projects/${project_id}/manifest`, mf)
       pushToast('Manifest saved')
     } catch (e) {
       pushToast(String(e))
@@ -42,10 +42,10 @@ export default function ProjectWizard() {
   }
 
   async function proposePlan() {
-    if (!projectId) { pushToast('Select a project first'); return }
+    if (!project_id) { pushToast('Select a project first'); return }
     try {
       setLoading(true)
-      await apiPost(`/api/v1/projects/${projectId}/plan/propose`, {})
+      await apiPost(`/api/v1/projects/${project_id}/plan/propose`, {})
       pushToast('Plan proposal sent to agent (check Chat)')
     } catch (e) {
       pushToast(String(e))
@@ -53,11 +53,11 @@ export default function ProjectWizard() {
   }
 
   async function savePlan() {
-    if (!projectId) { pushToast('Select a project first'); return }
+    if (!project_id) { pushToast('Select a project first'); return }
     try {
       setLoading(true)
       const plan = JSON.parse(planText)
-      await apiPost(`/api/v1/projects/${projectId}/plan`, { plan })
+      await apiPost(`/api/v1/projects/${project_id}/plan`, { plan })
       pushToast('Plan of record saved')
     } catch (e) {
       pushToast('Invalid JSON or save error: ' + String(e))
@@ -68,7 +68,7 @@ export default function ProjectWizard() {
     setMf(s => ({ ...s, [k]: v }))
   }
 
-  if (!projectId) return <div className="card">Select a project to configure.</div>
+  if (!project_id) return <div className="card">Select a project to configure.</div>
 
   return (
     <div className="grid grid-cols-12 gap-4">

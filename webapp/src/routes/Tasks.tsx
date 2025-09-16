@@ -5,7 +5,7 @@ import { apiGet, apiPost } from '@/lib/api'
 type TaskItem = {
   id: number
   taskId: string
-  projectId: string
+  project_id: string
   title: string
   description: string
   acceptance: string
@@ -15,7 +15,7 @@ type TaskItem = {
 }
 
 export default function Tasks() {
-  const projectId = useAppStore(s => s.projectId)
+  const project_id = useAppStore(s => s.project_id)
   const pushToast = useAppStore(s => s.pushToast)
   const [items, setItems] = useState<TaskItem[]>([])
   const [selected, setSelected] = useState<TaskItem | null>(null)
@@ -25,9 +25,9 @@ export default function Tasks() {
   const [busy, setBusy] = useState<null|'propose'|'run'|'complete'>(null)
 
   async function refresh() {
-    if (!projectId) return
+    if (!project_id) return
     try {
-      const list = await apiGet<TaskItem[]>(`/api/v1/tasks?projectId=${projectId}`)
+      const list = await apiGet<TaskItem[]>(`/api/v1/tasks?project_id=${project_id}`)
       setItems(list)
       if (selected) {
         const updated = list.find(t => t.id === selected.id) || null
@@ -39,12 +39,12 @@ export default function Tasks() {
   }
 
   useEffect(() => { refresh() // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [project_id])
 
   async function importFromPlan() {
-    if (!projectId) return
+    if (!project_id) return
     try {
-      const res = await apiPost(`/api/v1/tasks/import?projectId=${projectId}`, {})
+      const res = await apiPost(`/api/v1/tasks/import?project_id=${project_id}`, {}) as { imported: number }
       pushToast(`Imported ${res.imported} tasks`)
       refresh()
     } catch (e) { pushToast(String(e)) }

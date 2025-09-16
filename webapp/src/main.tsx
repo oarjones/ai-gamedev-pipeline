@@ -1,8 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import Dashboard from './routes/Dashboard'
+import NewDashboard from './routes/NewDashboard'
 import Logs from './routes/Logs'
 import Settings from './routes/Settings'
 import Dependencies from './routes/Dependencies'
@@ -15,12 +17,23 @@ import PlanConsensus from './components/PlanConsensus'
 const TaskExecution = React.lazy(() => import('./components/TaskExecution'))
 import './styles.css'
 
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+})
+
 const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <NewDashboard /> },
+      { path: 'old-dashboard', element: <Dashboard /> },
       { path: 'logs', element: <Logs /> },
       { path: 'settings', element: <Settings /> },
       { path: 'dependencies', element: <Dependencies /> },
@@ -30,19 +43,21 @@ const router = createBrowserRouter([
       { path: 'consensus', element: <Consensus /> },
       { path: 'context', element: <Context /> },
       // Project-scoped routes
-      { path: 'projects/:projectId/consensus', element: <PlanConsensus /> },
-      { path: 'projects/:projectId/execution', element: (
+      { path: 'projects/:project_id/consensus', element: <PlanConsensus /> },
+      { path: 'projects/:project_id/execution', element: (
           <React.Suspense fallback={<div>Cargando ejecución…</div>}>
             <TaskExecution />
           </React.Suspense>
         ) },
-      { path: 'projects/:projectId/context', element: <Context /> },
+      { path: 'projects/:project_id/context', element: <Context /> },
     ],
   },
 ])
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </React.StrictMode>
 )

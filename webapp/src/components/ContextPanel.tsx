@@ -3,44 +3,31 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { format } from 'date-fns';
-
-// Basic type for context, can be expanded
-interface Context {
-  version: number;
-  current_task: string | null;
-  done_tasks: string[];
-  pending_tasks: number;
-  summary: string;
-  decisions: string[];
-  open_questions: string[];
-  risks: string[];
-  last_update?: string;
-}
-
-export function ContextPanel({ projectId }: { projectId: string }) {
+import { Context, TaskContext, HistoryItem, EditableListProps } from '../types';
+export function ContextPanel({ project_id }: { project_id: string }) {
   const [activeTab, setActiveTab] = useState<'global' | 'task' | 'history'>('global');
   const [isEditing, setIsEditing] = useState(false);
   const [editedContext, setEditedContext] = useState<Context | null>(null);
   const queryClient = useQueryClient();
 
   const { data: globalContext, refetch } = useQuery<Context>({
-    queryKey: ['context', projectId, 'global'],
-    queryFn: () => apiGet(`/api/v1/context?projectId=${projectId}&scope=global`)
+    queryKey: ['context', project_id, 'global'],
+    queryFn: () => apiGet(`/api/v1/context?project_id=${project_id}&scope=global`)
   });
 
-  const { data: taskContext } = useQuery({
-    queryKey: ['context', projectId, 'task'],
-    queryFn: () => apiGet(`/api/v1/context?projectId=${projectId}&scope=task`),
+  const { data: taskContext } = useQuery<TaskContext>({
+    queryKey: ['context', project_id, 'task'],
+    queryFn: () => apiGet(`/api/v1/context?project_id=${project_id}&scope=task`),
     enabled: !!globalContext?.current_task
   });
 
-  const { data: contextHistory } = useQuery<any[]>({
-    queryKey: ['context-history', projectId],
-    queryFn: () => apiGet(`/api/v1/context/history?projectId=${projectId}`),
+  const { data: contextHistory } = useQuery<HistoryItem[]>({
+    queryKey: ['context-history', project_id],
+    queryFn: () => apiGet(`/api/v1/context/history?project_id=${project_id}`),
     enabled: activeTab === 'history'
   });
 
-  const { lastMessage } = useWebSocket(`/ws/events?projectId=${projectId}`);
+  const { lastMessage } = useWebSocket(`/ws/events?project_id=${project_id}`);
 
   useEffect(() => {
     if (lastMessage?.type === 'context.updated' || lastMessage?.type === 'context.generated') {
@@ -50,7 +37,7 @@ export function ContextPanel({ projectId }: { projectId: string }) {
 
   const saveContext = useMutation({
     mutationFn: (context: Context) => 
-      apiPost(`/api/v1/context?projectId=${projectId}`, { 
+      apiPost(`/api/v1/context?project_id=${project_id}`, { 
         content: context,
         scope: 'global'
       }),
@@ -62,7 +49,7 @@ export function ContextPanel({ projectId }: { projectId: string }) {
 
   const generateContext = useMutation({
     mutationFn: (last_task_id: number) => 
-      apiPost(`/api/v1/context/generate?projectId=${projectId}`, { last_task_id }),
+      apiPost(`/api/v1/context/generate?project_id=${project_id}`, { last_task_id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['context'] });
     }
@@ -157,9 +144,9 @@ export function ContextPanel({ projectId }: { projectId: string }) {
   );
 }
 
-function EditableList({ title, items, isEditing, onChange, itemClass = '' }: any) {
+function EditableList({ title, items, isEditing, onChange, itemClass = '' }: EditableListProps) {
   const handleAdd = () => onChange([...items, '']);
-  const handleRemove = (index: number) => onChange(items.filter((_: any, i: number) => i !== index));
+  const handleRemove = (index: number) => onChange(items.filter((_, i: number) => i !== index));
   const handleChange = (index: number, value: string) => {
     const newItems = [...items];
     newItems[index] = value;
@@ -188,7 +175,7 @@ function EditableList({ title, items, isEditing, onChange, itemClass = '' }: any
   );
 }
 
-function TaskContextView({ context }: any) {
+function TaskContextView({ context }: { context?: TaskContext }) {
   if (!context) return <div className="text-gray-500">No task context available.</div>;
   return (
     <div className="space-y-4">
@@ -204,11 +191,11 @@ function TaskContextView({ context }: any) {
   );
 }
 
-function ContextHistory({ history }: any) {
+function ContextHistory({ history }: { history?: HistoryItem[] }) {
   if (!history || history.length === 0) return <div className="text-gray-500">No history available.</div>;
   return (
     <div className="space-y-2">
-      {history.map((item: any) => (
+      {history.map((item) => (
         <div key={item.id} className="border rounded p-3">
           <div className="flex justify-between items-start">
             <div>
