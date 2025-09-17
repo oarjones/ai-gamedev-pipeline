@@ -91,6 +91,15 @@ export interface TaskSchema {
     tags: string[];
 }
 
+export interface PlanSummary {
+    id: number;
+    version: number;
+    status: string;
+    summary: string;
+    created_by: string;
+    created_at: string;
+}
+
 export interface TaskPlan {
     id: number;
     version: number;

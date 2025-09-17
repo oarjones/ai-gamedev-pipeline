@@ -55,7 +55,7 @@ class TaskPlanService:
                 code=task_data.get('code', f'T-{idx+1:03d}'),
                 task_id=task_data.get('code', f'T-{idx+1:03d}'),  # Maintain compatibility
                 title=task_data.get('title', 'Untitled'),
-                description=task_data.get('description', ''),
+                description=task_data.get('description') or task_data.get('desc', ''),
                 acceptance='\n'.join(task_data.get('acceptance_criteria') or []),
                 status='pending',
                 deps_json=json.dumps(task_data.get('dependencies', [])),

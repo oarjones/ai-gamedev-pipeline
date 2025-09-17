@@ -148,10 +148,31 @@ class ChatService:
         agent_msg_id = str(uuid4())
         self._persist_message(project_id, "agent", text, agent_msg_id)
         await self._broadcast_chat(project_id, "agent", text, agent_msg_id, correlation_id)
-        # Detect plan JSON and orchestrate
-        plan = self._maybe_parse_plan(text)
-        if plan is not None:
-            asyncio.create_task(self._run_plan(project_id, plan, correlation_id))
+
+        # If this is the response for the plan proposal, create the plan
+        if correlation_id == "plan-proposal":
+            try:
+                data = json.loads(text)
+                tasks = data.get("tasks")
+                if isinstance(tasks, list):
+                    from app.services.task_plan_service import task_plan_service
+                    plan = task_plan_service.create_plan(project_id, tasks)
+                    # Broadcast plan created event
+                    from app.models import Envelope, EventType
+                    from app.ws.events import manager
+                    envelope = Envelope(
+                        type=EventType.UPDATE,
+                        project_id=project_id,
+                        payload={"event": "plan.created", "plan_id": plan.id, "version": plan.version}
+                    )
+                    await manager.broadcast_project(project_id, envelope.model_dump_json())
+            except Exception as e:
+                logger.error("Failed to parse and create plan: %s", e)
+        else:
+            # Detect plan JSON and orchestrate
+            plan = self._maybe_parse_plan(text)
+            if plan is not None:
+                asyncio.create_task(self._run_plan(project_id, plan, correlation_id))
 
 
 # Singleton instance

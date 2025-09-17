@@ -80,7 +80,7 @@ export default function WorkspaceArea({ workspace }: WorkspaceAreaProps) {
       </div>
 
       {/* Workspace Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         {workspace === 'chat' && <ChatWorkspace />}
         {workspace === 'consensus' && <ConsensusWorkspace />}
         {workspace === 'execution' && <ExecutionWorkspace />}

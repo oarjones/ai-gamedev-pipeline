@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/appStore';
 import { createProject, apiPost } from '@/lib/api';
 import { ProjectManifest } from '@/types';
 
+
 interface CreateProjectWizardProps {
   onClose: () => void;
 }
@@ -17,20 +18,20 @@ export function CreateProjectWizard({ onClose }: CreateProjectWizardProps) {
   const [loading, setLoading] = useState(false);
 
   // Project basic info
-  const [projectName, setProjectName] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
+  const [projectName, setProjectName] = useState('Pixel Jumper');
+  const [projectDescription, setProjectDescription] = useState('Plataformero 2D retro donde saltas entre plataformas para llegar a la meta');
 
   // Manifest data
   const [manifest, setManifest] = useState<ProjectManifest>({
-    name: '',
-    pitch: '',
-    genre: '',
-    platform: '',
-    art_style: '',
-    target_audience: '',
-    core_mechanics: [],
-    technical_requirements: [],
-    scope: ''
+    name: 'Pixel Jumper',
+    pitch: 'Un plataformero 2D simple y adictivo donde controlas un pequeño personaje pixel que debe saltar entre plataformas flotantes para llegar a la meta. Inspirado en los clásicos juegos arcade, combina mecánicas simples con desafío progresivo.',
+    genre: 'Plataformas 2D',
+    platform: 'PC (Unity 2D)',
+    art_style: 'Pixel art 16x16, paleta retro de 8 colores, estética minimalista',
+    target_audience: 'Casual, todas las edades, jugadores nostálgicos',
+    core_mechanics: ['Movimiento horizontal, salto con gravedad, colisiones con plataformas, sistema de muerte por caída, checkpoint en meta'],
+    technical_requirements: ['Unity 2023 LTS, Physics2D, Tilemap system, Input System, básico save/load'],
+    scope: 'Prototipo jugable con 2 niveles completables, menú básico, sistema de puntuación simple, tutorial integrado'
   });
 
   const updateManifest = <K extends keyof ProjectManifest>(key: K, value: ProjectManifest[K]) => {
@@ -57,41 +58,51 @@ export function CreateProjectWizard({ onClose }: CreateProjectWizardProps) {
 
     try {
       // 1. Create project
+      console.log('Creating project with:', { name: projectName, description: projectDescription });
       const project = await createProject({
         name: projectName,
         description: projectDescription,
         settings: {}
       });
+      console.log('Project created:', project);
 
       // 2. Select project
       setProjectId(project.id);
 
-      // 3. Save manifest
-      await apiPost(`/api/v1/projects/${project.id}/manifest`, manifest);
+      // 3. Save manifest (adapt format for backend)
+      const backendManifest = {
+        pitch: manifest.pitch || '',
+        genre: manifest.genre || '',
+        mechanics: Array.isArray(manifest.core_mechanics)
+          ? manifest.core_mechanics.join(', ')
+          : manifest.core_mechanics || '',
+        visual_style: manifest.art_style || '',
+        platform: manifest.platform || '',
+        target: manifest.target_audience || '',
+        references: manifest.technical_requirements?.join(', ') || '',
+        constraints: '',
+        kpis: '',
+        milestones: '',
+        scope: manifest.scope || ''
+      };
+
+      console.log('Saving manifest:', backendManifest);
+      await apiPost(`/api/v1/projects/${project.id}/manifest`, backendManifest);
+      console.log('Manifest saved successfully');
 
       // 4. Generate initial plan via AI agent
-      await apiPost(`/api/v1/projects/${project.id}/plan/propose`, {
-        context: `Nuevo proyecto de videojuego: ${manifest.name}
+      console.log('Requesting plan generation...');
+      const planResponse = await apiPost(`/api/v1/projects/${project.id}/plan/propose`, {});
+      console.log('Plan generation completed:', planResponse);
 
-Pitch: ${manifest.pitch}
-Género: ${manifest.genre}
-Plataforma: ${manifest.platform || 'No especificada'}
-Estilo visual: ${manifest.art_style}
-Audiencia objetivo: ${manifest.target_audience || 'No especificada'}
-Mecánicas core: ${manifest.core_mechanics?.join(', ') || 'No especificadas'}
-Requerimientos técnicos: ${manifest.technical_requirements?.join(', ') || 'No especificados'}
-Alcance: ${manifest.scope || 'No especificado'}
-
-Genera un plan de desarrollo detallado con tareas, dependencias y fases de desarrollo.`
-      });
-
-      pushToast(`Proyecto "${project.name}" creado y plan inicial generado`);
+      pushToast(`Proyecto "${projectName}" creado y plan inicial generado`);
 
       // 5. Navigate to consensus phase
       navigate(`/projects/${project.id}/consensus`);
       onClose();
 
     } catch (error: any) {
+      console.error('Error in wizard:', error);
       pushToast(`Error: ${error.message}`);
       setStep('manifest'); // Go back to allow retry
     } finally {
@@ -101,8 +112,8 @@ Genera un plan de desarrollo detallado con tareas, dependencias y fases de desar
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <h2 className="text-xl font-semibold">
             {step === 'basic' && 'Crear Nuevo Proyecto'}
             {step === 'manifest' && 'Definir Características del Juego'}
@@ -117,7 +128,7 @@ Genera un plan de desarrollo detallado con tareas, dependencias y fases de desar
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-6 overflow-y-auto flex-grow">
           {step === 'basic' && (
             <div className="space-y-4">
               <div>
@@ -219,7 +230,7 @@ Genera un plan de desarrollo detallado con tareas, dependencias y fases de desar
           )}
         </div>
 
-        <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
+        <div className="flex justify-end gap-3 p-6 border-t bg-gray-50 flex-shrink-0">
           {step === 'basic' && (
             <>
               <button

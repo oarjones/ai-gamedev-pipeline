@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, status
+from datetime import datetime
 
 from app.services.unified_agent import agent as unified_agent
 
@@ -71,7 +72,7 @@ def _build_plan_prompt(manifest: Dict[str, Any]) -> str:
     )
     spec = {
         "phases": ["..."],
-        "tasks": [{"id": "T-001", "title": "...", "desc": "...", "deps": ["T-000"], "acceptance": "..."}],
+        "tasks": [{"id": "T-001", "title": "...", "description": "...", "deps": ["T-000"], "acceptance": "..."}],
         "risks": ["..."],
         "deliverables": ["..."]
     }
@@ -93,17 +94,57 @@ async def propose_plan(project_id: str) -> Dict[str, Any]:
         manifest = yaml.safe_load(p.read_text(encoding="utf-8")) if yaml else {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
     prompt = _build_plan_prompt(manifest or {})
-    # Ensure agent running in project's cwd
-    from pathlib import Path as P
-    cwd = P("projects") / project_id
+    
+    # Use one-shot agent to generate the plan
+    answer, error = unified_agent.ask_one_shot(project_id, prompt)
+
+    if error and not answer:
+        raise HTTPException(status_code=500, detail=f"Failed to generate plan: {error}")
+
+    if not answer:
+        raise HTTPException(status_code=500, detail="Agent returned an empty plan.")
+
     try:
-        await unified_agent.start(cwd, "gemini")
-        corr = "plan-proposal"
-        await unified_agent.send(prompt, correlation_id=corr)
+        data = json.loads(answer)
+        tasks_from_agent = data.get("tasks")
+        if not isinstance(tasks_from_agent, list):
+            raise ValueError("Plan from agent is missing 'tasks' list.")
+        
+        from app.services.task_plan_service import task_plan_service
+        plan = task_plan_service.create_plan(project_id, tasks_from_agent)
+        
+        # Create initial context
+        from app.services.context_service import context_service
+        from app.db import db, TaskDB
+        
+        with db.get_session() as session:
+            from sqlmodel import select
+            stmt = select(TaskDB).where(TaskDB.plan_id == plan.id).order_by(TaskDB.idx)
+            tasks_from_db = session.exec(stmt).all()
+
+        first_task = tasks_from_db[0] if tasks_from_db else None
+        
+        initial_context = {
+            "version": 1,
+            "current_task": first_task.code if first_task else None,
+            "done_tasks": [],
+            "pending_tasks": len(tasks_from_db),
+            "summary": manifest.get("pitch", "Initial project summary."),
+            "decisions": [],
+            "open_questions": [],
+            "risks": data.get("risks", []),
+            "last_update": datetime.utcnow().isoformat(),
+        }
+        context_service.create_context(project_id, initial_context)
+        
+        return {"plan_id": plan.id, "version": plan.version}
+
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse plan from agent: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return {"queued": True, "correlationId": "plan-proposal"}
+        raise HTTPException(status_code=500, detail=f"Failed to create plan: {e}")
 
 
 @router.post("/{project_id}/plan")

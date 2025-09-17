@@ -1,44 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
+import { TaskPlan, PlanSummary } from '@/types';
 
 export default function ConsensusWorkspace() {
   const project_id = useAppStore((s) => s.project_id);
 
-  // Mock plan data - in real implementation, fetch from API
-  const mockPlan = {
-    id: 1,
-    version: 1,
-    status: 'proposed',
-    summary: 'Plan inicial para desarrollo del juego de plataformas 2D',
-    created_by: 'AI Assistant',
-    created_at: '2024-01-15T10:30:00Z',
-    tasks: [
-      {
-        code: 'T-001',
-        title: 'Configuración inicial del proyecto',
-        description: 'Crear la estructura base del proyecto Unity y configurar las carpetas principales',
-        dependencies: [],
-        priority: 1,
-        status: 'pending'
-      },
-      {
-        code: 'T-002',
-        title: 'Implementar movimiento del personaje',
-        description: 'Crear el controlador básico para el movimiento horizontal y salto del personaje',
-        dependencies: ['T-001'],
-        priority: 1,
-        status: 'pending'
-      },
-      {
-        code: 'T-003',
-        title: 'Sistema de colisiones',
-        description: 'Implementar detección de colisiones con plataformas y obstáculos',
-        dependencies: ['T-002'],
-        priority: 2,
-        status: 'pending'
-      }
-    ]
-  };
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+
+  // 1. Fetch list of plans
+  const { data: plans, isLoading: isLoadingPlans } = useQuery<PlanSummary[]>({
+    queryKey: ['plans', project_id],
+    queryFn: () => apiGet(`/api/v1/plans?project_id=${project_id}`),
+    enabled: !!project_id,
+    select: (data) => (Array.isArray(data) ? data : [])
+  });
+
+  // 2. Select the latest plan by default
+  useEffect(() => {
+    if (plans && plans.length > 0) {
+      // Assuming the API returns plans sorted by version/date descending
+      setSelectedPlanId(plans[0].id);
+    }
+  }, [plans]);
+
+  // 3. Fetch details of the selected plan
+  const { data: planDetails, isLoading: isLoadingPlanDetails } = useQuery<TaskPlan>({
+    queryKey: ['plan', selectedPlanId],
+    queryFn: () => apiGet(`/api/v1/plans/${selectedPlanId}`),
+    enabled: !!selectedPlanId,
+  });
 
   if (!project_id) {
     return (
@@ -52,6 +44,38 @@ export default function ConsensusWorkspace() {
     );
   }
 
+  if (isLoadingPlans) {
+    return (
+        <div className="flex-1 flex items-center justify-center">
+            <p>Loading plans...</p>
+        </div>
+    )
+  }
+
+  if (!plans || plans.length === 0) {
+    return (
+        <div className="flex-1 flex items-center justify-center">
+            <p>No plans found for this project.</p>
+        </div>
+    )
+  }
+
+  if (isLoadingPlanDetails) {
+    return (
+        <div className="flex-1 flex items-center justify-center">
+            <p>Loading plan details...</p>
+        </div>
+    )
+  }
+
+  if (!planDetails) {
+    return (
+        <div className="flex-1 flex items-center justify-center">
+            <p>Select a plan to view its details.</p>
+        </div>
+    )
+  }
+
   return (
     <div className="flex-1 flex">
       {/* Plan Review Area */}
@@ -63,14 +87,23 @@ export default function ConsensusWorkspace() {
               <h2 className="text-2xl font-bold text-gray-800">Plan de Desarrollo</h2>
               <div className="flex items-center gap-3 mt-2">
                 <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                  Pendiente de Aprobación
+                  {planDetails.status}
                 </span>
                 <span className="text-sm text-gray-500">
-                  Versión {mockPlan.version} • Creado por {mockPlan.created_by}
+                  Versión {planDetails.version} • Creado por {planDetails.created_by}
                 </span>
               </div>
             </div>
             <div className="flex gap-2">
+              <select
+                  value={selectedPlanId || ''}
+                  onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                  {plans?.map(p => (
+                      <option key={p.id} value={p.id}>Version {p.version}</option>
+                  ))}
+              </select>
               <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
                 <EditIcon className="w-4 h-4" />
                 Editar
@@ -84,7 +117,7 @@ export default function ConsensusWorkspace() {
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-medium text-blue-900 mb-2">Resumen del Plan</h3>
-            <p className="text-blue-800 text-sm">{mockPlan.summary}</p>
+            <p className="text-blue-800 text-sm">{planDetails.summary}</p>
           </div>
         </div>
 
@@ -92,11 +125,11 @@ export default function ConsensusWorkspace() {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <TaskIcon className="w-5 h-5" />
-            Tareas Propuestas ({mockPlan.tasks.length})
+            Tareas Propuestas ({planDetails.tasks.length})
           </h3>
 
           <div className="space-y-3">
-            {mockPlan.tasks.map((task, index) => (
+            {planDetails.tasks.map((task, index) => (
               <div key={task.code} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -169,18 +202,18 @@ export default function ConsensusWorkspace() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total de tareas:</span>
-                <span className="font-medium">{mockPlan.tasks.length}</span>
+                <span className="font-medium">{planDetails.tasks.length}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Alta prioridad:</span>
                 <span className="font-medium text-red-600">
-                  {mockPlan.tasks.filter(t => t.priority === 1).length}
+                  {planDetails.tasks.filter(t => t.priority === 1).length}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Con dependencias:</span>
                 <span className="font-medium">
-                  {mockPlan.tasks.filter(t => t.dependencies.length > 0).length}
+                  {planDetails.tasks.filter(t => t.dependencies.length > 0).length}
                 </span>
               </div>
             </div>

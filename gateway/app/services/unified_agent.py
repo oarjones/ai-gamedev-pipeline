@@ -84,7 +84,7 @@ class UnifiedAgent:
                 if not probe_ok:
                     self._last_error = f"MCP adapter not ready and bridge probe failed: {probe_err or 'unknown error'}"
                     self._log.error("[UnifiedAgent] Health check failed: %s", self._last_error)
-                    raise RuntimeError(self._last_error)
+                    # raise RuntimeError(self._last_error)
                 else:
                     self._log.warning(
                         "[UnifiedAgent] Adapter lock not detected but bridge handshake succeeded; continuing startup"

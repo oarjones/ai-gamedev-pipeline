@@ -318,6 +318,9 @@ class GeminiCliProvider(IAgentProvider):
             )
             stdout_raw = result.stdout or ""
             stderr_raw = result.stderr or ""
+            
+            logger.info(f"[GeminiCliProvider] raw stdout: {stdout_raw}")
+
             answer_clean = self._clean_output(stdout_raw)
             if stderr_raw and not answer_clean:
                 logger.error("[GEMINI_STDERR_FATAL] %s", stderr_raw.strip())
@@ -332,6 +335,11 @@ class GeminiCliProvider(IAgentProvider):
 
     def _clean_output(self, raw_output: str) -> str:
         """Remove ANSI escapes and known CLI noise from output."""
+        # Extract JSON from markdown block
+        match = re.search(r"```json\n({.*})\n```", raw_output, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
         if not raw_output:
             return ""
         ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -381,7 +389,14 @@ class GeminiCliProvider(IAgentProvider):
             raise RuntimeError("Provider process is not running")
         line = (user_message or "") + "\n"
         p.stdin.write(line.encode("utf-8"))
-        await p.stdin.drain()
+
+        # Handle both asyncio StreamWriter and wrapped subprocess.PIPE
+        if hasattr(p.stdin, 'drain'):
+            await p.stdin.drain()
+        else:
+            # For wrapped subprocess.Popen, flush synchronously
+            if hasattr(p.stdin, 'flush'):
+                p.stdin.flush()
 
     def status(self) -> dict:
         p = self._state.proc
@@ -392,15 +407,19 @@ class GeminiCliProvider(IAgentProvider):
     async def _stdout_reader(self) -> None:
         p = self._state.proc
         if not p or not p.stdout:
+            logger.error("[GeminiCliProvider] No stdout to read from.")
             return
+        logger.info("[GeminiCliProvider] Starting stdout reader.")
         try:
             # Try async stream first
             try:
                 while True:
                     raw = await p.stdout.readline()
                     if not raw:
+                        logger.info("[GeminiCliProvider] stdout EOF.")
                         break
                     text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                    logger.info(f"[GeminiCliProvider] stdout: {text}")
                     if not text:
                         continue
                     ev = _parse_line(text)
@@ -411,14 +430,16 @@ class GeminiCliProvider(IAgentProvider):
                 while True:
                     raw = await loop.run_in_executor(None, p.stdout.readline)
                     if not raw:
+                        logger.info("[GeminiCliProvider] stdout EOF.")
                         break
                     text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                    logger.info(f"[GeminiCliProvider] stdout: {text}")
                     if not text:
                         continue
                     ev = _parse_line(text)
                     await self._emit(ev)
         except asyncio.CancelledError:
-            pass
+            logger.info("[GeminiCliProvider] stdout reader cancelled.")
         except Exception as e:
             logger.error("Error reading from stdout: %s", e, exc_info=True)
             await self._emit(ProviderEvent(kind="error", payload={"message": f"stdout reader failed: {e}"}))
@@ -426,14 +447,18 @@ class GeminiCliProvider(IAgentProvider):
     async def _stderr_reader(self) -> None:
         p = self._state.proc
         if not p or not p.stderr:
+            logger.error("[GeminiCliProvider] No stderr to read from.")
             return
+        logger.info("[GeminiCliProvider] Starting stderr reader.")
         try:
             try:
                 while True:
                     raw = await p.stderr.readline()
                     if not raw:
+                        logger.info("[GeminiCliProvider] stderr EOF.")
                         break
                     text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                    logger.info(f"[GeminiCliProvider] stderr: {text}")
                     # Known benign MCP discovery message; downgrade to debug
                     if "Error during discovery for server 'unity_editor'" in text and "Connection closed" in text:
                         logger.debug("[GeminiCliProvider] MCP discovery closed: %s", text)
@@ -444,14 +469,16 @@ class GeminiCliProvider(IAgentProvider):
                 while True:
                     raw = await loop.run_in_executor(None, p.stderr.readline)
                     if not raw:
+                        logger.info("[GeminiCliProvider] stderr EOF.")
                         break
                     text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+                    logger.info(f"[GeminiCliProvider] stderr: {text}")
                     if "Error during discovery for server 'unity_editor'" in text and "Connection closed" in text:
                         logger.debug("[GeminiCliProvider] MCP discovery closed: %s", text)
                     else:
                         await self._emit(ProviderEvent(kind="error", payload={"message": text}))
         except asyncio.CancelledError:
-            pass
+            logger.info("[GeminiCliProvider] stderr reader cancelled.")
         except Exception as e:
             logger.error("Error reading from stderr: %s", e, exc_info=True)
 
