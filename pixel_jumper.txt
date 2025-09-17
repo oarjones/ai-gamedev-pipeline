@@ -1,0 +1,32 @@
+🎮 Configuración del Wizard para "Pixel Jumper"
+
+📋 Información Básica:
+
+- Nombre del Proyecto: Pixel Jumper
+- Descripción: Plataformero 2D retro donde saltas entre plataformas para llegar a la meta
+
+🎯 Características del Juego:
+
+Pitch del Juego:
+Un plataformero 2D simple y adictivo donde controlas un pequeño personaje pixel que debe saltar entre plataformas flotantes para llegar a la meta. Inspirado en los clásicos juegos arcade, combina mecánicas simples con desafío progresivo.
+
+Género:
+Plataformas 2D
+
+Plataforma:
+PC (Unity 2D)
+
+Estilo Visual:
+Pixel art 16x16, paleta retro de 8 colores, estética minimalista
+
+Audiencia Objetivo:
+Casual, todas las edades, jugadores nostálgicos
+
+Mecánicas Core:
+Movimiento horizontal, salto con gravedad, colisiones con plataformas, sistema de muerte por caída, checkpoint en meta
+
+Requerimientos Técnicos:
+Unity 2023 LTS, Physics2D, Tilemap system, Input System, básico save/load
+
+Alcance del Proyecto:
+Prototipo jugable con 2 niveles completables, menú básico, sistema de puntuación simple, tutorial integrado

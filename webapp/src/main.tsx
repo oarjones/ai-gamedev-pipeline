@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
-import Dashboard from './routes/Dashboard'
 import NewDashboard from './routes/NewDashboard'
 import Logs from './routes/Logs'
 import Settings from './routes/Settings'
@@ -33,7 +32,6 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <NewDashboard /> },
-      { path: 'old-dashboard', element: <Dashboard /> },
       { path: 'logs', element: <Logs /> },
       { path: 'settings', element: <Settings /> },
       { path: 'dependencies', element: <Dependencies /> },

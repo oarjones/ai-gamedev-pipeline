@@ -249,6 +249,9 @@ class ProcessManager:
         return mp
 
     def startUnity(self, project_id: Optional[str]) -> Dict:
+        if "unity" in self.procs and self.procs["unity"].status().get("running"):
+            logger.info("Unity process is already running, skipping start.")
+            return self.procs["unity"].status()
         try:
             cmd = self._build_unity_cmd(project_id)
             timeout = float((settings.processes or {}).get("unity", {}).get("timeout", 15))
@@ -274,6 +277,9 @@ class ProcessManager:
         return proc.status()
 
     def startBlender(self) -> Dict:
+        if "blender" in self.procs and self.procs["blender"].status().get("running"):
+            logger.info("Blender process is already running, skipping start.")
+            return self.procs["blender"].status()
         cmd = self._build_blender_cmd()
         timeout = float((settings.processes or {}).get("blender", {}).get("timeout", 20))
         proc = self._spawn("blender", cmd, timeout)

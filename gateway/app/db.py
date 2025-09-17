@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Optional, List
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, select, delete
 from sqlmodel import Field
 from datetime import datetime
 
@@ -416,21 +416,51 @@ class DatabaseManager:
             return t
     
     def delete_project(self, project_id: str) -> bool:
-        """Delete a project from the database.
-        
-        Args:
-            project_id: ID of project to delete
-            
-        Returns:
-            True if project was found and deleted, False otherwise
-        """
+        """Delete a project and all its associated data from the database."""
         with self.get_session() as session:
             project = session.get(ProjectDB, project_id)
-            if project:
-                session.delete(project)
-                session.commit()
-                return True
-            return False
+            if not project:
+                return False
+
+            # 1. Find all sessions for the project to cascade delete their children
+            sessions_to_delete = session.exec(
+                select(SessionDB).where(SessionDB.project_id == project_id)
+            ).all()
+            session_ids = [s.id for s in sessions_to_delete if s.id is not None]
+
+            # 2. Delete children of sessions (AgentMessageDB, ArtifactDB)
+            if session_ids:
+                # SQLite has a limit on the number of variables in a query (usually 999)
+                # Chunk the session IDs to be safe
+                chunk_size = 900
+                for i in range(0, len(session_ids), chunk_size):
+                    chunk = session_ids[i:i + chunk_size]
+                    
+                    statement_agent_msgs = delete(AgentMessageDB).where(AgentMessageDB.session_id.in_(chunk))
+                    session.exec(statement_agent_msgs)
+                    
+                    statement_artifacts = delete(ArtifactDB).where(ArtifactDB.session_id.in_(chunk))
+                    session.exec(statement_artifacts)
+
+            # 3. Delete all records from tables with a direct project_id foreign key
+            tables_to_purge = [
+                EventLogDB,
+                ContextDB,
+                TaskPlanDB,
+                TaskDB,
+                SessionDB,
+                TimelineEventDB,
+                ChatMessageDB,
+            ]
+            for table in tables_to_purge:
+                statement = delete(table).where(table.project_id == project_id)
+                session.exec(statement)
+
+            # 4. Finally, delete the project itself
+            session.delete(project)
+            
+            session.commit()
+            return True
 
     def get_active_plan(self, project_id: str) -> Optional["TaskPlanDB"]:
         """Get active plan for project."""

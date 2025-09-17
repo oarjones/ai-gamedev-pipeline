@@ -76,7 +76,7 @@ class ChatService:
                 "project_id": r.project_id,
                 "role": r.role,
                 "content": r.content,
-                "createdAt": r.created_at.isoformat() + "Z",
+                "created_at": r.created_at.isoformat() + "Z",
             }
             for r in rows
         ]

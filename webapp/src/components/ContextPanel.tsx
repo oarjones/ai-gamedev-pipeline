@@ -145,27 +145,47 @@ export function ContextPanel({ project_id }: { project_id: string }) {
 }
 
 function EditableList({ title, items, isEditing, onChange, itemClass = '' }: EditableListProps) {
-  const handleAdd = () => onChange([...items, '']);
+  const handleAdd = () => {
+    const newItem = (items.length > 0 && typeof items[0] === 'object')
+      ? { id: 0, description: "", mitigation: "" }
+      : "";
+    onChange([...items, newItem]);
+  };
+
   const handleRemove = (index: number) => onChange(items.filter((_, i: number) => i !== index));
+  
   const handleChange = (index: number, value: string) => {
     const newItems = [...items];
-    newItems[index] = value;
+    const item = newItems[index];
+    if (typeof item === 'object' && item !== null) {
+      newItems[index] = { ...item, description: value };
+    } else {
+      newItems[index] = value;
+    }
     onChange(newItems);
   };
+
+  const getItemDisplay = (item: any) => {
+    return typeof item === 'object' && item !== null ? item.description : item;
+  }
 
   return (
     <div>
       <h3 className="font-medium text-sm text-gray-600 mb-2">{title}</h3>
       <ul className="space-y-1">
-        {items.map((item: string, index: number) => (
+        {items.map((item: any, index: number) => (
           <li key={index} className="flex items-center gap-2">
             {isEditing ? (
               <>
-                <input className="flex-1 border rounded px-2 py-1 text-sm" value={item} onChange={(e) => handleChange(index, e.target.value)} />
+                <input 
+                  className="flex-1 border rounded px-2 py-1 text-sm" 
+                  value={getItemDisplay(item)} 
+                  onChange={(e) => handleChange(index, e.target.value)} 
+                />
                 <button className="text-red-500 text-sm" onClick={() => handleRemove(index)}>×</button>
               </>
             ) : (
-              <span className={`text-sm ${itemClass}`}>• {item}</span>
+              <span className={`text-sm ${itemClass}`}>• {getItemDisplay(item)}</span>
             )}
           </li>
         ))}

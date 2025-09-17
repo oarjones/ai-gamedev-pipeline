@@ -196,3 +196,17 @@ export async function deleteProject(project_id: string, purge = true) {
   }
   return res.json() as Promise<{ message: string }>
 }
+
+export type ChatMessage = {
+  id: number;
+  msg_id: string;
+  project_id: string;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  created_at: string;
+}
+
+export async function listChatMessages(project_id: string, limit = 50): Promise<ChatMessage[]> {
+  const res = await apiGet<{ items: ChatMessage[] }>(`/api/v1/chat/history?project_id=${project_id}&limit=${limit}`)
+  return res.items;
+}

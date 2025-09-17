@@ -1,46 +1,113 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { askOneShot, listChatMessages, ChatMessage } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 export default function ChatWorkspace() {
   const project_id = useAppStore((s) => s.project_id);
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<Array<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: Date;
-  }>>([]);
+  const [chatHistory, setChatHistory] = useState<Array<ChatMessage | any>>([]);
+  const [isThinking, setIsThinking] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  const { data: initialMessages, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['chatHistory', project_id],
+    queryFn: () => listChatMessages(project_id!),
+    enabled: !!project_id,
+  });
 
-    const newMessage = {
-      id: Date.now().toString(),
+  // Effect to load initial history
+  useEffect(() => {
+    if (initialMessages) {
+      const mappedMessages = initialMessages.map(m => ({
+        ...m,
+        role: m.role === 'agent' ? 'assistant' : m.role,
+      })).reverse(); // reverse to show oldest first
+      setChatHistory(mappedMessages);
+    }
+  }, [initialMessages]);
+
+  // Effect to scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !project_id || isThinking) return;
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      msg_id: crypto.randomUUID(),
       role: 'user' as const,
       content: message,
-      timestamp: new Date()
+      created_at: new Date().toISOString()
     };
 
-    setChatHistory(prev => [...prev, newMessage]);
+    const thinkingMessage = {
+        id: 'thinking-placeholder',
+        msg_id: 'thinking-placeholder',
+        role: 'assistant-thinking' as const,
+        content: "Estamos trabajando en ello guey",
+        created_at: new Date().toISOString()
+    };
+
+    setChatHistory(prev => [...prev, userMessage, thinkingMessage]);
+    setIsThinking(true);
+    
+    const messageToSend = message;
     setMessage('');
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
-        id: (Date.now() + 1).toString(),
+    try {
+      const response = await askOneShot(project_id, messageToSend);
+      
+      setChatHistory(prev => prev.filter(m => m.id !== 'thinking-placeholder'));
+
+      if (response.answer) {
+        const agentMessage = {
+            id: crypto.randomUUID(),
+            msg_id: crypto.randomUUID(),
+            role: 'assistant' as const,
+            content: response.answer,
+            created_at: new Date().toISOString()
+        };
+        setChatHistory(prev => [...prev, agentMessage]);
+      } else {
+        const errorMessage = {
+            id: crypto.randomUUID(),
+            msg_id: crypto.randomUUID(),
+            role: 'assistant' as const,
+            content: `Lo siento, ha ocurrido un error: ${response.stderr || 'Respuesta no obtenida.'}`,
+            created_at: new Date().toISOString()
+        };
+        setChatHistory(prev => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      setChatHistory(prev => prev.filter(m => m.id !== 'thinking-placeholder'));
+      const errorMessage = {
+        id: crypto.randomUUID(),
+        msg_id: crypto.randomUUID(),
         role: 'assistant' as const,
-        content: `Entiendo tu mensaje: "${message}". Como asistente de IA para desarrollo de videojuegos, estoy aquí para ayudarte con la planificación, desarrollo y resolución de problemas en tu proyecto.`,
-        timestamp: new Date()
+        content: `Lo siento, ha ocurrido un error al contactar al agente. Por favor, inténtalo de nuevo.`,
+        created_at: new Date().toISOString()
       };
-      setChatHistory(prev => [...prev, aiResponse]);
-    }, 1000);
+      setChatHistory(prev => [...prev, errorMessage]);
+    } finally {
+        setIsThinking(false);
+    }
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white h-full">
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {chatHistory.length === 0 ? (
+        {(isLoadingHistory && chatHistory.length === 0) && (
+            <div className="flex-1 flex items-center justify-center">
+                <p>Loading history...</p>
+            </div>
+        )}
+        {(chatHistory.length === 0 && !isLoadingHistory) ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">
               <ChatBotIcon className="w-16 h-16 text-blue-300 mx-auto mb-4" />
@@ -65,37 +132,58 @@ export default function ChatWorkspace() {
           </div>
         ) : (
           <div className="space-y-4">
-            {chatHistory.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <ChatBotIcon className="w-5 h-5 text-white" />
+            {chatHistory.map((msg) => {
+              const role = msg.role === 'agent' ? 'assistant' : msg.role;
+              if (role === 'assistant-thinking') {
+                return (
+                  <div key={msg.msg_id} className="flex gap-3 justify-start">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <ChatBotIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="max-w-2xl p-4 rounded-lg bg-gray-50 text-gray-800 border border-gray-200">
+                        <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
+                        <p className="text-sm leading-relaxed mt-2 italic text-gray-500">{msg.content}</p>
+                    </div>
                   </div>
-                )}
+                )
+              }
+              return (
                 <div
-                  className={`max-w-2xl p-4 rounded-lg ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-50 text-gray-800 border border-gray-200'
-                  }`}
+                  key={msg.msg_id}
+                  className={`flex gap-3 ${role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <p className="text-sm leading-relaxed">{msg.content}</p>
-                  <div className={`text-xs mt-2 ${
-                    msg.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
-                    {msg.timestamp.toLocaleTimeString()}
+                  {role === 'assistant' && (
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <ChatBotIcon className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-2xl p-4 rounded-lg ${
+                      role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-50 text-gray-800 border border-gray-200'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                    <div className={`text-xs mt-2 ${
+                      role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      {msg.created_at ? new Date(msg.created_at).toLocaleString() : ''}
+                    </div>
                   </div>
+                  {role === 'user' && (
+                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                      <UserIcon className="w-5 h-5 text-gray-600" />
+                    </div>
+                  )}
                 </div>
-                {msg.role === 'user' && (
-                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-5 h-5 text-gray-600" />
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
@@ -120,7 +208,7 @@ export default function ChatWorkspace() {
               }
               className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
-              disabled={!project_id}
+              disabled={!project_id || isThinking}
             />
             <div className="flex items-center justify-between mt-2">
               <div className="text-xs text-gray-500">
@@ -138,7 +226,7 @@ export default function ChatWorkspace() {
           </div>
           <button
             onClick={handleSendMessage}
-            disabled={!message.trim() || !project_id}
+            disabled={!message.trim() || !project_id || isThinking}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             <SendIcon className="w-4 h-4" />

@@ -27,7 +27,7 @@ from app.models import Envelope, EventType
 from app.services.projects import project_service
 from app.services.adapter_lock import status as adapter_status
 from app.services.context_service import context_service
-from app.db import db
+from app.db import db, ChatMessageDB
 import json
 import hashlib
 
@@ -174,8 +174,18 @@ async def send_to_agent(payload: SendRequest, request: Request) -> JSONResponse:
 async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
     """Execute a single-turn prompt using the gemini_cli provider (one-shot architecture)."""
     try:
-        # Build enriched prompt with project/task context
         project_id = payload.sessionId
+
+        # Save user message to DB
+        user_msg = ChatMessageDB(
+            msg_id=str(uuid.uuid4()),
+            project_id=project_id,
+            role="user",
+            content=payload.question
+        )
+        db.add_chat_message(user_msg)
+
+        # Build enriched prompt with project/task context
         enriched = _build_enriched_prompt(project_id, payload.question)
 
         # Broadcast user message first so UI shows it immediately
@@ -187,6 +197,16 @@ async def ask_one_shot(payload: AskOneShotRequest) -> JSONResponse:
 
         # Send enriched prompt to the agent
         answer, error = unified_agent.ask_one_shot(payload.sessionId, enriched)
+
+        # Save agent message to DB
+        if answer:
+            agent_msg = ChatMessageDB(
+                msg_id=str(uuid.uuid4()),
+                project_id=project_id,
+                role="agent",
+                content=answer
+            )
+            db.add_chat_message(agent_msg)
 
         # Broadcast agent answer if present
         if answer:

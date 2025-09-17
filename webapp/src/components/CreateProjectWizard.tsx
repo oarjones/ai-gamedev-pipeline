@@ -12,6 +12,7 @@ interface CreateProjectWizardProps {
 export function CreateProjectWizard({ onClose }: CreateProjectWizardProps) {
   const navigate = useNavigate();
   const setProjectId = useAppStore((s) => s.setProjectId);
+  const setActiveWorkspace = useAppStore((s) => s.setActiveWorkspace);
   const pushToast = useAppStore((s) => s.pushToast);
 
   const [step, setStep] = useState<'basic' | 'manifest' | 'generating'>('basic');
@@ -98,7 +99,7 @@ export function CreateProjectWizard({ onClose }: CreateProjectWizardProps) {
       pushToast(`Proyecto "${projectName}" creado y plan inicial generado`);
 
       // 5. Navigate to consensus phase
-      navigate(`/projects/${project.id}/consensus`);
+      setActiveWorkspace('consensus');
       onClose();
 
     } catch (error: any) {

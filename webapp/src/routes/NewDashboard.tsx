@@ -6,8 +6,9 @@ import StatusBar from '@/components/dashboard/StatusBar';
 
 export default function NewDashboard() {
   const project_id = useAppStore((s) => s.project_id);
+  const activeWorkspace = useAppStore((s) => s.activeWorkspace);
+  const setActiveWorkspace = useAppStore((s) => s.setActiveWorkspace);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<'chat' | 'consensus' | 'execution' | 'context'>('chat');
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">

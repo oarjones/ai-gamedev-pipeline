@@ -31,7 +31,7 @@ export default function App() {
           </h1>
           <nav className="flex gap-1 text-sm">
             <a className={linkCls(false)} href="/">New Dashboard</a>
-            <a className={linkCls(location.pathname === '/old-dashboard')} href="/old-dashboard">Old Dashboard</a>
+            {/* <a className={linkCls(location.pathname === '/old-dashboard')} href="/old-dashboard">Old Dashboard</a> */}
             <a className={linkCls(location.pathname.startsWith('/logs'))} href="/logs">Logs</a>
             <a className={linkCls(location.pathname.startsWith('/settings'))} href="/settings">Settings</a>
             <a className={linkCls(location.pathname.startsWith('/dependencies'))} href="/dependencies">Dependencies</a>

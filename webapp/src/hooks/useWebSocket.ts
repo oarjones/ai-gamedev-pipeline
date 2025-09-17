@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 const BASE_WS = (import.meta.env.VITE_GATEWAY_URL as string | undefined)?.replace(/^http/, 'ws') ?? 'ws://127.0.0.1:8000'
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined
 
-export function useWebSocket(path: string) {
+export function useWebSocket(path: string | null) {
     const [lastMessage, setLastMessage] = useState<any>(null);
     const ws = useRef<WebSocket | null>(null);
 
