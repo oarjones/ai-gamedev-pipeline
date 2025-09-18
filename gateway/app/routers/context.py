@@ -2,9 +2,9 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from gateway.app.services.context_service import context_service
-from gateway.app.utils.params import normalize_project_id
-from gateway.app.models.api_responses import ContextResponse
+from app.services.context_service import context_service
+from app.utils.params import normalize_project_id
+from app.models.api_responses import ContextResponse
 
 router = APIRouter()
 

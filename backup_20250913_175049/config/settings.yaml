@@ -44,5 +44,5 @@ gateway:
   config:
     providers:
       geminiCli:
-        command: C:\Users\oarjo\AppData\Roaming\npm\gemini.CMD
+        command: C:\Users\PC\AppData\Roaming\npm\gemini.CMD
         showConsole: true

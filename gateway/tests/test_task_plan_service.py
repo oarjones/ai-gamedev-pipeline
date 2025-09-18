@@ -1,6 +1,6 @@
 import pytest
 import json
-from gateway.app.services.task_plan_service import TaskPlanService
+from app.services.task_plan_service import TaskPlanService
 
 def test_create_plan(session, sample_project):
     """Test creating a new plan."""

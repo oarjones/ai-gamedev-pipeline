@@ -3,8 +3,8 @@ import json
 import shutil
 from pathlib import Path
 
-from gateway.app.services.artifact_service import artifact_service
-from gateway.app.db import TaskDB, ArtifactDB
+from app.services.artifact_service import artifact_service
+from app.db import TaskDB, ArtifactDB
 
 # The 'session' and 'sample_project' fixtures are defined in conftest.py
 

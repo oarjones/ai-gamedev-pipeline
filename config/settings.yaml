@@ -25,7 +25,7 @@ agent:
 gateway:
   processes:
     unity:
-      exe: C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe
+      exe: C:/Program Files/Unity/Hub/Editor/6000.2.5f1/Editor/Unity.exe
       args: []
       project_path: ''
       timeout: 20
@@ -34,11 +34,11 @@ gateway:
       port: 8001
       timeout: 15
     blender:
-      exe: D:/blender/blender.exe
+      exe: C:/Program Files/Blender Foundation/Blender 4.5/blender.exe
       args: []
       timeout: 20
     mcp_adapter:
-      python: D:/ai-gamedev-pipeline/venvs/adapter/Scripts/python.exe
+      python: C:/projects/ai-gamedev-pipeline/venvs/adapter/Scripts/python.exe
       script_path: bridges/mcp_adapter.py
       timeout: 10
     blender_bridge:
@@ -47,15 +47,15 @@ gateway:
     providers:
       geminiCli:
         showConsole: true
-        command: C:/Users/oarjo/AppData/Roaming/npm/gemini.cmd
+        command: C:/Users/PC/AppData/Roaming/npm/gemini.cmd
       gemini_cli:
         node_executable_path: node.exe
-        gemini_script_path: C:/Users/oarjo/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js
-    project_dir_base: D:/proyectos_agp
+        gemini_script_path: C:/Users/PC/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js
+    project_dir_base: C:/proyectos_agp
     version: '1.0'
     executables:
-      unityExecutablePath: C:/Program Files/Unity/Hub/Editor/6000.0.15f1/Editor/Unity.exe
-      blenderExecutablePath: D:/blender/blender.exe
+      unityExecutablePath: C:/Program Files/Unity/Hub/Editor/6000.2.5f1/Editor/Unity.exe
+      blenderExecutablePath: C:/Program Files/Blender Foundation/Blender 4.5/blender.exe
       unityProjectRoot: unity_project
     bridges:
       unityBridgePort: 8001

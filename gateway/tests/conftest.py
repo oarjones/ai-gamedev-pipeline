@@ -5,8 +5,8 @@ from sqlmodel import Session, create_engine, SQLModel
 from sqlmodel.pool import StaticPool
 
 # Import the main app and the global db object we want to patch
-from gateway.app.main import app
-import gateway.app.db as db_module
+from app.main import app
+import app.db as db_module
 
 @pytest.fixture(scope="function")
 def session() -> Generator[Session, None, None]:
@@ -38,7 +38,7 @@ def client(session: Session, monkeypatch) -> Generator[TestClient, None, None]:
 @pytest.fixture
 def sample_project(session: Session):
     """Create a sample project for tests."""
-    from gateway.app.db import ProjectDB
+    from app.db import ProjectDB
     project = ProjectDB(
         id="test-project",
         name="Test Project",
@@ -54,7 +54,7 @@ def sample_project(session: Session):
 @pytest.fixture
 def sample_task_plan(session: Session, sample_project):
     """Create sample task plan."""
-    from gateway.app.db import TaskPlanDB
+    from app.db import TaskPlanDB
     plan = TaskPlanDB(
         project_id=sample_project.id,
         version=1,

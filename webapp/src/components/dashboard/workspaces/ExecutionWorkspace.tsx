@@ -1,45 +1,166 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useTasks } from '@/hooks/useTasks';
+import { Task, askOneShot } from '@/lib/api';
+import { useChatStream } from '@/lib/useChatStream';
+import { renderMarkdown } from '@/lib/markdown';
 
 export default function ExecutionWorkspace() {
   const project_id = useAppStore((s) => s.project_id);
+  const [confirmingAction, setConfirmingAction] = useState<{ taskId: number; action: string } | null>(null);
+  const [showAutomatableList, setShowAutomatableList] = useState(false);
+  const [showAgentMessages, setShowAgentMessages] = useState(false);
+  const [executingTaskId, setExecutingTaskId] = useState<number | null>(null);
 
-  // Mock execution data
-  const mockTasks = [
-    {
-      code: 'T-001',
-      title: 'Configuración inicial del proyecto',
-      status: 'completed',
-      progress: 100,
-      assignedTo: 'AI Assistant',
-      estimatedHours: 2,
-      actualHours: 1.5,
-      startedAt: '2024-01-15T09:00:00Z',
-      completedAt: '2024-01-15T10:30:00Z'
-    },
-    {
-      code: 'T-002',
-      title: 'Implementar movimiento del personaje',
-      status: 'in_progress',
-      progress: 65,
-      assignedTo: 'Developer',
-      estimatedHours: 4,
-      actualHours: 2.6,
-      startedAt: '2024-01-15T11:00:00Z',
-      completedAt: null
-    },
-    {
-      code: 'T-003',
-      title: 'Sistema de colisiones',
-      status: 'pending',
-      progress: 0,
-      assignedTo: null,
-      estimatedHours: 3,
-      actualHours: 0,
-      startedAt: null,
-      completedAt: null
+  // Chat stream for agent responses
+  const { messages, bottomRef } = useChatStream(project_id);
+
+  const {
+    tasks,
+    loading,
+    error,
+    startTask,
+    finishTask,
+    importTasksFromPlan,
+    getTaskStats,
+    getCurrentTask,
+    getNextAvailableTask
+  } = useTasks(project_id);
+
+  const stats = getTaskStats();
+  const currentTask = getCurrentTask();
+  const nextTask = getNextAvailableTask();
+
+  // Handlers
+
+  const handleCompleteTask = async (taskId: number) => {
+    setConfirmingAction({ taskId, action: 'complete' });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmingAction) return;
+
+    try {
+      if (confirmingAction.action === 'complete') {
+        await finishTask(confirmingAction.taskId);
+      }
+    } catch (err) {
+      console.error('Error completing action:', err);
+    } finally {
+      setConfirmingAction(null);
     }
-  ];
+  };
+
+
+  const handleExecuteTask = async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !project_id) return;
+
+    try {
+      // Primero marcar la tarea como en progreso
+      await startTask(taskId);
+
+      // Construir el prompt para ejecutar la tarea
+      const prompt = `
+Ejecuta la siguiente tarea del proyecto:
+
+TAREA: ${task.taskId} - ${task.title}
+DESCRIPCIÓN: ${task.description}
+
+CRITERIOS DE ACEPTACIÓN:
+${task.acceptance}
+
+Por favor:
+1. Analiza la tarea y los criterios de aceptación
+2. Ejecuta los pasos necesarios para completar la tarea
+3. Verifica que se cumplan todos los criterios
+4. Proporciona un resumen de lo realizado
+
+¡Comienza ahora!`;
+
+      // Ejecutar usando askOneShot como en el chat
+      await askOneShot(project_id, prompt);
+
+    } catch (err) {
+      console.error('Error executing task:', err);
+    }
+  };
+
+  const handleTaskDetails = async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !project_id) return;
+
+    try {
+      const prompt = `
+Analiza los detalles de esta tarea:
+
+TAREA: ${task.taskId} - ${task.title}
+DESCRIPCIÓN: ${task.description}
+ESTADO: ${task.status}
+
+CRITERIOS DE ACEPTACIÓN:
+${task.acceptance}
+
+${task.evidence?.length > 0 ? `EVIDENCIA ACTUAL:
+${JSON.stringify(task.evidence, null, 2)}` : ''}
+
+Por favor proporciona:
+1. Análisis detallado de la tarea
+2. Pasos sugeridos para completarla
+3. Evaluación del estado actual
+4. Recomendaciones para continuar`;
+
+      await askOneShot(project_id, prompt);
+    } catch (err) {
+      console.error('Error getting task details:', err);
+    }
+  };
+
+  const getTaskProgress = (task: Task) => {
+    if (task.status === 'done') return 100;
+    if (task.status === 'in_progress') return 50;
+    return 0;
+  };
+
+  // Automation helpers
+  const isAutomatable = (task: Task) => {
+    // Tasks are automatable if they involve setup, configuration, or code generation
+    const automatableKeywords = [
+      'configuración', 'setup', 'inicialización', 'estructura',
+      'código base', 'template', 'scaffolding', 'documentación',
+      'readme', 'archivo', 'carpeta', 'directorio'
+    ];
+
+    const text = `${task.title} ${task.description}`.toLowerCase();
+    return automatableKeywords.some(keyword => text.includes(keyword));
+  };
+
+  const calculateTimeSavings = () => {
+    return tasks
+      .filter(t => isAutomatable(t))
+      .reduce((total, task) => total + (task.estimatedHours || 2), 0);
+  };
+
+  const handleAutomateTask = async (taskId: number) => {
+    try {
+      await handleExecuteTask(taskId);
+    } catch (err) {
+      console.error('Error automating task:', err);
+    }
+  };
+
+  const handleAutomateAvailable = async () => {
+    const automatableTasks = tasks.filter(t => isAutomatable(t) && t.status === 'pending');
+
+    if (automatableTasks.length === 0) return;
+
+    try {
+      // Execute the first automatable task
+      await handleExecuteTask(automatableTasks[0].id);
+    } catch (err) {
+      console.error('Error starting automation:', err);
+    }
+  };
 
   if (!project_id) {
     return (
@@ -48,6 +169,23 @@ export default function ExecutionWorkspace() {
           <ExecutionIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-600">Selecciona un proyecto</h3>
           <p className="text-gray-500">Para ejecutar y monitorear tareas</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">Error al cargar las tareas</div>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Recargar
+          </button>
         </div>
       </div>
     );
@@ -76,7 +214,7 @@ export default function ExecutionWorkspace() {
   return (
     <div className="flex-1 flex">
       {/* Main Execution Area */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className={`${showAgentMessages ? 'w-1/2' : 'flex-1'} p-6 overflow-y-auto`}>
         {/* Execution Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -85,13 +223,39 @@ export default function ExecutionWorkspace() {
               <p className="text-gray-600">Monitorea y ejecuta las tareas aprobadas del plan</p>
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
-                <AutomateIcon className="w-4 h-4" />
-                Automatizar
+              {tasks.length === 0 && (
+                <button
+                  onClick={importTasksFromPlan}
+                  disabled={loading}
+                  className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <AutomateIcon className="w-4 h-4" />
+                  Importar Tareas
+                </button>
+              )}
+              <button
+                onClick={() => setShowAgentMessages(!showAgentMessages)}
+                className={`px-4 py-2 border rounded-lg transition-colors flex items-center gap-2 ${
+                  showAgentMessages
+                    ? 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <ChatIcon className="w-4 h-4" />
+                {showAgentMessages ? 'Ocultar' : 'Ver'} Respuestas IA
+                {messages.length > 0 && (
+                  <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {messages.length}
+                  </span>
+                )}
               </button>
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+              <button
+                onClick={() => nextTask && handleExecuteTask(nextTask.id)}
+                disabled={loading || !nextTask}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:bg-gray-400"
+              >
                 <PlayIcon className="w-4 h-4" />
-                Ejecutar Siguiente
+                {nextTask ? 'Ejecutar Siguiente' : 'Sin Tareas Disponibles'}
               </button>
             </div>
           </div>
@@ -100,19 +264,19 @@ export default function ExecutionWorkspace() {
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="grid grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">1</div>
+                <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
                 <div className="text-sm text-gray-600">Completadas</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">1</div>
+                <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
                 <div className="text-sm text-gray-600">En Progreso</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600">1</div>
+                <div className="text-2xl font-bold text-gray-600">{stats.pending}</div>
                 <div className="text-sm text-gray-600">Pendientes</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">55%</div>
+                <div className="text-2xl font-bold text-purple-600">{stats.progress}%</div>
                 <div className="text-sm text-gray-600">Progreso Total</div>
               </div>
             </div>
@@ -127,13 +291,34 @@ export default function ExecutionWorkspace() {
           </h3>
 
           <div className="space-y-3">
-            {mockTasks.map((task) => (
-              <div key={task.code} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            {loading && (
+              <div className="text-center py-8">
+                <div className="text-gray-500">Cargando tareas...</div>
+              </div>
+            )}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                Error: {error}
+              </div>
+            )}
+            {!loading && tasks.length === 0 && (
+              <div className="text-center py-8">
+                <div className="text-gray-500">No hay tareas disponibles</div>
+                <button
+                  onClick={importTasksFromPlan}
+                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Importar desde Plan
+                </button>
+              </div>
+            )}
+            {tasks.map((task) => (
+              <div key={task.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-mono">
-                        {task.code}
+                        {task.taskId}
                       </span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                         {getStatusText(task.status)}
@@ -151,15 +336,15 @@ export default function ExecutionWorkspace() {
                     <div className="mb-3">
                       <div className="flex items-center justify-between text-sm mb-1">
                         <span className="text-gray-600">Progreso</span>
-                        <span className="font-medium">{task.progress}%</span>
+                        <span className="font-medium">{getTaskProgress(task)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            task.status === 'completed' ? 'bg-green-500' :
+                            task.status === 'done' ? 'bg-green-500' :
                             task.status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300'
                           }`}
-                          style={{ width: `${task.progress}%` }}
+                          style={{ width: `${getTaskProgress(task)}%` }}
                         />
                       </div>
                     </div>
@@ -170,7 +355,7 @@ export default function ExecutionWorkspace() {
                         <ClockIcon className="w-4 h-4" />
                         <span>Estimado: {task.estimatedHours}h</span>
                       </div>
-                      {task.actualHours > 0 && (
+                      {(task.actualHours || 0) > 0 && (
                         <div className="flex items-center gap-1">
                           <TimerIcon className="w-4 h-4" />
                           <span>Actual: {task.actualHours}h</span>
@@ -188,21 +373,29 @@ export default function ExecutionWorkspace() {
                   {/* Task Actions */}
                   <div className="flex items-center gap-2 ml-4">
                     {task.status === 'pending' && (
-                      <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors">
+                      <button
+                        onClick={() => handleExecuteTask(task.id)}
+                        disabled={loading}
+                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      >
                         Iniciar
                       </button>
                     )}
                     {task.status === 'in_progress' && (
-                      <>
-                        <button className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors">
-                          Completar
-                        </button>
-                        <button className="px-3 py-1 border border-gray-300 text-gray-700 rounded text-sm hover:bg-gray-50 transition-colors">
-                          Pausar
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleCompleteTask(task.id)}
+                        disabled={loading}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        Completar
+                      </button>
                     )}
-                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors">
+                    <button
+                      onClick={() => handleTaskDetails(task.id)}
+                      disabled={loading}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors disabled:opacity-50"
+                      title="Ver detalles y criterios de aceptación"
+                    >
                       <MoreIcon className="w-4 h-4" />
                     </button>
                   </div>
@@ -222,16 +415,179 @@ export default function ExecutionWorkspace() {
             El asistente de IA puede ejecutar automáticamente ciertas tareas como configuración de proyecto,
             generación de código base y documentación.
           </p>
+
+          {/* Automation Stats */}
+          <div className="mb-4 grid grid-cols-2 gap-4">
+            <div className="bg-white bg-opacity-50 rounded p-3">
+              <div className="text-sm text-purple-700">Tareas Automatizables</div>
+              <div className="text-xl font-bold text-purple-900">
+                {tasks.filter(t => isAutomatable(t)).length}
+              </div>
+            </div>
+            <div className="bg-white bg-opacity-50 rounded p-3">
+              <div className="text-sm text-purple-700">Tiempo Estimado Ahorrado</div>
+              <div className="text-xl font-bold text-purple-900">
+                {calculateTimeSavings()}h
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-2">
-            <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm">
-              Configurar Automatización
+            <button
+              onClick={handleAutomateAvailable}
+              disabled={loading || tasks.filter(t => isAutomatable(t) && t.status === 'pending').length === 0}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Automatizar Disponibles ({tasks.filter(t => isAutomatable(t) && t.status === 'pending').length})
             </button>
-            <button className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors text-sm">
-              Ver Tareas Automatizables
+            <button
+              onClick={() => setShowAutomatableList(!showAutomatableList)}
+              className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors text-sm"
+            >
+              {showAutomatableList ? 'Ocultar' : 'Ver'} Tareas Automatizables
             </button>
           </div>
+
+          {/* Automatable Tasks List */}
+          {showAutomatableList && (
+            <div className="mt-4 bg-white bg-opacity-50 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-purple-900 mb-3">Tareas que pueden automatizarse:</h4>
+              <div className="space-y-2">
+                {tasks.filter(t => isAutomatable(t)).map(task => (
+                  <div key={task.id} className="flex items-center justify-between py-2 px-3 bg-white rounded border">
+                    <div>
+                      <span className="text-sm font-medium">{task.taskId}</span>
+                      <span className="text-sm text-gray-600 ml-2">{task.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        task.status === 'done' ? 'bg-green-100 text-green-800' :
+                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getStatusText(task.status)}
+                      </span>
+                      {task.status === 'pending' && (
+                        <button
+                          onClick={() => handleAutomateTask(task.id)}
+                          disabled={loading}
+                          className="px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          Automatizar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {tasks.filter(t => isAutomatable(t)).length === 0 && (
+                  <div className="text-sm text-gray-500 italic">No hay tareas automatizables disponibles</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Agent Messages Panel */}
+      {showAgentMessages && (
+        <div className="w-1/2 border-l border-gray-200 bg-white flex flex-col">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-medium text-gray-900 flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              Respuesta del Agente IA
+              {executingTaskId && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                  Ejecutando Tarea
+                </span>
+              )}
+            </h3>
+            <button
+              onClick={() => {
+                setShowAgentMessages(false);
+                setExecutingTaskId(null);
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-4">
+              {messages.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  <div className="mb-2">Esperando respuesta del agente...</div>
+                  <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                </div>
+              ) : (
+                messages.slice(-10).map((message) => ( // Solo mostrar los últimos 10 mensajes
+                  <div
+                    key={message.id}
+                    className={`p-3 rounded-lg max-w-full ${
+                      message.role === 'user'
+                        ? 'bg-blue-50 border border-blue-200 ml-4'
+                        : message.role === 'agent'
+                        ? 'bg-gray-50 border border-gray-200 mr-4'
+                        : 'bg-yellow-50 border border-yellow-200'
+                    }`}
+                  >
+                    <div className="text-xs text-gray-500 mb-1 capitalize">
+                      {message.role === 'agent' ? '🤖 Agente IA' : message.role === 'user' ? '👤 Usuario' : '⚙️ Sistema'}
+                      {message.ts && (
+                        <span className="ml-2">
+                          {new Date(message.ts).toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm">
+                      {message.content ? (
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
+                        />
+                      ) : (
+                        <span className="text-gray-500 italic">(Sin contenido)</span>
+                      )}
+                    </div>
+                    {message.attachments?.map((att, i) => (
+                      <div key={i} className="mt-2">
+                        {att.type === 'image' && (
+                          <img
+                            src={att.url || att.dataUrl}
+                            alt="Attachment"
+                            className="max-w-full h-auto rounded border"
+                          />
+                        )}
+                      </div>
+                    ))}
+                    {message.toolPayload && (
+                      <div className="mt-2 p-2 bg-white rounded border text-xs">
+                        <pre>{JSON.stringify(message.toolPayload, null, 2)}</pre>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+          {executingTaskId && (
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Ejecutando tarea...</span>
+                <button
+                  onClick={() => {
+                    setExecutingTaskId(null);
+                    // Aquí podríamos añadir lógica para marcar como completada
+                  }}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+                >
+                  Marcar como Completada
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Side Panel */}
       <div className="w-80 border-l border-gray-200 bg-gray-50 p-6">
@@ -241,32 +597,71 @@ export default function ExecutionWorkspace() {
           {/* Current Task */}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Tarea Actual</h4>
-            <div className="space-y-2">
-              <div className="text-sm font-medium">T-002: Movimiento del personaje</div>
-              <div className="text-xs text-gray-600">En progreso - 65% completado</div>
-              <div className="flex gap-2 mt-3">
-                <button className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Ver Detalles</button>
-                <button className="px-2 py-1 border border-gray-300 text-gray-700 rounded text-xs">Logs</button>
+            {currentTask ? (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{currentTask.taskId}: {currentTask.title}</div>
+                <div className="text-xs text-gray-600">
+                  {getStatusText(currentTask.status)} - {getTaskProgress(currentTask)}% completado
+                </div>
+                <div className="text-xs text-gray-500 max-h-20 overflow-y-auto">
+                  {currentTask.description}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleCompleteTask(currentTask.id)}
+                    disabled={loading}
+                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Completar
+                  </button>
+                  <button
+                    onClick={() => handleTaskDetails(currentTask.id)}
+                    disabled={loading}
+                    className="px-2 py-1 border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Detalles
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-sm text-gray-500">No hay tarea en progreso</div>
+            )}
           </div>
 
           {/* Quick Actions */}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Acciones Rápidas</h4>
             <div className="space-y-2">
-              <button className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                🚀 Ejecutar próxima tarea
+              <button
+                onClick={() => nextTask && handleExecuteTask(nextTask.id)}
+                disabled={loading || !nextTask}
+                className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                🚀 {nextTask ? `Ejecutar ${nextTask.taskId}` : 'Sin tareas disponibles'}
               </button>
-              <button className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                ⏸️ Pausar ejecución actual
+              {currentTask && (
+                <button
+                  onClick={() => handleCompleteTask(currentTask.id)}
+                  disabled={loading}
+                  className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  ⏸️ Completar tarea actual
+                </button>
+              )}
+              <button
+                className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+              >
+                📊 Total: {stats.total} tareas
               </button>
-              <button className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                📊 Ver métricas detalladas
-              </button>
-              <button className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                🔧 Configurar herramientas
-              </button>
+              {tasks.length === 0 && (
+                <button
+                  onClick={importTasksFromPlan}
+                  disabled={loading}
+                  className="w-full p-2 text-sm text-left border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  🔧 Importar tareas del plan
+                </button>
+              )}
             </div>
           </div>
 
@@ -274,24 +669,71 @@ export default function ExecutionWorkspace() {
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Actividad Reciente</h4>
             <div className="space-y-2">
-              <div className="text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-gray-600">T-001 completada</span>
-                </div>
-                <div className="text-gray-500 ml-4">Hace 30 min</div>
-              </div>
-              <div className="text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-gray-600">T-002 iniciada</span>
-                </div>
-                <div className="text-gray-500 ml-4">Hace 1 hora</div>
-              </div>
+              {tasks
+                .filter(t => t.startedAt || t.completedAt)
+                .sort((a, b) => {
+                  const aTime = new Date(a.completedAt || a.startedAt || 0).getTime();
+                  const bTime = new Date(b.completedAt || b.startedAt || 0).getTime();
+                  return bTime - aTime;
+                })
+                .slice(0, 3)
+                .map(task => {
+                  const isCompleted = task.status === 'done';
+                  const time = isCompleted ? task.completedAt : task.startedAt;
+                  return (
+                    <div key={task.id} className="text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                        }`}></div>
+                        <span className="text-gray-600">
+                          {task.taskId} {isCompleted ? 'completada' : 'iniciada'}
+                        </span>
+                      </div>
+                      <div className="text-gray-500 ml-4">
+                        {time ? new Date(time).toLocaleString() : 'Fecha desconocida'}
+                      </div>
+                    </div>
+                  );
+                })}
+              {tasks.filter(t => t.startedAt || t.completedAt).length === 0 && (
+                <div className="text-xs text-gray-500">Sin actividad reciente</div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmingAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              Confirmar {confirmingAction.action === 'complete' ? 'Completar Tarea' : 'Acción'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {confirmingAction.action === 'complete'
+                ? '¿Estás seguro de que quieres marcar esta tarea como completada?'
+                : '¿Estás seguro de que quieres realizar esta acción?'}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmingAction(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                disabled={loading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Procesando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -357,6 +799,14 @@ function MoreIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" />
+    </svg>
+  );
+}
+
+function ChatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12,3C17.5,3 22,6.58 22,11C22,15.42 17.5,19 12,19C10.76,19 9.57,18.82 8.47,18.5C5.55,21 2,21 2,21C4.33,18.67 4.7,17.1 4.75,16.5C3.05,15.07 2,13.13 2,11C2,6.58 6.5,3 12,3Z" />
     </svg>
   );
 }

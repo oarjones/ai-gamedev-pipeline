@@ -49,6 +49,6 @@ gateway:
         command: "C:/Users/TUUSUARIO/AppData/Roaming/npm/gemini.cmd"
       gemini_cli:
         node_executable_path: "node.exe"
-        gemini_script_path: "C:/Users/oarjo/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js"
+        gemini_script_path: "C:/Users/PC/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js"
     project_dir_base: "D:/proyectos_agp"
 

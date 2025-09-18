@@ -8,10 +8,10 @@ from pathlib import Path
 
 from sqlmodel import select, func
 
-from gateway.app.db import db, ContextDB, TaskDB, ProjectDB, SessionDB, AgentMessageDB, ArtifactDB
-from gateway.app.services.unified_agent import agent as unified_agent
-from gateway.app.ws.events import manager
-from gateway.app.models.core import Envelope, EventType
+from app.db import db, ContextDB, TaskDB, ProjectDB, SessionDB, AgentMessageDB, ArtifactDB
+from app.services.unified_agent import agent as unified_agent
+from app.ws.events import manager
+from app.models.core import Envelope, EventType
 import logging
 import time
 

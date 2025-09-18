@@ -6,7 +6,7 @@ from typing import Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from gateway.app.db import db, EventLogDB
+from app.db import db, EventLogDB
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     project_id = websocket.query_params.get("project_id")
     api_key = websocket.headers.get("X-API-Key") or websocket.query_params.get("apiKey")
     try:
-        from gateway.app.config import settings as _settings
+        from app.config import settings as _settings
         if _settings.auth.require_api_key:
             if not api_key or api_key != _settings.auth.api_key:
                 await websocket.accept()

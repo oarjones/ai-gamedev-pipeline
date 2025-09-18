@@ -24,7 +24,7 @@ export default memo(function MessageItem({ msg }: Props) {
       </div>
       {msg.content && (
         <div>
-          <div className={`prose prose-sm dark:prose-invert ${shouldCollapse ? 'line-clamp-12' : ''}`} dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+          <div className={`prose prose-sm dark:prose-invert max-w-none ${shouldCollapse ? 'line-clamp-12' : ''}`} dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
           {shouldCollapse && (
             <button className="link text-xs mt-1" onClick={() => setShowModal(true)}>Ver completo</button>
           )}

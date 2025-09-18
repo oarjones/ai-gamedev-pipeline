@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime
 import imghdr
 
-from gateway.app.db import db, ArtifactDB, TaskDB
+from app.db import db, ArtifactDB, TaskDB
 import logging
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class ArtifactService:
     
     def capture_from_unity(self, task_id: int) -> List[ArtifactDB]:
         """Capture Unity artifacts for current task."""
-        from gateway.app.services.mcp_client import mcp_client
+        from app.services.mcp_client import mcp_client
         
         task = self.db.get_task(task_id)
         if not task:

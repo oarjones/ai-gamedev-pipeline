@@ -1,5 +1,5 @@
 import pytest
-from gateway.app.services.prompt_service import PromptService
+from app.services.prompt_service import PromptService
 
 @pytest.fixture(scope="module")
 def service():

@@ -5,8 +5,8 @@ from pathlib import Path
 
 from sqlmodel import select
 
-from gateway.app.services.context_service import context_service
-from gateway.app.db import TaskDB, ContextDB
+from app.services.context_service import context_service
+from app.db import TaskDB, ContextDB
 
 # The 'session' and 'sample_project' fixtures are defined in conftest.py
 

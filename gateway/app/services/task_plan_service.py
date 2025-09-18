@@ -7,9 +7,9 @@ from pathlib import Path
 
 from sqlmodel import select, func
 
-from gateway.app.db import db, TaskPlanDB, TaskDB, ProjectDB
-from gateway.app.models.core import Project
-from gateway.app.models.schemas import TaskPlanSchema, TaskSchema
+from app.db import db, TaskPlanDB, TaskDB, ProjectDB
+from app.models.core import Project
+from app.models.schemas import TaskPlanSchema, TaskSchema
 import re
 import logging
 

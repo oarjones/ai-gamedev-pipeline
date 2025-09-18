@@ -41,6 +41,36 @@ export async function apiPatch<T>(path: string, body: any): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function apiPut<T>(path: string, body: any): Promise<T> {
+  const res = await fetch(new URL(path, BASE).toString(), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY ?? ''
+    },
+    body: JSON.stringify(body ?? {})
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`PUT ${path} ${res.status}: ${msg}`)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(new URL(path, BASE).toString(), {
+    method: 'DELETE',
+    headers: {
+      'X-API-Key': API_KEY ?? ''
+    }
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`DELETE ${path} ${res.status}: ${msg}`)
+  }
+  return res.json() as Promise<T>
+}
+
 export type GatewayConfig = {
   version: string
   executables: {
@@ -209,4 +239,53 @@ export type ChatMessage = {
 export async function listChatMessages(project_id: string, limit = 50): Promise<ChatMessage[]> {
   const res = await apiGet<{ items: ChatMessage[] }>(`/api/v1/chat/history?project_id=${project_id}&limit=${limit}`)
   return res.items;
+}
+
+// Tasks API
+export type Task = {
+  id: number
+  taskId: string
+  project_id: string
+  title: string
+  description: string
+  acceptance: string
+  status: 'pending' | 'in_progress' | 'done' | 'blocked'
+  deps: string[]
+  evidence: any[]
+  priority?: number
+  estimatedHours?: number
+  actualHours?: number
+  startedAt?: string
+  completedAt?: string
+  assignedTo?: string
+}
+
+export async function listTasks(project_id: string): Promise<Task[]> {
+  return apiGet<Task[]>(`/api/v1/tasks?project_id=${project_id}`)
+}
+
+export async function importTasks(project_id: string) {
+  return apiPost<{ imported: number }>(`/api/v1/tasks/import?project_id=${project_id}`, {})
+}
+
+export async function proposeTaskSteps(taskId: number) {
+  return apiPost<{ queued: boolean, correlationId: string }>(`/api/v1/tasks/${taskId}/propose_steps`, {})
+}
+
+export async function executeTaskTool(taskId: number, tool: string, args: any, confirmed = false) {
+  return apiPost<{ ok: boolean, result: any }>(`/api/v1/tasks/${taskId}/execute_tool`, {
+    tool,
+    args,
+    confirmed
+  })
+}
+
+export async function completeTask(taskId: number, acceptanceConfirmed = true) {
+  return apiPost<{ done: boolean }>(`/api/v1/tasks/${taskId}/complete`, {
+    acceptanceConfirmed
+  })
+}
+
+export async function verifyTaskAcceptance(taskId: number) {
+  return apiPost<{ queued: boolean, correlationId: string }>(`/api/v1/tasks/${taskId}/verify`, {})
 }

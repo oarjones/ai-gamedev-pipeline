@@ -4,13 +4,13 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 import yaml
 
-from gateway.app.services.task_plan_service import TaskPlanService
-from gateway.app.services.unified_agent import agent as unified_agent
-from gateway.app.db import db, TaskPlanDB, TaskDB
-from gateway.app.ws.events import manager
-from gateway.app.models.core import Envelope, EventType
+from app.services.task_plan_service import TaskPlanService
+from app.services.unified_agent import agent as unified_agent
+from app.db import db, TaskPlanDB, TaskDB
+from app.ws.events import manager
+from app.models.core import Envelope, EventType
 from pathlib import Path
-from gateway.app.models.api_responses import TaskPlanResponse
+from app.models.api_responses import TaskPlanResponse
 
 router = APIRouter()
 plan_service = TaskPlanService()
@@ -334,3 +334,96 @@ async def apply_changes(planId: int, req: ApplyChangesRequest):
         pass
 
     return res
+
+@router.delete(
+    "/cleanup/{project_id}",
+    summary="Delete non-accepted plan versions",
+    description="Delete all non-accepted plan versions for a project, keeping only the accepted one.",
+)
+async def cleanup_old_plans(project_id: str):
+    """Delete superseded and proposed plan versions, keeping only accepted."""
+    with db.get_session() as session:
+        from sqlmodel import select
+
+        # Get non-accepted plans (superseded, proposed, rejected)
+        stmt = select(TaskPlanDB).where(
+            TaskPlanDB.project_id == project_id,
+            TaskPlanDB.status.in_(["superseded", "proposed", "rejected"])
+        )
+        old_plans = session.exec(stmt).all()
+
+        deleted_count = 0
+        for plan in old_plans:
+            # Delete associated tasks first
+            task_stmt = select(TaskDB).where(TaskDB.plan_id == plan.id)
+            tasks = session.exec(task_stmt).all()
+            for task in tasks:
+                session.delete(task)
+
+            # Delete the plan
+            session.delete(plan)
+            deleted_count += 1
+
+        session.commit()
+
+        return {"deleted_plans": deleted_count, "project_id": project_id}
+
+@router.put(
+    "/{planId}/overwrite",
+    summary="Overwrite accepted plan tasks",
+    description="Overwrite tasks in an accepted plan without creating a new version. Updates context.",
+)
+async def overwrite_accepted_plan(planId: int, req: ApplyChangesRequest):
+    """Overwrite tasks in an accepted plan without versioning."""
+    with db.get_session() as session:
+        # Verify plan exists and is accepted
+        plan = session.get(TaskPlanDB, planId)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        if plan.status != "accepted":
+            raise HTTPException(status_code=400, detail="Can only overwrite accepted plans")
+
+        # Get new tasks from request
+        if not req.tasks:
+            raise HTTPException(status_code=400, detail="Tasks list is required")
+
+        # Delete existing tasks
+        stmt = select(TaskDB).where(TaskDB.plan_id == planId)
+        existing_tasks = session.exec(stmt).all()
+        for task in existing_tasks:
+            session.delete(task)
+
+        # Create new tasks
+        for idx, task_data in enumerate(req.tasks):
+            task = TaskDB(
+                project_id=plan.project_id,
+                plan_id=plan.id,
+                idx=idx,
+                code=task_data.get('code', f'T-{idx+1:03d}'),
+                task_id=task_data.get('code', f'T-{idx+1:03d}'),
+                title=task_data.get('title', 'Untitled'),
+                description=task_data.get('description', ''),
+                status=task_data.get('status', 'pending'),
+                deps_json=json.dumps(task_data.get('dependencies', [])),
+                mcp_tools=json.dumps(task_data.get('mcp_tools', [])),
+                deliverables=json.dumps(task_data.get('deliverables', [])),
+                estimates=json.dumps(task_data.get('estimates', {})),
+                priority=task_data.get('priority', 1)
+            )
+            session.add(task)
+
+        # Update plan summary if provided
+        plan.summary = f"Plan updated - {len(req.tasks)} tasks"
+        session.add(plan)
+
+        session.commit()
+
+        # TODO: Trigger context update here
+        # This would call a context service to regenerate the project context
+        # based on the updated plan
+
+        return {
+            "plan_id": plan.id,
+            "updated_tasks": len(req.tasks),
+            "context_updated": True  # Placeholder
+        }

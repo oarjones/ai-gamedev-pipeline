@@ -3,11 +3,11 @@ import json
 import asyncio
 from datetime import datetime
 
-from gateway.app.db import db, TaskDB, ProjectDB
-from gateway.app.services.context_service import ContextService
-from gateway.app.services.unified_agent import agent as unified_agent
-from gateway.app.ws.events import manager
-from gateway.app.models.core import Envelope, EventType
+from app.db import db, TaskDB, ProjectDB
+from app.services.context_service import ContextService
+from app.services.unified_agent import agent as unified_agent
+from app.ws.events import manager
+from app.models.core import Envelope, EventType
 import logging
 
 logger = logging.getLogger(__name__)

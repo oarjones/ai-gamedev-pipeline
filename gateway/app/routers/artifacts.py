@@ -2,8 +2,8 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
 
-from gateway.app.services.artifact_service import artifact_service
-from gateway.app.models.api_responses import ArtifactResponse
+from app.services.artifact_service import artifact_service
+from app.models.api_responses import ArtifactResponse
 
 router = APIRouter()
 

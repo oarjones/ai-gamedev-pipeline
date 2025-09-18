@@ -8,7 +8,7 @@ def test_plan_generation_flow(client, sample_project):
     """Test complete plan generation flow."""
     
     # The generate endpoint is async and calls the agent, so we mock the agent
-    with patch('gateway.app.routers.plans.unified_agent', new_callable=AsyncMock) as mock_agent:
+    with patch('app.routers.plans.unified_agent', new_callable=AsyncMock) as mock_agent:
         # 1. Generate plan
         response = client.post(f"/api/v1/plans/generate?project_id={sample_project.id}")
         assert response.status_code == 200
@@ -17,7 +17,7 @@ def test_plan_generation_flow(client, sample_project):
     # 2. List plans (assuming generation is mocked and a plan is created by other means)
     # For a true integration test, we would need to wait for the agent and have it create the plan.
     # Here we just test the API endpoints can be called.
-    from gateway.app.services.task_plan_service import task_plan_service
+    from app.services.task_plan_service import task_plan_service
     task_plan_service.create_plan(sample_project.id, tasks_json=[])
 
     response = client.get(f"/api/v1/plans?project_id={sample_project.id}")
@@ -34,7 +34,7 @@ def test_plan_generation_flow(client, sample_project):
 # I will create a simple one.
 @pytest.fixture
 def sample_task(session, sample_project):
-    from gateway.app.db import TaskDB
+    from app.db import TaskDB
     task = TaskDB(project_id=sample_project.id, title="Integration Test Task", code="INT-01", task_id="INT-01")
     session.add(task)
     session.commit()

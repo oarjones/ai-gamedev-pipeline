@@ -1,6 +1,6 @@
 import json
 
-from gateway.app.services.task_plan_service import TaskPlanService
+from app.services.task_plan_service import TaskPlanService
 
 
 def _make_service():

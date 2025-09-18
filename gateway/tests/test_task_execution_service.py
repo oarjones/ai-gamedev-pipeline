@@ -6,8 +6,8 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch, AsyncMock
 
-from gateway.app.services.task_execution_service import task_execution_service
-from gateway.app.db import db, ProjectDB, TaskDB
+from app.services.task_execution_service import task_execution_service
+from app.db import db, ProjectDB, TaskDB
 
 # A more complex task setup for testing scoring and dependency logic
 TASKS_DATA = [
@@ -93,7 +93,7 @@ async def test_start_and_complete_task_cycle(project_with_task_mix):
     task_to_start = task_execution_service.get_next_available_task(project_id)
     assert task_to_start.code == "A-2"
 
-    with patch('gateway.app.services.task_execution_service.manager', new_callable=AsyncMock) as mock_manager:
+    with patch('app.services.task_execution_service.manager', new_callable=AsyncMock) as mock_manager:
         # Start the task
         started_task = await task_execution_service.start_task(task_to_start.id)
         assert started_task.status == "in_progress"
@@ -110,7 +110,7 @@ async def test_start_and_complete_task_cycle(project_with_task_mix):
         event_payload = json.loads(call_args[1])['payload']
         assert event_payload['event'] == 'task.started'
 
-    with patch('gateway.app.services.task_execution_service.manager', new_callable=AsyncMock) as mock_manager, \
+    with patch('app.services.task_execution_service.manager', new_callable=AsyncMock) as mock_manager, \
          patch.object(task_execution_service, 'start_task', new_callable=AsyncMock) as mock_start_next, \
          patch.object(task_execution_service.context_service, 'generate_context_after_task') as mock_gen_context:
 
@@ -132,7 +132,7 @@ async def test_start_and_complete_task_cycle(project_with_task_mix):
         assert event_payload['next_task'] is not None
 
 @pytest.mark.asyncio
-@patch('gateway.app.services.task_execution_service.unified_agent', new_callable=AsyncMock)
+@patch('app.services.task_execution_service.unified_agent', new_callable=AsyncMock)
 async def test_execute_task_with_agent(mock_agent, project_with_task_mix):
     project_id = project_with_task_mix
     task = task_execution_service.get_next_available_task(project_id)

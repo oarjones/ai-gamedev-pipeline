@@ -1,38 +1,11 @@
-Warning: Each child in a list should have a unique "key" prop.
-
-Check the render method of `ChatWorkspace`. See https://reactjs.org/link/warning-keys for more information.
-    at div
-    at ChatWorkspace (http://localhost:5173/src/components/dashboard/workspaces/ChatWorkspace.tsx?t=1758082942788:24:22)
-    at div
-    at div
-    at WorkspaceArea (http://localhost:5173/src/components/dashboard/WorkspaceArea.tsx?t=1758082942788:23:41)
-    at div
-    at div
-    at div
-    at NewDashboard (http://localhost:5173/src/routes/NewDashboard.tsx?t=1758082942788:25:22)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:4088:5)
-    at Outlet (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:4494:26)
-    at App (http://localhost:5173/src/App.tsx?t=1758080037545:22:20)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:4088:5)
-    at RenderErrorBoundary (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:4048:5)
-    at DataRoutes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:5239:5)
-    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:4501:15)
-    at RouterProvider (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=2ec2c951:5053:5)
-    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=2ec2c951:3024:3)
-printWarning @ react_jsx-dev-runtime.js?v=2ec2c951:64
-error @ react_jsx-dev-runtime.js?v=2ec2c951:48
-validateExplicitKey @ react_jsx-dev-runtime.js?v=2ec2c951:724
-validateChildKeys @ react_jsx-dev-runtime.js?v=2ec2c951:737
-jsxWithValidation @ react_jsx-dev-runtime.js?v=2ec2c951:846
-ChatWorkspace @ ChatWorkspace.tsx:130
-renderWithHooks @ chunk-RPCDYKBN.js?v=2ec2c951:11548
-updateFunctionComponent @ chunk-RPCDYKBN.js?v=2ec2c951:14582
-beginWork @ chunk-RPCDYKBN.js?v=2ec2c951:15924
-beginWork$1 @ chunk-RPCDYKBN.js?v=2ec2c951:19753
-performUnitOfWork @ chunk-RPCDYKBN.js?v=2ec2c951:19198
-workLoopSync @ chunk-RPCDYKBN.js?v=2ec2c951:19137
-renderRootSync @ chunk-RPCDYKBN.js?v=2ec2c951:19116
-performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=2ec2c951:18678
-workLoop @ chunk-RPCDYKBN.js?v=2ec2c951:197
-flushWork @ chunk-RPCDYKBN.js?v=2ec2c951:176
-performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=2ec2c951:384Understand this error
+ReferenceError: showAgentMessages is not defined
+    at ExecutionWorkspace (http://localhost:5173/src/components/dashboard/workspaces/ExecutionWorkspace.tsx?t=1758176845975:246:51)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:15914:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-RPCDYKBN.js?v=6aa15874:18879:28)
