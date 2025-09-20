@@ -68,7 +68,7 @@ async def resume_session(session_id: int) -> Dict[str, Any]:
         "artifacts": cp.artifacts,
     }
     # Start runner with provider and context pack
-    cwd = Path("projects") / s.project_id
+    cwd = Path("gateway/projects") / s.project_id
     try:
         rs = await agent_runner.start(cwd, provider="gemini_cli", context_pack=context_pack)  # type: ignore[arg-type]
     except Exception as e:

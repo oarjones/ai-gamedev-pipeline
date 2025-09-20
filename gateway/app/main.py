@@ -1,5 +1,12 @@
 """Main FastAPI application for AI Gateway."""
 
+import sys
+import asyncio
+
+# Set Windows event loop policy to be compatible with asyncio subprocesses
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator

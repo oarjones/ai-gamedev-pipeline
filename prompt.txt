@@ -1,40 +1,15 @@
-Tarea: Actualizar .gitignore con archivos de caché y temporales
-Contexto: Hay archivos de caché del build de TypeScript y otros temporales que no deben estar en el repo.
-Acciones requeridas:
-Agregar las siguientes líneas al archivo .gitignore:
-# TypeScript cache
-webapp/tsconfig.tsbuildinfo
-*.tsbuildinfo
+Ajustes y mejoras flujo usuario/agente y plan de desarrollo:
 
-# Python cache adicional
-**/__pycache__/
-*.py[cod]
-*$py.class
-
-# Logs temporales
-logs/*.log
-*.log
-
-# Archivos de sesión
-gateway/data/sessions/
-gateway/data/*.db-journal
-
-# IDE específicos
-.idea/
-*.swp
-*.swo
-*~
-
-# Archivos de configuración local
-.env.local
-config/settings.local.yaml
-Verificación:
-
-Ejecutar git status para ver si hay archivos que deberían ignorarse
-Eliminar del repo cualquier archivo que ya esté trackeado pero debería ignorarse
-
-Buenas prácticas:
-
-Organizar .gitignore por secciones con comentarios
-Ser específico con las rutas cuando sea posible
-Incluir patrones para diferentes sistemas operativos si es necesario
+1. 	Proyecto Unity:
+	Tras hacer prueba, cuando generamos un nuevo poryecto y se envía al agente IA la petición para que genere un plan de desarrollo, siempre como primera tarea del plan nos da las instrucciones para generar un nuevo proyecto en Unity. 
+	Hay que hacer ajustes en la plantilla/petición al agente para indicarle que el poryecto ya está creado e indicarle la ruta. Para ello hay que asegurarse que se ha creado el pryecto y la estructura de carpetas con el poryecto Unity antes de enviar la petición al agente IA
+2. Espacio de trabajo del agente IA:
+	Tras las primeras pruebas me he dado cuenta que se generan 2 espacios de trabajo:
+	1. C:\proyectos_agp\breakout -> Este espacio de trabajo se crea vacío, sin ningún contenido. Sin embargo, es el espacio de trabajo que estamso usando con el agente IA
+	2. C:\projects\ai-gamedev-pipeline\gateway\projects\breakout -> Este espacio de trabajo si tiene todo el contenido y estructura de carpetas incluido el proyecto Unity
+	Solo habría que crear un espacio de trabajo para el agente y debería estar en C:\projects\ai-gamedev-pipeline\gateway\projects. Habrá que modificar como estamos llamando al agente para que use esta ruta pcomo espacio de trabajo 
+3. Chat y contexto 
+	Hay que mejorar el chat y el contexto una vez que se ha aprobado un plan. Necesito que le des una vuelta, pero creo que los chats, una vez aprobado el plan, deben estar asociados a la tarea en ejecución y en la vista del chat solo aparecerá el chat de la tarea en ejecución (habrá que poner una etiqueta u otro objeto que indique la tarea en ejecución). Aunque se pueda buscar en el histórico de las tareas en moso solo lectura, sin permitir enviar peticiones.
+	En el contexto que se le inyecta en cada petición, tiene que quedar muy claro la tarea actual y el detalle, también apareceran las descripciones cortas de las tareas completadas y de las siguientes. Es importarle que le quede claro al agente IA que hasta que una tarea no la marquemos como compeltada, trabajaremos con ella. Es muy posible que tengamos que repensar un poco las plantillas que estamos usando en las peticiones.
+	
+Por favor, analiza estos puntos y piensa en cualquier mejora en la que no haya caídop y dame un plan de desarrollo.

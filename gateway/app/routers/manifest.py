@@ -21,11 +21,11 @@ router = APIRouter()
 
 
 def _manifest_path(project_id: str) -> Path:
-    return Path("projects") / project_id / ".agp" / "project_manifest.yaml"
+    return Path("gateway/projects") / project_id / ".agp" / "project_manifest.yaml"
 
 
 def _plan_path(project_id: str) -> Path:
-    return Path("projects") / project_id / "plan_of_record.yaml"
+    return Path("gateway/projects") / project_id / "plan_of_record.yaml"
 
 
 @router.get("/{project_id}/manifest")

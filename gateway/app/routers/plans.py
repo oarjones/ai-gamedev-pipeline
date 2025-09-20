@@ -115,8 +115,22 @@ async def get_plan_details(planId: int):
 )
 async def generate_plan(project_id: str = Query(..., alias="project_id")):
     """Generate initial plan from project manifest."""
+    # Verificar que el proyecto existe y tiene estructura Unity
+    project_dir = Path(f"gateway/projects/{project_id}")
+    unity_project_dir = project_dir / "unity_project"
+
+    if not project_dir.exists() or not unity_project_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found or Unity structure missing")
+
+    # Asegurar baseline Unity antes de generar plan
+    from app.services.projects import project_service as _ps
+    try:
+        _ps.ensure_unity_baseline(project_dir)
+    except Exception as e:
+        logger.warning(f"Failed to ensure Unity baseline: {e}")
+
     # Leer manifest del proyecto
-    manifest_path = Path(f"projects/{project_id}/.agp/project_manifest.yaml")
+    manifest_path = project_dir / ".agp" / "project_manifest.yaml"
     if not manifest_path.exists():
         # Si no hay manifest, usar uno básico
         manifest = {"type": "generic", "description": "Proyecto de desarrollo"}
@@ -124,39 +138,27 @@ async def generate_plan(project_id: str = Query(..., alias="project_id")):
         with open(manifest_path, encoding='utf-8') as f:
             manifest = yaml.safe_load(f)
     
-    # Construir prompt
-    prompt = f"""
-    Eres un planificador de desarrollo de videojuegos.
-    Genera un plan de tareas detallado para el siguiente proyecto:
-    
-    {json.dumps(manifest, indent=2, ensure_ascii=False)}
-    
-    REQUISITOS:
-    - Entre 8 y 15 tareas concretas y ejecutables
-    - Cada tarea debe incluir: code (T-001, T-002...), title, description, dependencies, mcp_tools, deliverables, acceptance_criteria, estimates (story_points, time_hours), priority
-    - Las dependencias deben referenciar códigos de tareas anteriores
-    - Usa herramientas MCP apropiadas: ["unity", "blender", "filesystem"]
-    
-    Responde SOLO con JSON válido en este formato:
-    {{
-        "tasks": [
-            {{
-                "code": "T-001",
-                "title": "...",
-                "description": "...",
-                "dependencies": [],
-                "mcp_tools": ["unity"],
-                "deliverables": ["..."],
-                "acceptance_criteria": "...",
-                "estimates": {{"story_points": 3, "time_hours": 2}},
-                "priority": 1
-            }}
-        ]
-    }}
-    """
+    # Usar el servicio de prompts actualizado
+    from app.services.prompt_service import prompt_service
+
+    # Obtener información del proyecto Unity
+    unity_project_path = f"gateway/projects/{project_id}/unity_project"
+    unity_project_name = manifest.get('name', project_id)
+
+    # Construir prompt usando el template actualizado
+    prompt = prompt_service.render_prompt(
+        "plan_generation",
+        project_type=manifest.get('type', 'generic'),
+        complexity=manifest.get('complexity', 'mvp'),
+        project_manifest=json.dumps(manifest, indent=2, ensure_ascii=False),
+        unity_project_name=unity_project_name,
+        unity_project_path=unity_project_path,
+        min_tasks=8,
+        max_tasks=15
+    )
     
     # Llamar al agente
-    cwd = Path("projects") / project_id
+    cwd = Path("gateway/projects") / project_id
     await unified_agent.start(cwd, 'gemini')
     await unified_agent.send(prompt, correlation_id="plan-generation")
     

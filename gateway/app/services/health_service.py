@@ -140,7 +140,7 @@ async def run_selftest(project_id: Optional[str] = None) -> Dict[str, Any]:
         if not active:
             st = unified_agent.status()
             active = (st.cwd or "").split("/")[-1] or None
-        cwd = Path("projects") / (active or "_selftest")
+        cwd = Path("gateway/projects") / (active or "_selftest")
         try:
             cwd.mkdir(parents=True, exist_ok=True)
         except Exception:

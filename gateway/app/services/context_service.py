@@ -218,6 +218,95 @@ class ContextService:
 
         return new_global_context
 
+    def build_enhanced_task_context(self, project_id: str, task_id: Optional[int] = None) -> Dict[str, Any]:
+        """Build enriched context with current task, completed tasks, and pending tasks."""
+        try:
+            # Get active task
+            if task_id is None:
+                task_id = self.db.get_active_task_id(project_id)
+
+            context = {
+                "project_id": project_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "current_task": None,
+                "completed_tasks": [],
+                "pending_tasks": [],
+                "task_summary": {},
+                "unity_project_info": {}
+            }
+
+            # Get current task details
+            if task_id:
+                current_task = self.db.get_task(task_id)
+                if current_task:
+                    context["current_task"] = {
+                        "id": current_task.id,
+                        "code": current_task.task_id,
+                        "title": current_task.title,
+                        "description": current_task.description,
+                        "status": current_task.status,
+                        "acceptance_criteria": current_task.acceptance,
+                        "mcp_tools": json.loads(current_task.mcp_tools or '[]'),
+                        "deliverables": json.loads(current_task.deliverables or '[]'),
+                        "dependencies": json.loads(current_task.deps_json or '[]'),
+                        "evidence": json.loads(current_task.evidence_json or '[]')
+                    }
+
+            # Get all tasks for project
+            with self.db.get_session() as session:
+                stmt = select(TaskDB).where(TaskDB.project_id == project_id).order_by(TaskDB.idx)
+                all_tasks = list(session.exec(stmt).all())
+
+            # Categorize tasks
+            completed_count = 0
+            pending_count = 0
+
+            for task in all_tasks:
+                task_summary = {
+                    "code": task.task_id,
+                    "title": task.title,
+                    "status": task.status,
+                    "description": task.description[:100] + "..." if len(task.description) > 100 else task.description
+                }
+
+                if task.status == "done":
+                    context["completed_tasks"].append(task_summary)
+                    completed_count += 1
+                elif task.status in ["pending", "in_progress"]:
+                    # Don't include current task in pending list
+                    if not task_id or task.id != task_id:
+                        context["pending_tasks"].append(task_summary)
+                    if task.status == "pending":
+                        pending_count += 1
+
+            # Task summary statistics
+            context["task_summary"] = {
+                "total_tasks": len(all_tasks),
+                "completed": completed_count,
+                "pending": pending_count,
+                "in_progress": 1 if task_id else 0,
+                "completion_percentage": round((completed_count / len(all_tasks)) * 100, 1) if all_tasks else 0
+            }
+
+            # Unity project information
+            from pathlib import Path
+            unity_project_path = Path("gateway/projects") / project_id / "unity_project"
+            context["unity_project_info"] = {
+                "path": str(unity_project_path),
+                "exists": unity_project_path.exists(),
+                "structure_ready": (unity_project_path / "Assets").exists() and (unity_project_path / "ProjectSettings").exists()
+            }
+
+            return context
+
+        except Exception as e:
+            logger.error(f"Failed to build enhanced task context: {e}")
+            return {
+                "project_id": project_id,
+                "error": f"Failed to build context: {str(e)}",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
     def generate_context_from_session(self, session_id: int) -> Dict[str, Any]:
         """Generate a context summary from session messages."""
         messages = self.db.list_agent_messages(session_id, limit=50) # Get last 50 messages

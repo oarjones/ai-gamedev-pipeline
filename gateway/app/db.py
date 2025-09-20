@@ -30,6 +30,7 @@ class ChatMessageDB(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     msg_id: str = Field(index=True, description="Unique message identifier (UUID4)")
     project_id: str = Field(index=True, description="Project ID")
+    task_id: int | None = Field(default=None, index=True, description="Task ID if message belongs to specific task")
     role: str = Field(description="Message role: user|agent|system")
     content: str = Field(description="Message content")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="UTC timestamp")
@@ -266,15 +267,31 @@ class DatabaseManager:
             session.refresh(message)
             return message
 
-    def list_chat_messages(self, project_id: str, limit: int = 50) -> List[ChatMessageDB]:
+    def list_chat_messages(self, project_id: str, limit: int = 50, task_id: int | None = None) -> List[ChatMessageDB]:
         with self.get_session() as session:
             statement = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.project_id == project_id)
-                .order_by(ChatMessageDB.created_at.desc())
-                .limit(limit)
             )
+            # Filter by task_id if provided
+            if task_id is not None:
+                statement = statement.where(ChatMessageDB.task_id == task_id)
+
+            statement = statement.order_by(ChatMessageDB.created_at.desc()).limit(limit)
             return list(session.exec(statement).all())
+
+    def get_active_task_id(self, project_id: str) -> int | None:
+        """Get the currently active task ID for a project."""
+        with self.get_session() as session:
+            # Look for tasks with status 'in_progress' first
+            statement = (
+                select(TaskDB.id)
+                .where(TaskDB.project_id == project_id, TaskDB.status == "in_progress")
+                .order_by(TaskDB.id.desc())  # Use id instead of created_at
+                .limit(1)
+            )
+            result = session.exec(statement).first()
+            return result
 
     # Timeline operations
     def add_timeline_event(self, event: TimelineEventDB) -> TimelineEventDB:

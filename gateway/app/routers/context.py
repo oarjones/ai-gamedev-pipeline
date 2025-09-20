@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -84,3 +84,22 @@ async def generate_context(
         return new_context
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/enhanced", summary="Get enhanced task context")
+async def get_enhanced_context(
+    project_id: str = Query(..., alias="project_id"),
+    task_id: Optional[int] = Query(None, description="Specific task ID (defaults to active task)")
+):
+    """Get enriched context with current task, completed tasks, and project status."""
+    try:
+        enhanced_context = context_service.build_enhanced_task_context(project_id, task_id)
+
+        return {
+            "project_id": project_id,
+            "requested_task_id": task_id,
+            "context": enhanced_context,
+            "note": "Enhanced context includes current task, progress summary, and Unity project info"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to build enhanced context: {str(e)}")

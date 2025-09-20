@@ -1,7 +1,7 @@
 import { FormEvent, useRef, useState, useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { useChatStream } from '@/lib/useChatStream'
-import { askOneShot, startAgent, getAgentStatus, systemStart } from '@/lib/api'
+import { sendChat, startAgent, getAgentStatus, systemStart } from '@/lib/api'
 import MessageList from './MessageList'
 
 export default function ChatPane() {
@@ -21,8 +21,8 @@ export default function ChatPane() {
     if (!project_id || !text.trim()) return
     setSending(true)
     try {
-      // One-shot: route via /agent/ask; server will broadcast both user and agent messages
-      await askOneShot(project_id, text.trim())
+      // Chat with wrapper: route via /chat/send; server will broadcast both user and agent messages
+      await sendChat(project_id, text.trim())
       setText('')
       inputRef.current?.focus()
     } catch (err) {

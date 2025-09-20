@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SendJob:
     project_id: str
+    session_id: str
     text: str
     correlation_id: Optional[str]
 
@@ -45,7 +46,7 @@ class ChatService:
         if self._worker_task is None or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._worker(), name="chat-worker")
 
-    async def send_user_message(self, project_id: str, text: str, correlation_id: Optional[str] = None) -> dict:
+    async def send_user_message(self, project_id: str, session_id: str, text: str, correlation_id: Optional[str] = None) -> dict:
         """Validate, enqueue user message for processing, and return ack.
 
         Returns a dict with basic metadata (msgId).
@@ -57,23 +58,52 @@ class ChatService:
         if len(text) > max_len:
             raise ValueError(f"Message exceeds max length ({max_len})")
 
-        job = SendJob(project_id=project_id, text=text, correlation_id=correlation_id)
+        job = SendJob(project_id=project_id, session_id=session_id, text=text, correlation_id=correlation_id)
         await self._queue.put(job)
         self._ensure_worker()
         msg_id = str(uuid4())
-        # Persist user message immediately
+        # Persist user message immediately against the project
         self._persist_message(project_id, "user", text, msg_id)
         # Broadcast user message to WS clients
         await self._broadcast_chat(project_id, "user", text, msg_id, correlation_id)
         return {"queued": True, "msgId": msg_id}
 
-    async def get_history(self, project_id: str, limit: Optional[int] = None) -> list[dict]:
+    async def cleanup_session(self, session_id: str) -> None:
+        """Calls the wrapper service to terminate a specific session."""
+        from app.services.gemini_wrapper_service import gemini_wrapper_service
+        logger.info(f"[ChatService] Cleaning up session: {session_id}")
+        gemini_wrapper_service.cleanup_session(session_id)
+
+    async def get_history(self, project_id: str, limit: Optional[int] = None, task_id: Optional[int] = None) -> list[dict]:
+        """Get chat history. If task_id not specified, returns messages for active task only."""
         lim = int(limit or settings.chat.history_limit_default)
-        rows = db.list_chat_messages(project_id, limit=lim)
+
+        # If no task_id specified, get active task
+        if task_id is None:
+            task_id = db.get_active_task_id(project_id)
+
+        rows = db.list_chat_messages(project_id, limit=lim, task_id=task_id)
         return [
             {
                 "msgId": r.msg_id,
                 "project_id": r.project_id,
+                "task_id": r.task_id,
+                "role": r.role,
+                "content": r.content,
+                "created_at": r.created_at.isoformat() + "Z",
+            }
+            for r in rows
+        ]
+
+    async def get_all_history(self, project_id: str, limit: Optional[int] = None) -> list[dict]:
+        """Get complete chat history for all tasks (read-only view)."""
+        lim = int(limit or settings.chat.history_limit_default)
+        rows = db.list_chat_messages(project_id, limit=lim)  # No task_id filter
+        return [
+            {
+                "msgId": r.msg_id,
+                "project_id": r.project_id,
+                "task_id": r.task_id,
                 "role": r.role,
                 "content": r.content,
                 "created_at": r.created_at.isoformat() + "Z",
@@ -85,11 +115,34 @@ class ChatService:
         while True:
             job = await self._queue.get()
             try:
-                # Send to agent CLI; background reader will stream output
-                from app.services.unified_agent import agent as unified_agent
-                await unified_agent.send(job.text, correlation_id=job.correlation_id)
+                logger.info(f"[ChatService] *** CHAT WORKER STARTED *** for project {job.project_id}, session {job.session_id}, text: {job.text[:50]}...")
+
+                from app.services.gemini_wrapper_service import gemini_wrapper_service
+
+                logger.info(f"[ChatService] Using Gemini wrapper for session {job.session_id}")
+
+                # Stream response chunks and broadcast each one
+                response_chunks = []
+                logger.info(f"[ChatService] About to call wrapper.send_message() for session {job.session_id}")
+                async for chunk in gemini_wrapper_service.send_message(job.session_id, job.text):
+                    if chunk.strip():
+                        response_chunks.append(chunk)
+                        # Broadcast each chunk as it arrives
+                        await self.on_agent_output_line(job.project_id, chunk, job.correlation_id)
+
+                # If no chunks were received, send a fallback response
+                if not response_chunks:
+                    logger.warning(f"[ChatService] No response chunks received from wrapper for session {job.session_id}")
+                    await self.on_agent_output_line(job.project_id, "No response received from Gemini", job.correlation_id)
+                else:
+                    logger.info(f"[ChatService] Successfully received {len(response_chunks)} chunks from wrapper for session {job.session_id}")
             except Exception as e:
-                logger.error("Chat worker error: %s", e)
+                logger.error("Chat worker error: %s", e, exc_info=True)
+                # Send error message to user
+                try:
+                    await self.on_agent_output_line(job.project_id, f"Error: {str(e)}", job.correlation_id)
+                except Exception as broadcast_error:
+                    logger.error("Failed to broadcast error message: %s", broadcast_error)
             finally:
                 self._queue.task_done()
 
@@ -112,10 +165,14 @@ class ChatService:
 
     def _persist_message(self, project_id: str, role: str, content: str, msg_id: str) -> None:
         try:
+            # Get active task ID for this project
+            active_task_id = db.get_active_task_id(project_id)
+
             db.add_chat_message(
                 ChatMessageDB(
                     msg_id=msg_id,
                     project_id=project_id,
+                    task_id=active_task_id,  # Associate with active task
                     role=role,
                     content=content,
                 )

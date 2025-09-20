@@ -67,7 +67,7 @@ async def start_agent(payload: dict | None = None, project_id: str | None = None
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{pid}' not found"
         )
-    cwd = Path("projects") / project.id
+    cwd = Path("gateway/projects") / project.id
     try:
         logger.info("[/agent/start] project=%s provider=%s agentType=%s cwd=%s", project.id, provider, agent_type, str(cwd))
         status_obj = await unified_agent.start(cwd, agent_type)

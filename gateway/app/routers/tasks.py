@@ -41,7 +41,7 @@ async def list_tasks(project_id: str = Query(..., alias="project_id")) -> List[D
 
 @router.post("/import")
 async def import_tasks(project_id: str = Query(..., alias="project_id")) -> Dict[str, Any]:
-    por = Path("projects") / project_id / "plan_of_record.yaml"
+    por = Path("gateway/projects") / project_id / "plan_of_record.yaml"
     if not por.exists():
         raise HTTPException(status_code=404, detail="plan_of_record.yaml not found")
     try:
@@ -78,7 +78,7 @@ async def propose_steps(id: int) -> Dict[str, Any]:
     if not t:
         raise HTTPException(status_code=404, detail="task not found")
     # Build concise prompt to propose steps
-    manifest_p = Path("projects") / t.project_id / ".agp" / "project_manifest.yaml"
+    manifest_p = Path("gateway/projects") / t.project_id / ".agp" / "project_manifest.yaml"
     manifest = {}
     if manifest_p.exists() and yaml:
         try:
@@ -91,7 +91,7 @@ async def propose_steps(id: int) -> Dict[str, Any]:
         f"Tarea: {json.dumps({'id': t.task_id, 'title': t.title, 'desc': t.description, 'acceptance': t.acceptance}, ensure_ascii=False)}\n\n"
         f"Manifest: {json.dumps(manifest, ensure_ascii=False)}"
     )
-    cwd = Path("projects") / t.project_id
+    cwd = Path("gateway/projects") / t.project_id
     corr = f"task-steps-{t.task_id}"
     try:
         await unified_agent.start(cwd, "gemini")
@@ -153,7 +153,7 @@ async def verify_acceptance(id: int) -> Dict[str, Any]:
         "Responde SOLO JSON: { acceptance_met: boolean, notes: string }\n\n"
         f"Tarea: {json.dumps({'id': t.task_id, 'title': t.title, 'desc': t.description, 'acceptance': t.acceptance}, ensure_ascii=False)}"
     )
-    cwd = Path("projects") / t.project_id
+    cwd = Path("gateway/projects") / t.project_id
     corr = f"task-verify-{t.task_id}"
     try:
         await unified_agent.start(cwd, "gemini")

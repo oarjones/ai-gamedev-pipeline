@@ -107,7 +107,7 @@ class ToolsRegistry:
         pre = {"path": str(abs_path), "existed": abs_path.exists(), "backup_path": None}
         try:
             if abs_path.exists():
-                backup_dir = Path("projects") / project_id / "context" / "backups"
+                backup_dir = Path("gateway/projects") / project_id / "context" / "backups"
                 backup_dir.mkdir(parents=True, exist_ok=True)
                 backup_path = backup_dir / f"{uuid4().hex}_{abs_path.name}"
                 shutil.copy2(abs_path, backup_path)

@@ -67,7 +67,7 @@ webapp/tsconfig.tsbuildinfo
 *.tsbuildinfo
 
 # Datos Locales (No versionar BBDD locales)
-#gateway/data/gateway.db
+gateway/data/gateway.db
 
 # Archivos de sesión
 gateway/data/sessions/
@@ -150,3 +150,6 @@ commit-msg.txt
 # templates
 templates/
 venvs/
+
+# Dependencias de terceros
+third_party/

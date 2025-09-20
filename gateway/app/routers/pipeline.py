@@ -101,7 +101,7 @@ async def pipeline_start(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         default_agent = (cfg.get("agents", {}) or {}).get("default") or "gemini"
         agent = agent_type or default_agent
-        cwd = Path("projects") / project_id
+        cwd = Path("gateway/projects") / project_id
         st = await unified_agent.start(cwd, agent)
         step("agent-start", bool(st.running), f"{agent}")
     except Exception as e:

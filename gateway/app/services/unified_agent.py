@@ -38,16 +38,13 @@ class UnifiedAgent:
         self._openai: Optional[dict] = None
         self._claude: Optional[dict] = None
         self._last_error: Optional[str] = None
-        # Base dir for one-shot sessions
+        # Base dir for one-shot sessions - use gateway/projects as single workspace
         try:
             cfg = get_all(mask_secrets=False) or {}
-            # Prefer explicit project_dir_base if provided, else fall back
-            self.project_base_dir: str = (
-                str(cfg.get("project_dir_base"))
-                or str((cfg.get("projects") or {}).get("root") or "projects")
-            )
+            # Always use project_dir_base if configured, ensuring single workspace
+            self.project_base_dir: str = str(cfg.get("project_dir_base") or "gateway/projects")
         except Exception:
-            self.project_base_dir = "projects"
+            self.project_base_dir = "gateway/projects"
 
     async def start(self, cwd: Path, agent_type: str) -> AgentStatus:
         at = (agent_type or "gemini").lower()

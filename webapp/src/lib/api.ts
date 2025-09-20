@@ -113,9 +113,10 @@ export async function getAgentStatus() {
   return apiGet<{ running: boolean, pid?: number, cwd?: string, agentType?: string, lastError?: string }>('/api/v1/agent/status')
 }
 
-export async function sendChat(project_id: string, text: string): Promise<void> {
+export async function sendChat(project_id: string, session_id: string, text: string): Promise<void> {
   const url = new URL('/api/v1/chat/send', BASE)
   url.searchParams.set('project_id', project_id)
+  url.searchParams.set('session_id', session_id)
   const res = await fetch(url.toString(), {
     method: 'POST',
     headers: {
@@ -128,6 +129,10 @@ export async function sendChat(project_id: string, text: string): Promise<void> 
     const msg = await res.text().catch(() => '')
     throw new Error(`sendChat ${res.status}: ${msg}`)
   }
+}
+
+export async function newChatSession(session_id: string): Promise<void> {
+  await apiPost('/api/v1/chat/new', { session_id });
 }
 
 export async function askOneShot(sessionId: string, question: string): Promise<{ sessionId: string, answer?: string | null, stderr?: string | null }> {

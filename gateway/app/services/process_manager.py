@@ -186,7 +186,7 @@ class ProcessManager:
         project_path = proc_cfg.get("project_path")
         if not project_path and project_id:
             # Prefer subfolder 'unity_project' if exists inside project root
-            root = Path("projects") / project_id
+            root = Path("gateway/projects") / project_id
             unity_sub = root / "unity_project"
             project_path = str(unity_sub if unity_sub.exists() else root)
         if project_path:

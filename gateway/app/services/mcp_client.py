@@ -90,7 +90,7 @@ class MCPClient:
         env: Dict[str, str] = {}
         if not project_id:
             return env
-        pj = Path("projects") / project_id / ".agp" / "project.json"
+        pj = Path("gateway/projects") / project_id / ".agp" / "project.json"
         try:
             data = json.loads(pj.read_text(encoding="utf-8"))
             agent_env = (data.get("agent", {}) or {}).get("env", {})  # type: ignore
@@ -208,7 +208,7 @@ class MCPClient:
                 return await self.get_scene_hierarchy(project_id)
             if name == "blender.export_fbx":
                 # Default output path under per-project unity_project
-                default_out = str(Path("projects") / project_id / "unity_project" / "Assets" / "Generated" / "agent_export.fbx")
+                default_out = str(Path("gateway/projects") / project_id / "unity_project" / "Assets" / "Generated" / "agent_export.fbx")
                 return await self.export_fbx(str(args.get("outfile", default_out)), project_id)
             if name == "blender.create_primitive":
                 return await self.create_primitive(str(args.get("type", "cube")), float(args.get("size", 1.0)), None, project_id)

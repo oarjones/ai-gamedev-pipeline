@@ -139,6 +139,8 @@ class PromptService:
                 {"name": "project_type", "type": "string", "default": "generic"},
                 {"name": "complexity", "type": "string", "default": "mvp"},
                 {"name": "project_manifest", "type": "object"},
+                {"name": "unity_project_name", "type": "string", "default": "Proyecto sin nombre"},
+                {"name": "unity_project_path", "type": "string", "default": "ruta_no_especificada"},
                 {"name": "min_tasks", "type": "integer", "default": 8},
                 {"name": "max_tasks", "type": "integer", "default": 15}
             ],
@@ -148,6 +150,13 @@ Complejidad: {complexity}
 
 MANIFEST DEL PROYECTO:
 {project_manifest}
+
+INFORMACION DEL PROYECTO UNITY YA CREADO:
+- Nombre del proyecto: {unity_project_name}
+- Ruta local del proyecto: {unity_project_path}
+- Estado: El proyecto de Unity YA ESTA COMPLETAMENTE CREADO con toda la estructura de carpetas (Assets/, Scripts/, Scenes/, etc.)
+- Estructura disponible: Assets/Scripts, Assets/Materials, Assets/Textures, Assets/Prefabs, Assets/Scenes, Assets/Editor, ProjectSettings, Packages
+- IMPORTANTE: NO incluyas tareas para "Crear proyecto Unity" o "Configurar estructura inicial". El workspace esta listo para desarrollo.
 
 Genera un plan de desarrollo con entre {min_tasks} y {max_tasks} tareas.
 
@@ -161,6 +170,12 @@ Cada tarea debe incluir:
 - acceptance_criteria: Criterios de aceptación claros
 - estimates: story_points (1-13) y time_hours
 - priority: 1-5
+
+RESTRICCIONES IMPORTANTES:
+- NO incluyas tareas de creacion del proyecto Unity (ya existe)
+- NO incluyas tareas de configuracion inicial de estructura (ya esta hecha)
+- Enfocate en tareas de desarrollo de contenido, gameplay, y funcionalidades especificas
+- Las primeras tareas deben ser verificacion/inspeccion del proyecto existente si es relevante
 
 Responde SOLO con JSON válido:
 {json_schema}""",
@@ -184,4 +199,5 @@ Responde SOLO con JSON válido:
             with open(template_file, 'w', encoding='utf-8') as f:
                 yaml.dump(plan_template, f, allow_unicode=True)
 
+# Create global instance (will be loaded fresh with updated templates)
 prompt_service = PromptService()

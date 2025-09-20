@@ -120,40 +120,47 @@ class TaskExecutionService:
         if not task:
             raise ValueError(f"Task {task_id} not found")
         
-        # Build context
-        global_context = self.context_service.get_active_context(task.project_id, 'global')
-        task_context = self.context_service.get_active_context(
-            task.project_id, 
-            'task', 
-            task_id
-        )
-        
-        mcp_tools = json.loads(task.mcp_tools or '[]')
-        deliverables = json.loads(task.deliverables or '[]')
-        
-        prompt = f"""
-        CONTEXTO GLOBAL DEL PROYECTO:
-        {json.dumps(global_context, indent=2, ensure_ascii=False)}
-        
-        TAREA ACTUAL: {task.code} - {task.title}
-        Descripción: {task.description}
-        
-        CRITERIOS DE ACEPTACIÓN:
-        {task.acceptance}
-        
-        HERRAMIENTAS MCP SUGERIDAS: {', '.join(mcp_tools)}
-        
-        ENTREGABLES ESPERADOS:
-        {json.dumps(deliverables, indent=2, ensure_ascii=False)}
-        
-        {f"CONTEXTO DE TAREA ANTERIOR: {json.dumps(task_context, indent=2, ensure_ascii=False)}" if task_context else ""}
-        
+        # Build enhanced context with comprehensive task information
+        enhanced_context = self.context_service.build_enhanced_task_context(task.project_id, task_id)
+
+        # Use enhanced prompt template
+        from app.services.prompt_service import prompt_service
+
+        task_instructions = f"""
         Por favor, ejecuta esta tarea paso a paso, usando las herramientas MCP necesarias.
         Documenta cada paso y verifica que se cumplan los criterios de aceptación.
+
+        IMPORTANTE: Esta tarea está actualmente en estado '{task.status}'. Continúa trabajando
+        en ella hasta que esté completamente terminada y pueda marcarse como 'done'.
         """
+
+        try:
+            prompt = prompt_service.render_prompt(
+                "task_execution_enhanced",
+                project_id=task.project_id,
+                enhanced_context=enhanced_context,
+                task_instructions=task_instructions
+            )
+        except Exception as e:
+            # Fallback to basic prompt if template fails
+            logger.warning(f"Failed to use enhanced template: {e}, falling back to basic prompt")
+            prompt = f"""
+            CONTEXTO ENRIQUECIDO DEL PROYECTO:
+            {json.dumps(enhanced_context, indent=2, ensure_ascii=False)}
+
+            TAREA ACTUAL: {task.task_id} - {task.title}
+            Estado: {task.status}
+            Descripción: {task.description}
+
+            CRITERIOS DE ACEPTACIÓN:
+            {task.acceptance}
+
+            IMPORTANTE: Continúa trabajando en esta tarea hasta completarla.
+            {task_instructions}
+            """
         
         from pathlib import Path
-        cwd = Path("projects") / task.project_id
+        cwd = Path("gateway/projects") / task.project_id
         
         if not unified_agent.status().running:
             await unified_agent.start(cwd, 'gemini')
@@ -191,7 +198,7 @@ class TaskExecutionService:
         """
         
         from pathlib import Path
-        cwd = Path("projects") / task.project_id
+        cwd = Path("gateway/projects") / task.project_id
         
         if not unified_agent.status().running:
             await unified_agent.start(cwd, 'gemini')

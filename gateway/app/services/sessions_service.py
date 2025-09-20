@@ -76,7 +76,7 @@ class SessionsService:
 
     # ---- context pack ----
     def build_context_pack(self, project_id: str, recent_messages: int = 10, session_id: Optional[int] = None) -> ContextPack:
-        proj_dir = Path("projects") / project_id
+        proj_dir = Path("gateway/projects") / project_id
         manifest = None
         por = None
         try:

@@ -1,40 +1,69 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { askOneShot, listChatMessages, ChatMessage } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { sendChat, newChatSession, ChatMessage } from '@/lib/api';
 
 export default function ChatWorkspace() {
   const project_id = useAppStore((s) => s.project_id);
+  const [sessionId, setSessionId] = useState('');
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<Array<ChatMessage | any>>([]);
   const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: initialMessages, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['chatHistory', project_id],
-    queryFn: () => listChatMessages(project_id!),
-    enabled: !!project_id,
-  });
+  // --- WebSocket Connection ---
+  const wsPath = project_id ? `/ws/events?project_id=${project_id}` : null;
+  const { lastMessage } = useWebSocket(wsPath);
 
-  // Effect to load initial history
+  // Effect to handle incoming WebSocket messages
   useEffect(() => {
-    if (initialMessages) {
-      const mappedMessages = initialMessages.map(m => ({
-        ...m,
-        role: m.role === 'agent' ? 'assistant' : m.role,
-      })).reverse(); // reverse to show oldest first
-      setChatHistory(mappedMessages);
+    if (lastMessage && lastMessage.type === 'chat') {
+      const newMsg = lastMessage.payload;
+      setChatHistory(prev => {
+        // Replace thinking placeholder with the actual message
+        const existing = prev.find(m => m.id === 'thinking-placeholder');
+        if (existing) {
+          return prev.map(m => 
+            m.id === 'thinking-placeholder' 
+            ? { ...newMsg, id: crypto.randomUUID(), role: 'assistant' } 
+            : m
+          );
+        } else {
+          // Or append if no placeholder is present (e.g., for multi-part responses)
+          return [...prev, { ...newMsg, id: crypto.randomUUID(), role: 'assistant' }];
+        }
+      });
+      setIsThinking(false);
     }
-  }, [initialMessages]);
+  }, [lastMessage]);
+
+  // Effect to create a new session ID when the project changes
+  useEffect(() => {
+    if (project_id) {
+      console.log("New project selected, creating new chat session.");
+      handleNewConversation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project_id]);
 
   // Effect to scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
+  const handleNewConversation = async () => {
+    if (sessionId) {
+      console.log(`Cleaning up old session: ${sessionId}`);
+      await newChatSession(sessionId).catch(err => console.error("Failed to clean up old session:", err));
+    }
+    const newId = crypto.randomUUID();
+    console.log(`Creating new session: ${newId}`);
+    setSessionId(newId);
+    setChatHistory([]);
+  };
+
   const handleSendMessage = async () => {
-    if (!message.trim() || !project_id || isThinking) return;
+    if (!message.trim() || !project_id || !sessionId || isThinking) return;
 
     const userMessage = {
       id: crypto.randomUUID(),
@@ -48,7 +77,7 @@ export default function ChatWorkspace() {
         id: 'thinking-placeholder',
         msg_id: 'thinking-placeholder',
         role: 'assistant-thinking' as const,
-        content: "Estamos trabajando en ello guey",
+        content: "", // No text needed for the thinking indicator
         created_at: new Date().toISOString()
     };
 
@@ -59,29 +88,8 @@ export default function ChatWorkspace() {
     setMessage('');
 
     try {
-      const response = await askOneShot(project_id, messageToSend);
-      
-      setChatHistory(prev => prev.filter(m => m.id !== 'thinking-placeholder'));
-
-      if (response.answer) {
-        const agentMessage = {
-            id: crypto.randomUUID(),
-            msg_id: crypto.randomUUID(),
-            role: 'assistant' as const,
-            content: response.answer,
-            created_at: new Date().toISOString()
-        };
-        setChatHistory(prev => [...prev, agentMessage]);
-      } else {
-        const errorMessage = {
-            id: crypto.randomUUID(),
-            msg_id: crypto.randomUUID(),
-            role: 'assistant' as const,
-            content: `Lo siento, ha ocurrido un error: ${response.stderr || 'Respuesta no obtenida.'}`,
-            created_at: new Date().toISOString()
-        };
-        setChatHistory(prev => [...prev, errorMessage]);
-      }
+      await sendChat(project_id, sessionId, messageToSend);
+      // The WebSocket will now handle the response.
     } catch (error) {
       console.error("Failed to send message:", error);
       setChatHistory(prev => prev.filter(m => m.id !== 'thinking-placeholder'));
@@ -93,21 +101,27 @@ export default function ChatWorkspace() {
         created_at: new Date().toISOString()
       };
       setChatHistory(prev => [...prev, errorMessage]);
-    } finally {
-        setIsThinking(false);
+      setIsThinking(false);
     }
   };
 
   return (
     <div className="flex-1 flex flex-col bg-white h-full">
+      {/* Header with New Conversation button */}
+      <div className="flex items-center justify-between border-b border-gray-200 p-3">
+        <h2 className="text-lg font-semibold text-gray-700">Chat del Asistente</h2>
+        <button 
+          onClick={handleNewConversation}
+          disabled={!project_id}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+        >
+          Nueva Conversación
+        </button>
+      </div>
+
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {(isLoadingHistory && chatHistory.length === 0) && (
-            <div className="flex-1 flex items-center justify-center">
-                <p>Loading history...</p>
-            </div>
-        )}
-        {(chatHistory.length === 0 && !isLoadingHistory) ? (
+        {(chatHistory.length === 0) ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">
               <ChatBotIcon className="w-16 h-16 text-blue-300 mx-auto mb-4" />
@@ -115,19 +129,8 @@ export default function ChatWorkspace() {
                 ¡Hola! Soy tu asistente de IA
               </h3>
               <p className="text-gray-500 mb-6">
-                Estoy aquí para ayudarte a planificar, desarrollar y resolver problemas en tu proyecto de videojuego.
+                Comienza una nueva conversación o haz una pregunta para empezar.
               </p>
-              <div className="grid grid-cols-1 gap-2 text-sm">
-                <button className="p-3 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
-                  💡 "¿Cómo puedo mejorar las mecánicas de mi juego?"
-                </button>
-                <button className="p-3 text-left bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors">
-                  🎮 "Ayúdame a generar un plan de desarrollo"
-                </button>
-                <button className="p-3 text-left bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors">
-                  🚀 "¿Qué tareas debería priorizar?"
-                </button>
-              </div>
             </div>
           </div>
         ) : (
@@ -146,7 +149,6 @@ export default function ChatWorkspace() {
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                         </div>
-                        <p className="text-sm leading-relaxed mt-2 italic text-gray-500">{msg.content}</p>
                     </div>
                   </div>
                 )
@@ -238,43 +240,9 @@ export default function ChatWorkspace() {
   );
 }
 
-// Icons
-function ChatBotIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M17.5,12A1.5,1.5 0 0,1 16,10.5A1.5,1.5 0 0,1 17.5,9A1.5,1.5 0 0,1 19,10.5A1.5,1.5 0 0,1 17.5,12M10.5,12A1.5,1.5 0 0,1 9,10.5A1.5,1.5 0 0,1 10.5,9A1.5,1.5 0 0,1 12,10.5A1.5,1.5 0 0,1 10.5,12M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7H15L13.5,7.5C13.1,4.04 11.36,3 10,3H8C5.24,3 3,5.24 3,8V16L7,20H17C19.76,20 22,17.76 22,15V12C22,10.9 21.1,10 20,10H18V9A1,1 0 0,1 19,8H21M20,15A2,2 0 0,1 18,17H8L5,14V8A2,2 0 0,1 7,6H9V8A2,2 0 0,0 11,10H20V15Z" />
-    </svg>
-  );
-}
-
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" />
-    </svg>
-  );
-}
-
-function SendIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" />
-    </svg>
-  );
-}
-
-function AttachIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M7.5,18A5.5,5.5 0 0,1 2,12.5A5.5,5.5 0 0,1 7.5,7H18A4,4 0 0,1 22,11A4,4 0 0,1 18,15H9.5A2.5,2.5 0 0,1 7,12.5A2.5,2.5 0 0,1 9.5,10H17V11.5H9.5A1,1 0 0,0 8.5,12.5A1,1 0 0,0 9.5,13.5H18A2.5,2.5 0 0,0 20.5,11A2.5,2.5 0 0,0 18,8.5H7.5A4,4 0 0,0 3.5,12.5A4,4 0 0,0 7.5,16.5H17V18H7.5Z" />
-    </svg>
-  );
-}
-
-function EmojiIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7H15L13.5,7.5C13.1,4.04 11.36,3 10,3H8C5.24,3 3,5.24 3,8V16L7,20H17C19.76,20 22,17.76 22,15V12C22,10.9 21.1,10 20,10H18V9A1,1 0 0,1 19,8H21M12,17.5C10.07,17.5 8.5,15.93 8.5,14H15.5C15.5,15.93 13.93,17.5 12,17.5M8.5,11A1.5,1.5 0 0,0 10,9.5A1.5,1.5 0 0,0 8.5,8A1.5,1.5 0 0,0 7,9.5A1.5,1.5 0 0,0 8.5,11M15.5,11A1.5,1.5 0 0,0 17,9.5A1.5,1.5 0 0,0 15.5,8A1.5,1.5 0 0,0 14,9.5A1.5,1.5 0 0,0 15.5,11Z" />
-    </svg>
-  );
-}
+// Icons (omitted for brevity)
+function ChatBotIcon({ className }: { className?: string }) { return (<svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M17.5,12A1.5,1.5 0 0,1 16,10.5A1.5,1.5 0 0,1 17.5,9A1.5,1.5 0 0,1 19,10.5A1.5,1.5 0 0,1 17.5,12M10.5,12A1.5,1.5 0 0,1 9,10.5A1.5,1.5 0 0,1 10.5,9A1.5,1.5 0 0,1 12,10.5A1.5,1.5 0 0,1 10.5,12M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7H15L13.5,7.5C13.1,4.04 11.36,3 10,3H8C5.24,3 3,5.24 3,8V16L7,20H17C19.76,20 22,17.76 22,15V12C22,10.9 21.1,10 20,10H18V9A1,1 0 0,1 19,8H21M20,15A2,2 0 0,1 18,17H8L5,14V8A2,2 0 0,1 7,6H9V8A2,2 0 0,0 11,10H20V15Z" /></svg>); }
+function UserIcon({ className }: { className?: string }) { return (<svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" /></svg>); }
+function SendIcon({ className }: { className?: string }) { return (<svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" /></svg>); }
+function AttachIcon({ className }: { className?: string }) { return (<svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M7.5,18A5.5,5.5 0 0,1 2,12.5A5.5,5.5 0 0,1 7.5,7H18A4,4 0 0,1 22,11A4,4 0 0,1 18,15H9.5A2.5,2.5 0 0,1 7,12.5A2.5,2.5 0 0,1 9.5,10H17V11.5H9.5A1,1 0 0,0 8.5,12.5A1,1 0 0,0 9.5,13.5H18A2.5,2.5 0 0,0 20.5,11A2.5,2.5 0 0,0 18,8.5H7.5A4,4 0 0,0 3.5,12.5A4,4 0 0,0 7.5,16.5H17V18H7.5Z" /></svg>); }
+function EmojiIcon({ className }: { className?: string }) { return (<svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7H15L13.5,7.5C13.1,4.04 11.36,3 10,3H8C5.24,3 3,5.24 3,8V16L7,20H17C19.76,20 22,17.76 22,15V12C22,10.9 21.1,10 20,10H18V9A1,1 0 0,1 19,8H21M12,17.5C10.07,17.5 8.5,15.93 8.5,14H15.5C15.5,15.93 13.93,17.5 12,17.5M8.5,11A1.5,1.5 0 0,0 10,9.5A1.5,1.5 0 0,0 8.5,8A1.5,1.5 0 0,0 7,9.5A1.5,1.5 0 0,0 8.5,11M15.5,11A1.5,1.5 0 0,0 17,9.5A1.5,1.5 0 0,0 15.5,8A1.5,1.5 0 0,0 14,9.5A1.5,1.5 0 0,0 15.5,11Z" /></svg>); }

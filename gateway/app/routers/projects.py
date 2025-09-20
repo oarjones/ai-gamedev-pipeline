@@ -132,7 +132,7 @@ async def select_active_project(project_id: str) -> JSONResponse:
             # Ensure baseline Unity files (version, packages, plugins)
             try:
                 from app.services.projects import project_service as _ps
-                _ps.ensure_unity_baseline(Path("projects") / new_proj.id)
+                _ps.ensure_unity_baseline(Path("gateway/projects") / new_proj.id)
             except Exception:
                 pass
             # Start Unity + Bridges before agent to ensure connectivity
